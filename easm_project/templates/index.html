@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>EASM Scanner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .card {
+            background-color: #1e293b;
+            border: none;
+        }
+
+        .btn-primary {
+            background-color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">🚀 Automated EASM Scanner</h1>
+
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card p-4">
+                    <form action="/scan" method="POST">
+                        <label class="form-label">Target Domain</label>
+                        <input type="text" name="domain" class="form-control mb-3"
+                            placeholder="e.g. testphp.vulnweb.com" required>
+                        <button type="submit" class="btn btn-primary w-100">Start Recon Scan</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="mt-5">📜 Scan History</h3>
+        <table class="table table-dark table-hover mt-3">
+            <thead>
+                <tr>
+                    <th>Target</th>
+                    <th>Date</th>
+                    <th>Vulns Found</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scan in history %}
+                <tr>
+                    <td>{{ scan.target }}</td>
+                    <td>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><span class="badge bg-danger">{{ scan.stats.vulns }}</span></td>
+                    <td><a href="/report/{{ scan._id }}" class="btn btn-sm btn-outline-info">View Report</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>
