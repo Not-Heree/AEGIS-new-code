@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}ARES - About{% endblock %}
+
+{% block extra_css %}
+<style>
+    .about-header {
+        text-align: center;
+        padding: 3rem 0;
+    }
+
+    .about-logo {
+        font-size: 4rem;
+        font-weight: 800;
+        background: var(--ares-gradient);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 1rem;
+    }
+
+    .about-subtitle {
+        font-size: 1.25rem;
+        color: var(--ares-text-muted);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .about-section {
+        padding: 2rem 0;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-title i {
+        color: var(--ares-primary);
+    }
+
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .feature-card {
+        background: var(--ares-card);
+        border: 1px solid var(--ares-border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-3px);
+        border-color: var(--ares-primary);
+    }
+
+    .feature-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .feature-icon.purple {
+        background: rgba(99, 102, 241, 0.15);
+        color: var(--ares-primary);
+    }
+
+    .feature-icon.cyan {
+        background: rgba(34, 211, 238, 0.15);
+        color: var(--ares-secondary);
+    }
+
+    .feature-icon.green {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .feature-icon.red {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    .feature-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .feature-desc {
+        font-size: 0.9rem;
+        color: var(--ares-text-muted);
+        line-height: 1.6;
+    }
+
+    .tool-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--ares-darker);
+        border: 1px solid var(--ares-border);
+        border-radius: 8px;
+        margin: 0.25rem;
+        font-size: 0.85rem;
+    }
+
+    .tool-badge i {
+        color: var(--ares-secondary);
+    }
+
+    .version-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: var(--ares-gradient);
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .info-box {
+        background: rgba(99, 102, 241, 0.1);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .info-box h4 {
+        color: var(--ares-primary);
+        margin-bottom: 1rem;
+    }
+
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: transparent;
+        border: 1px solid var(--ares-border);
+        border-radius: 10px;
+        color: var(--ares-text-muted);
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+
+    .back-btn:hover {
+        background: var(--ares-card);
+        border-color: var(--ares-primary);
+        color: var(--ares-text);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="about-header">
+        <div class="about-logo">
+            <i class="bi bi-shield-check"></i> ARES
+        </div>
+        <p class="about-subtitle">
+            Automated Remediation & Enumeration System — A comprehensive
+            External Attack Surface Management (EASM) platform for security professionals.
+        </p>
+    </div>
+
+    <!-- Features Section -->
+    <section class="about-section">
+        <h2 class="section-title">
+            <i class="bi bi-stars"></i> Core Features
+        </h2>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon purple">
+                    <i class="bi bi-diagram-3"></i>
+                </div>
+                <h3 class="feature-title">Asset Discovery</h3>
+                <p class="feature-desc">
+                    Passive subdomain enumeration using Subfinder to map your
+                    complete external attack surface without alerting targets.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon cyan">
+                    <i class="bi bi-hdd-network"></i>
+                </div>
+                <h3 class="feature-title">Deep Port Scanning</h3>
+                <p class="feature-desc">
+                    Comprehensive port scanning with Naabu covering the top 1000 ports
+                    to discover hidden services and non-standard configurations.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon green">
+                    <i class="bi bi-globe2"></i>
+                </div>
+                <h3 class="feature-title">Live Detection</h3>
+                <p class="feature-desc">
+                    HTTP/HTTPS service probing with HTTPX to identify live web
+                    applications, technologies, and server configurations.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon red">
+                    <i class="bi bi-bug"></i>
+                </div>
+                <h3 class="feature-title">Vulnerability Scanning</h3>
+                <p class="feature-desc">
+                    Template-based vulnerability detection using Nuclei covering
+                    all severity levels: Critical, High, Medium, Low, and Info.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tools Section -->
+    <section class="about-section">
+        <h2 class="section-title">
+            <i class="bi bi-tools"></i> Powered By
+        </h2>
+
+        <div class="mb-4">
+            <span class="tool-badge"><i class="bi bi-box"></i> Subfinder</span>
+            <span class="tool-badge"><i class="bi bi-box"></i> Naabu</span>
+            <span class="tool-badge"><i class="bi bi-box"></i> HTTPX</span>
+            <span class="tool-badge"><i class="bi bi-box"></i> Nuclei</span>
+            <span class="tool-badge"><i class="bi bi-box"></i> Flask</span>
+            <span class="tool-badge"><i class="bi bi-box"></i> MongoDB</span>
+            <span class="tool-badge"><i class="bi bi-box"></i> Bootstrap 5</span>
+        </div>
+    </section>
+
+    <!-- Remediation Section -->
+    <section class="about-section">
+        <h2 class="section-title">
+            <i class="bi bi-wrench"></i> Automated Remediation
+        </h2>
+
+        <p class="mb-3">
+            ARES includes a static knowledge base with {{ stats.total_entries | default('40+') }}
+            vulnerability remediations mapped to MITRE ATT&CK techniques.
+        </p>
+
+        <div class="info-box">
+            <h4><i class="bi bi-database me-2"></i> Knowledge Base Statistics</h4>
+            <ul class="mb-0">
+                <li><strong>Total Entries:</strong> {{ stats.total_entries | default('40+') }}</li>
+                <li><strong>Critical Vulns:</strong> {{ stats.by_severity.critical | default(9) }}</li>
+                <li><strong>High Vulns:</strong> {{ stats.by_severity.high | default(11) }}</li>
+                <li><strong>MITRE Techniques:</strong> {{ stats.unique_mitre_techniques | default(15) }}+</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Version -->
+    <section class="about-section text-center">
+        <span class="version-badge">v1.0.0 — FYP Build</span>
+        <p class="mt-3 text-muted">
+            &copy; {{ current_year }} ARES - Final Year Project
+        </p>
+        <a href="{{ url_for('index') }}" class="back-btn mt-3">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </section>
+</div>
+{% endblock %}
