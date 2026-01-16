@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Scan History | ARES{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="display-6 fw-bold mb-2">Scan History</h1>
+            <p class="text-muted">Archive of all past security assessments.</p>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-2"></i>New Scan
+        </a>
+    </div>
+
+    <div class="card bg-card border-ares">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-dark mb-0 align-middle">
+                    <thead class="bg-darker text-muted text-uppercase small">
+                        <tr>
+                            <th class="ps-4 py-3">Scan Target</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Findings</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for scan in history %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold text-light">{{ scan.target_domain }}</div>
+                                <div class="small text-muted font-mono">{{ scan._id }}</div>
+                            </td>
+                            <td>
+                                <div class="text-light">{{ scan.created_at.strftime('%b %d, %Y') }}</div>
+                                <div class="small text-muted">{{ scan.created_at.strftime('%H:%M') }}</div>
+                            </td>
+                            <td>
+                                {% if scan.status == 'completed' %}
+                                <span class="badge bg-success bg-opacity-10 text-success">
+                                    <i class="bi bi-check-circle me-1"></i> Completed
+                                </span>
+                                {% elif scan.status == 'failed' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger">
+                                    <i class="bi bi-x-circle me-1"></i> Failed
+                                </span>
+                                {% else %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary">
+                                    <i class="bi bi-arrow-repeat spin me-1"></i> Running
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-danger" title="Critical/High">{{
+                                        (scan.statistics.critical_count|default(0)) +
+                                        (scan.statistics.high_count|default(0)) }} Critical</span>
+                                    <span class="text-muted small">{{ scan.statistics.total_vulnerabilities|default(0)
+                                        }} total</span>
+                                </div>
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group">
+                                    <a href="{{ url_for('report', scan_id=scan._id) }}"
+                                        class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    <a href="{{ url_for('download_pdf', scan_id=scan._id) }}"
+                                        class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-file-earmark-pdf"></i> PDF
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <i class="bi bi-clock-history display-4 mb-3 d-block"></i>
+                                No scan history found. Start a new scan!
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-card {
+        background-color: var(--ares-card);
+    }
+
+    .bg-darker {
+        background-color: rgba(0, 0, 0, 0.2);
+    }
+
+    .border-ares {
+        border: 1px solid var(--ares-border);
+    }
+
+    .spin {
+        animation: spin 2s linear infinite;
+    }
+</style>
+{% endblock %}

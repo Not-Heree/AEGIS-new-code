@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ARES Report - {{ scan.target_domain }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 12px;
+            color: #333;
+        }
+
+        .page {
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border-bottom: 2px solid #6366f1;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #6366f1;
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .meta {
+            color: #666;
+            font-size: 10px;
+            margin-top: 5px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            background: #f3f4f6;
+            padding: 10px;
+            border-left: 4px solid #6366f1;
+            font-size: 16px;
+            margin: 0 0 15px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th,
+        td {
+            padding: 8px 12px;
+            border: 1px solid #e5e7eb;
+            text-align: left;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        /* Stats Grid - using Table for PDF safety */
+        .stats-table td {
+            text-align: center;
+            width: 25%;
+            background: #f8fafc;
+        }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0f172a;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .vuln-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            page-break-inside: avoid;
+        }
+
+        .vuln-header {
+            padding: 10px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .vuln-title {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .vuln-meta {
+            font-size: 10px;
+            font-family: monospace;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .vuln-body {
+            padding: 10px;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+            display: inline-block;
+        }
+
+        .bg-critical {
+            background: #dc2626;
+        }
+
+        .bg-high {
+            background: #ea580c;
+        }
+
+        .bg-medium {
+            background: #0891b2;
+        }
+
+        .bg-low {
+            background: #64748b;
+        }
+
+        .bg-info {
+            background: #94a3b8;
+        }
+
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div class="header">
+            <h1>Security Assessment Report</h1>
+            <div class="meta">
+                Target: <strong>{{ scan.target_domain }}</strong> |
+                Scan ID: {{ scan._id }} |
+                Generated: {{ generated_at }}
+            </div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="section">
+            <h2>Executive Summary</h2>
+            <table class="stats-table">
+                <tr>
+                    <td>
+                        <span class="stat-val">{{ statistics.total_assets }}</span>
+                        <span class="stat-label">Assets</span>
+                    </td>
+                    <td>
+                        <span class="stat-val">{{ statistics.total_ports }}</span>
+                        <span class="stat-label">Ports</span>
+                    </td>
+                    <td>
+                        <span class="stat-val">{{ statistics.total_live_urls }}</span>
+                        <span class="stat-label">Live URLs</span>
+                    </td>
+                    <td>
+                        <span class="stat-val">{{ statistics.total_vulnerabilities }}</span>
+                        <span class="stat-label">Vulns</span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Vulnerabilities -->
+        <div class="section">
+            <h2>Vulnerability Findings</h2>
+            {% if vulnerabilities %}
+            {% for vuln in vulnerabilities %}
+            <div class="vuln-item">
+                <div class="vuln-header">
+                    <table style="margin:0; border:none; width:100%;">
+                        <tr style="border:none;">
+                            <td style="border:none; padding:0;">
+                                <div class="vuln-title">{{ vuln.name }}</div>
+                                <div class="vuln-meta">{{ vuln.template_id }}</div>
+                            </td>
+                            <td style="border:none; padding:0; text-align:right; width:80px;">
+                                <span class="badge bg-{{ vuln.severity }}">{{ vuln.severity|upper }}</span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="vuln-body">
+                    <p><strong>Location:</strong> <span class="vuln-meta">{{ vuln.matched_at }}</span></p>
+
+                    {% if vuln.mitre_id %}
+                    <p><strong>MITRE ID:</strong> {{ vuln.mitre_id }}</p>
+                    {% endif %}
+
+                    {% if vuln.fix %}
+                    <div style="margin-top:10px;">
+                        <strong>Remediation:</strong>
+                        <div
+                            style="background:#f0fdf4; color:#166534; padding:8px; margin-top:5px; border:1px solid #bbf7d0; font-size:11px;">
+                            {{ vuln.fix }}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if vuln.curl_command %}
+                    <div style="margin-top:10px;">
+                        <strong>Evidence:</strong>
+                        <div class="code-block">{{ vuln.curl_command }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div style="padding:20px; text-align:center; color:#666;">
+                No vulnerabilities were detected during this scan.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Assets List (Truncated) -->
+        <div class="section">
+            <h2>Discovered Assets (Top 50)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Subdomain</th>
+                        <th>Ports</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asset in assets[:50] %}
+                    <tr>
+                        <td>{{ asset.subdomain }}</td>
+                        <td>
+                            {% if asset.ports %}
+                            {% for p in asset.ports %}
+                            {{ p.port }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div
+            style="text-align:center; margin-top:50px; color:#999; font-size:10px; border-top:1px solid #eee; padding-top:10px;">
+            Generated by ARES EASM Scanner
+        </div>
+    </div>
+</body>
+
+</html>

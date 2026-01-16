@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 text-center">
+            <h1 class="display-4 fw-bold mb-4">
+                Automated <span class="text-primary-ares">Attack Surface</span> Scanner
+            </h1>
+            <p class="lead text-muted mb-5">
+                Discover assets, find open ports, and identify vulnerabilities with a single click.
+            </p>
+
+            <div class="card bg-card border-ares mb-5 text-start shadow-lg">
+                <div class="card-body p-4">
+                    <form action="/scan" method="POST">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Target Domain</label>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text bg-dark border-ares text-muted">
+                                <i class="bi bi-globe"></i>
+                            </span>
+                            <input type="text" name="domain" class="form-control bg-dark border-ares text-light py-2"
+                                placeholder="e.g. example.com" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
+                            <i class="bi bi-rocket-takeoff me-2"></i> Launch Scanner
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="row g-4 text-start">
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-diagram-2 text-info fs-4 me-2"></i>
+                        <h6 class="mb-0">Asset Discovery</h6>
+                    </div>
+                    <p class="small text-muted">Enumerates subdomains using Subfinder.</p>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-ethernet text-warning fs-4 me-2"></i>
+                        <h6 class="mb-0">Port Scanning</h6>
+                    </div>
+                    <p class="small text-muted">Identifies open ports with Naabu.</p>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-shield-check text-danger fs-4 me-2"></i>
+                        <h6 class="mb-0">Vuln Scanning</h6>
+                    </div>
+                    <p class="small text-muted">Detects CVEs and misconfigs via Nuclei.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-card {
+        background-color: var(--ares-card);
+    }
+
+    .border-ares {
+        border-color: var(--ares-border) !important;
+    }
+</style>
+{% endblock %}

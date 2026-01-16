@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - {{ scan.target_domain }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">{{ scan.target_domain }}</h1>
+            <p class="text-muted small mb-0">Scan ID: <span class="font-mono">{{ scan._id }}</span> | {{
+                scan.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="showView('overview')">
+                <i class="bi bi-grid-1x2 me-1"></i> Dashboard
+            </button>
+            <a href="{{ url_for('download_pdf', scan_id=scan._id) }}" class="btn btn-primary">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards (Tabs) -->
+    <div class="row g-3 mb-4">
+        <!-- 1. Assets Card -->
+        <div class="col-md-3">
+            <div class="card bg-card border-ares h-100 cursor-pointer tab-card active-tab" id="card-assets"
+                onclick="showView('assets')">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="icon-sq bg-info bg-opacity-10 text-info me-3">
+                            <i class="bi bi-globe"></i>
+                        </div>
+                        <h6 class="card-title mb-0 text-muted">Total Assets</h6>
+                    </div>
+                    <h2 class="mb-0">{{ statistics.total_assets }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Open Ports Card -->
+        <div class="col-md-3">
+            <div class="card bg-card border-ares h-100 cursor-pointer tab-card" id="card-ports"
+                onclick="showView('ports')">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="icon-sq bg-warning bg-opacity-10 text-warning me-3">
+                            <i class="bi bi-diagram-3"></i>
+                        </div>
+                        <h6 class="card-title mb-0 text-muted">Open Ports</h6>
+                    </div>
+                    <h2 class="mb-0">{{ statistics.total_ports }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Live URLs Card -->
+        <div class="col-md-3">
+            <div class="card bg-card border-ares h-100 cursor-pointer tab-card" id="card-urls"
+                onclick="showView('urls')">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="icon-sq bg-success bg-opacity-10 text-success me-3">
+                            <i class="bi bi-link-45deg"></i>
+                        </div>
+                        <h6 class="card-title mb-0 text-muted">Live URLs</h6>
+                    </div>
+                    <h2 class="mb-0">{{ statistics.total_live_urls }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Vulnerabilities Card -->
+        <div class="col-md-3">
+            <div class="card bg-card border-ares h-100 cursor-pointer tab-card" id="card-vulns"
+                onclick="showView('vulns')">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="icon-sq bg-danger bg-opacity-10 text-danger me-3">
+                            <i class="bi bi-bug"></i>
+                        </div>
+                        <h6 class="card-title mb-0 text-muted">Vulnerabilities</h6>
+                    </div>
+                    <h2 class="mb-0">{{ statistics.total_vulnerabilities }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT AREA -->
+    <div id="content-area">
+
+        <!-- VIEW: OVERVIEW (Default Split View) -->
+        <div id="view-overview" class="view-section">
+            <div class="row g-4">
+                <!-- LEFT COL: Subdomains (30%) -->
+                <div class="col-lg-4">
+                    <div class="card bg-card border-ares h-100">
+                        <div
+                            class="card-header bg-transparent border-ares d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Assets</h5>
+                            <span class="badge bg-secondary">{{ assets|length }}</span>
+                        </div>
+                        <div class="card-body p-0 scrollable-col">
+                            <div class="list-group list-group-flush">
+                                {% for asset in assets %}
+                                <div class="list-group-item bg-transparent border-ares text-light p-3">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div class="fw-bold font-mono text-info small text-break">{{ asset.subdomain }}
+                                        </div>
+                                    </div>
+
+                                    <!-- Ports Badges -->
+                                    {% if asset.ports %}
+                                    <div class="mb-1">
+                                        {% for p in asset.ports %}
+                                        <span class="badge bg-warning text-dark me-1 mb-1 font-mono"
+                                            style="font-size: 0.7rem;">{{ p.port }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- URL Badges -->
+                                    {% if asset.live_urls %}
+                                    <div class="small">
+                                        {% for u in asset.live_urls %}
+                                        <span
+                                            class="badge bg-success bg-opacity-25 text-success border border-success me-1 mb-1">
+                                            <i class="bi bi-link-45deg"></i> HTTP
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                <div class="p-4 text-center text-muted">No assets found.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COL: Vulnerabilities (70%) -->
+                <div class="col-lg-8">
+                    <div class="card bg-card border-ares h-100">
+                        <div
+                            class="card-header bg-transparent border-ares d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="bi bi-shield-exclamation me-2"></i>Security Findings</h5>
+                            <div class="severity-legend">
+                                <span class="badge bg-critical me-1">Critical</span>
+                                <span class="badge bg-high me-1">High</span>
+                                <span class="badge bg-medium me-1">Medium</span>
+                                <span class="badge bg-low">Low</span>
+                            </div>
+                        </div>
+                        <div class="card-body p-0 scrollable-col">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-dark mb-0 align-middle">
+                                    <thead class="bg-darker">
+                                        <tr>
+                                            <th style="width: 100px;">Severity</th>
+                                            <th>Vulnerability</th>
+                                            <th>Location</th>
+                                            <th style="width: 100px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for vuln in vulnerabilities %}
+                                        <tr>
+                                            <td><span class="badge w-100 py-2 bg-{{ vuln.severity }}">{{
+                                                    vuln.severity|upper }}</span></td>
+                                            <td>
+                                                <div class="fw-bold">{{ vuln.name }}</div>
+                                                <div class="small text-muted font-mono">{{ vuln.template_id }}</div>
+                                            </td>
+                                            <td>
+                                                <div class="font-mono small text-break" style="max-width: 300px;">{{
+                                                    vuln.matched_at }}</div>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
+                                                    data-bs-target="#vulnDetailModal{{ loop.index }}">Details</button>
+                                            </td>
+                                        </tr>
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center py-5 text-muted">No vulnerabilities
+                                                found.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: ASSETS (Full List) -->
+        <div id="view-assets" class="view-section d-none">
+            <div class="card bg-card border-ares h-100">
+                <div class="card-header bg-transparent border-ares">
+                    <h5 class="mb-0"><i class="bi bi-globe me-2"></i>All Assets</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead class="bg-darker">
+                                <tr>
+                                    <th>Subdomain</th>
+                                    <th>Total Ports</th>
+                                    <th>Total URLs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in assets %}
+                                <tr>
+                                    <td class="font-mono text-info fw-bold">{{ asset.subdomain }}</td>
+                                    <td><span class="badge bg-warning text-dark">{{ asset.ports|length }}</span></td>
+                                    <td><span class="badge bg-success">{{ asset.live_urls|length }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: PORTS (Full List) -->
+        <div id="view-ports" class="view-section d-none">
+            <div class="card bg-card border-ares h-100">
+                <div class="card-header bg-transparent border-ares">
+                    <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Open Ports Registry</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead class="bg-darker">
+                                <tr>
+                                    <th>Subdomain</th>
+                                    <th>Port</th>
+                                    <th>Protocol</th>
+                                    <th>Service</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in assets %}
+                                {% for p in asset.ports %}
+                                <tr>
+                                    <td class="font-mono text-info">{{ asset.subdomain }}</td>
+                                    <td><span class="badge bg-warning text-dark font-mono">{{ p.port }}</span></td>
+                                    <td class="text-muted small text-uppercase">{{ p.protocol|default('tcp') }}</td>
+                                    <td class="text-muted small">Unknown</td>
+                                </tr>
+                                {% endfor %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: URLS (Full List) -->
+        <div id="view-urls" class="view-section d-none">
+            <div class="card bg-card border-ares h-100">
+                <div class="card-header bg-transparent border-ares">
+                    <h5 class="mb-0"><i class="bi bi-link-45deg me-2"></i>Live Web Services</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead class="bg-darker">
+                                <tr>
+                                    <th>URL</th>
+                                    <th>Status Code</th>
+                                    <th>Title</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in assets %}
+                                {% for u in asset.live_urls %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ u.url }}" target="_blank"
+                                            class="text-success text-decoration-none font-mono">
+                                            {{ u.url }} <i class="bi bi-box-arrow-up-right small ms-1"></i>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {% if u.status_code %}
+                                        <span class="badge bg-secondary">{{ u.status_code }}</span>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="small text-muted">{{ u.title or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW: VULNS (Full List) -->
+        <div id="view-vulns" class="view-section d-none">
+            <div class="card bg-card border-ares h-100">
+                <div class="card-header bg-transparent border-ares">
+                    <h5 class="mb-0"><i class="bi bi-bug me-2"></i>All Vulnerabilities</h5>
+                </div>
+                <!-- Reuse the same table from overview component logic mostly -->
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-dark mb-0 align-middle">
+                            <thead class="bg-darker">
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Name</th>
+                                    <th>Matched At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vuln in vulnerabilities %}
+                                <tr>
+                                    <td><span class="badge w-100 py-2 bg-{{ vuln.severity }}">{{ vuln.severity|upper
+                                            }}</span></td>
+                                    <td>
+                                        <div class="fw-bold">{{ vuln.name }}</div>
+                                        <div class="small text-muted font-mono">{{ vuln.template_id }}</div>
+                                    </td>
+                                    <td class="font-mono small">{{ vuln.matched_at }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
+                                            data-bs-target="#vulnDetailModal{{ loop.index }}">Details</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- VULNERABILITY DETAIL MODALS -->
+{% for vuln in vulnerabilities %}
+<div class="modal fade" id="vulnDetailModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-card border-ares" style="font-family: 'Segoe UI', sans-serif;">
+            <div class="modal-body p-5">
+                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-4"
+                    data-bs-dismiss="modal" aria-label="Close"></button>
+
+                <div class="mb-4">
+                    <span class="d-inline-block border border-light rounded-pill px-3 py-1 mb-2 fw-bold"
+                        style="border-width: 2px !important; letter-spacing: 1px;">ARES</span>
+                    <h4 class="mb-1 fw-light">Remediation Guide</h4>
+                    <div class="text-uppercase fw-bold text-{{ vuln.severity }}">
+                        SEVERITY: <span class="text-white">{{ vuln.severity|upper }}</span>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-inline-block border border-light rounded-pill px-3 py-1 mb-2 fw-bold text-uppercase"
+                        style="border-width: 2px !important;">DESCRIPTION:</div>
+                    <div class="border border-secondary rounded-3 p-3 bg-dark bg-opacity-50">
+                        <p class="mb-0 text-light">{{ vuln.description or 'No description provided.' }}</p>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-inline-block border border-light rounded-pill px-3 py-1 mb-2 fw-bold"
+                        style="border-width: 2px !important;">How to fix:</div>
+                    <div class="border border-secondary rounded-3 p-3 bg-dark bg-opacity-50">
+                        <div class="text-light">{{ vuln.fix or 'See vendor documentation.' }}</div>
+                    </div>
+                </div>
+
+                {% if vuln.matched_at %}
+                <div class="mb-3">
+                    <div class="small text-muted mb-1 text-uppercase fw-bold">Evidence / Location:</div>
+                    <code
+                        class="d-block p-2 bg-black rounded border border-secondary text-break text-success">{{ vuln.matched_at }}</code>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+
+<style>
+    .bg-card {
+        background-color: var(--ares-card);
+    }
+
+    .bg-darker {
+        background-color: rgba(0, 0, 0, 0.2);
+    }
+
+    .border-ares {
+        border: 1px solid var(--ares-border);
+    }
+
+    .icon-sq {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    /* Tab Active State */
+    .tab-card {
+        transition: all 0.2s;
+        border-width: 1px;
+    }
+
+    .active-tab {
+        border-color: var(--ares-primary) !important;
+        background-color: rgba(99, 102, 241, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .tab-card:hover {
+        transform: translateY(-2px);
+        border-color: #64748b;
+    }
+
+    .scrollable-col {
+        height: 600px;
+        overflow-y: auto;
+    }
+
+    .bg-critical {
+        background-color: #dc2626 !important;
+        color: white;
+    }
+
+    .bg-high {
+        background-color: #ea580c !important;
+        color: white;
+    }
+
+    .bg-medium {
+        background-color: #0891b2 !important;
+        color: white;
+    }
+
+    .bg-low {
+        background-color: #64748b !important;
+        color: white;
+    }
+
+    .bg-info {
+        background-color: #3b82f6 !important;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showView(viewName) {
+        // 1. Hide all sections
+        document.querySelectorAll('.view-section').forEach(el => el.classList.add('d-none'));
+
+        // 2. Show target section
+        const target = document.getElementById('view-' + viewName);
+        if (target) target.classList.remove('d-none');
+
+        // 3. Update tabs active state
+        document.querySelectorAll('.tab-card').forEach(el => el.classList.remove('active-tab'));
+        if (viewName !== 'overview') {
+            const activeCard = document.getElementById('card-' + viewName);
+            if (activeCard) activeCard.classList.add('active-tab');
+        }
+    }
+
+    // Default to overview on load
+    document.addEventListener('DOMContentLoaded', () => {
+        showView('overview');
+    });
+</script>
+{% endblock %}

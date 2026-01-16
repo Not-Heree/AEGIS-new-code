@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Scanning {{ domain }} | ARES{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card bg-darker border-ares mb-4">
+                <div class="card-body text-center p-5">
+                    <h1 class="display-5 fw-bold mb-3">
+                        Scanning <span class="text-primary-ares">{{ domain }}</span>
+                    </h1>
+                    <p class="lead text-muted mb-4">
+                        ARES is analyzing the attack surface.
+                    </p>
+
+                    <div class="progress mb-4" style="height: 25px;">
+                        <div id="scanProgress"
+                            class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                            role="progressbar" style="width: 0%"></div>
+                    </div>
+
+                    <div id="statusBadge" class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 mb-4"
+                        style="font-size: 1.2rem;">
+                        <i class="bi bi-gear-wide-connected spin me-2"></i>
+                        <span id="phaserText">Initializing...</span>
+                    </div>
+
+                    <!-- Simplified Status Output -->
+                    <div class="text-start p-3 rounded"
+                        style="background-color: rgba(255,255,255,0.05); min-height: 100px;">
+                        <h6 class="text-uppercase text-muted small fw-bold mb-2">Current Activity</h6>
+                        <div id="logTerminal" class="font-mono text-light">
+                            <!-- JS will append simple status lines here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-darker {
+        background-color: var(--ares-card);
+    }
+
+    .border-ares {
+        border: 1px solid var(--ares-border);
+    }
+
+    .spin {
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        100% {
+            -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const scanId = "{{ scan_id }}";
+        const progressBar = document.getElementById('scanProgress');
+        const phaserText = document.getElementById('phaserText');
+        const logTerminal = document.getElementById('logTerminal');
+        const statusBadge = document.getElementById('statusBadge');
+
+        let lastPhase = "";
+
+        function addLog(message) {
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const line = document.createElement('div');
+            line.className = 'log-line mb-1';
+            line.innerHTML = `<span class="text-muted small">[${time}]</span> ${message}`;
+            logTerminal.appendChild(line);
+            logTerminal.scrollTop = logTerminal.scrollHeight;
+        }
+
+        const poller = setInterval(() => {
+            fetch(`/api/scan/${scanId}/status`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+
+                    // Update Progress
+                    progressBar.style.width = data.progress + "%";
+                    phaserText.textContent = data.message || "Running...";
+
+                    // Log change
+                    if (data.current_phase !== lastPhase) {
+                        addLog(`> Executing: <strong class="text-info">${data.current_phase}</strong>`);
+                        lastPhase = data.current_phase;
+                    }
+
+                    if (data.status === 'completed') {
+                        clearInterval(poller);
+                        progressBar.classList.remove('progress-bar-animated');
+                        progressBar.classList.add('bg-success');
+                        statusBadge.className = "badge bg-success bg-opacity-10 text-success px-3 py-2 mb-4";
+                        phaserText.textContent = "Scan Completed!";
+                        addLog("> <span class='text-success'>Scan finished successfully. Redirecting...</span>");
+
+                        setTimeout(() => {
+                            window.location.href = `/report/${scanId}`;
+                        }, 2000);
+                    } else if (data.status === 'failed') {
+                        clearInterval(poller);
+                        progressBar.classList.add('bg-danger');
+                        statusBadge.className = "badge bg-danger bg-opacity-10 text-danger px-3 py-2 mb-4";
+                        phaserText.textContent = "Scan Failed";
+                        addLog("> <span class='text-danger'>Critical Error: Scan failed. Check server logs.</span>");
+                    }
+                })
+                .catch(err => {
+                    console.error("Poll error:", err);
+                    addLog("> <span class='text-danger'>Connection error... retrying in 2s</span>");
+                });
+        }, 2000);
+    });
+</script>
+{% endblock %}
