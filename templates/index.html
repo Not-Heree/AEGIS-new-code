@@ -1,68 +1,144 @@
 {% extends "base.html" %}
 
+{% block title %}AEGIS - External Attack Surface Scanner{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* =====================================================
+       AEGIS Landing Page - Minimalist "Search Engine" Style
+       ===================================================== */
+
+    /* Override navbar for landing page - minimal branding */
+    .landing-nav {
+        background: transparent !important;
+        border-bottom: none !important;
+        backdrop-filter: none !important;
+    }
+
+    /* Center content vertically */
+    .landing-container {
+        min-height: calc(100vh - 140px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    /* Main heading */
+    .landing-title {
+        font-size: 3.5rem;
+        font-weight: 700;
+        letter-spacing: -1px;
+        margin-bottom: 2rem;
+    }
+
+    /* Search-style input */
+    .search-input {
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .search-input .form-control {
+        background-color: var(--aegis-card);
+        border: 2px solid var(--aegis-border);
+        border-radius: 50px;
+        padding: 1rem 1.5rem;
+        font-size: 1.1rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .search-input .form-control:focus {
+        border-color: var(--aegis-primary);
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+        background-color: var(--aegis-card);
+    }
+
+    .search-input .form-control::placeholder {
+        color: var(--aegis-text-muted);
+    }
+
+    /* Start Scan Button */
+    .btn-scan {
+        background: linear-gradient(135deg, var(--aegis-primary), var(--aegis-primary-dark));
+        border: none;
+        border-radius: 50px;
+        padding: 0.8rem 2.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-scan:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+    }
+
+    /* Feature pills */
+    .feature-pills {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 3rem;
+    }
+
+    .feature-pill {
+        background-color: var(--aegis-card);
+        border: 1px solid var(--aegis-border);
+        border-radius: 50px;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        color: var(--aegis-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .feature-pill i {
+        color: var(--aegis-primary);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-6 text-center">
-            <h1 class="display-4 fw-bold mb-4">
-                Automated <span class="text-primary-ares">Attack Surface</span> Scanner
-            </h1>
-            <p class="lead text-muted mb-5">
-                Discover assets, find open ports, and identify vulnerabilities with a single click.
-            </p>
+<div class="container landing-container">
+    <div class="text-center">
+        <!-- Logo & Title -->
+        <h1 class="landing-title">
+            <span class="brand-text">AEGIS</span> <span class="text-white">SCAN</span>
+        </h1>
 
-            <div class="card bg-card border-ares mb-5 text-start shadow-lg">
-                <div class="card-body p-4">
-                    <form action="/scan" method="POST">
-                        <label class="form-label text-muted small fw-bold text-uppercase">Target Domain</label>
-                        <div class="input-group mb-3">
-                            <span class="input-group-text bg-dark border-ares text-muted">
-                                <i class="bi bi-globe"></i>
-                            </span>
-                            <input type="text" name="domain" class="form-control bg-dark border-ares text-light py-2"
-                                placeholder="e.g. example.com" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100 py-2 fw-bold">
-                            <i class="bi bi-rocket-takeoff me-2"></i> Launch Scanner
-                        </button>
-                    </form>
-                </div>
+        <!-- Domain Input Form -->
+        <form action="/scan" method="POST" class="search-input mx-auto mb-4">
+            <input type="text" name="domain" class="form-control text-light text-center"
+                placeholder="Enter Target Domain (e.g., example.com)" required autocomplete="off" autofocus>
+        </form>
+
+        <!-- Start Scan Button (linked to form) -->
+        <button type="submit" form="scan-form" class="btn btn-primary btn-scan"
+            onclick="this.closest('div').querySelector('form').submit()">
+            <i class="bi bi-search me-2"></i> Start Scan
+        </button>
+
+        <!-- Feature Pills -->
+        <div class="feature-pills">
+            <div class="feature-pill">
+                <i class="bi bi-diagram-2"></i>
+                <span>Subdomain Discovery</span>
             </div>
-
-            <div class="row g-4 text-start">
-                <div class="col-md-4">
-                    <div class="d-flex align-items-center mb-2">
-                        <i class="bi bi-diagram-2 text-info fs-4 me-2"></i>
-                        <h6 class="mb-0">Asset Discovery</h6>
-                    </div>
-                    <p class="small text-muted">Enumerates subdomains using Subfinder.</p>
-                </div>
-                <div class="col-md-4">
-                    <div class="d-flex align-items-center mb-2">
-                        <i class="bi bi-ethernet text-warning fs-4 me-2"></i>
-                        <h6 class="mb-0">Port Scanning</h6>
-                    </div>
-                    <p class="small text-muted">Identifies open ports with Naabu.</p>
-                </div>
-                <div class="col-md-4">
-                    <div class="d-flex align-items-center mb-2">
-                        <i class="bi bi-shield-check text-danger fs-4 me-2"></i>
-                        <h6 class="mb-0">Vuln Scanning</h6>
-                    </div>
-                    <p class="small text-muted">Detects CVEs and misconfigs via Nuclei.</p>
-                </div>
+            <div class="feature-pill">
+                <i class="bi bi-ethernet"></i>
+                <span>Port Scanning</span>
+            </div>
+            <div class="feature-pill">
+                <i class="bi bi-globe"></i>
+                <span>Web Probing</span>
+            </div>
+            <div class="feature-pill">
+                <i class="bi bi-shield-exclamation"></i>
+                <span>Vulnerability Detection</span>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-    .bg-card {
-        background-color: var(--ares-card);
-    }
-
-    .border-ares {
-        border-color: var(--ares-border) !important;
-    }
-</style>
 {% endblock %}

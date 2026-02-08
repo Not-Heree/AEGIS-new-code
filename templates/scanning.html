@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Scanning {{ domain }} | ARES{% endblock %}
+{% block title %}Scanning {{ domain }} | AEGIS{% endblock %}
 
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-lg-8">
-            <div class="card bg-darker border-ares mb-4">
+            <div class="card bg-card border-aegis mb-4">
                 <div class="card-body text-center p-5">
                     <h1 class="display-5 fw-bold mb-3">
-                        Scanning <span class="text-primary-ares">{{ domain }}</span>
+                        Scanning <span class="text-primary-aegis">{{ domain }}</span>
                     </h1>
                     <p class="lead text-muted mb-4">
-                        ARES is analyzing the attack surface.
+                        AEGIS is analyzing the attack surface.
                     </p>
 
                     <div class="progress mb-4" style="height: 25px;">
@@ -48,12 +48,12 @@
 </div>
 
 <style>
-    .bg-darker {
-        background-color: var(--ares-card);
+    .bg-card {
+        background-color: var(--aegis-card);
     }
 
-    .border-ares {
-        border: 1px solid var(--ares-border);
+    .border-aegis {
+        border: 1px solid var(--aegis-border);
     }
 
     .spin {

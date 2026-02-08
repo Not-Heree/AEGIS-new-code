@@ -14,3 +14,15 @@ tools/*.zip
 
 # Ignore Database Data (If local)
 data/
+
+# Ignore tools directory
+tools/
+
+# Ignore verify_full_system.py
+verify_full_system.py
+
+# Ignore QA_CHECKLIST.md
+QA_CHECKLIST.md
+
+# Ignore check_system.py
+check_system.py

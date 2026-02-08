@@ -1,0 +1,155 @@
+================================================================================
+                    AEGIS MANUAL QA CHECKLIST
+================================================================================
+Date: _______________
+Tester: _______________
+
+This checklist verifies the User Interface is functioning correctly.
+Complete each step and mark [✓] when passed or [✗] when failed.
+
+================================================================================
+PART 1: BROWSER TEST
+================================================================================
+
+1.1 [ ] Start the Flask application:
+        Command: python app.py
+        Expected: Server starts on http://127.0.0.1:5000/
+
+1.2 [ ] Open browser and navigate to:
+        URL: http://127.0.0.1:5000/
+
+================================================================================
+PART 2: LANDING PAGE VISUAL CHECK
+================================================================================
+
+2.1 [ ] AEGIS Logo:
+        - Logo text "AEGIS" is visible in top-left corner
+        - Logo has gradient/colored styling
+
+2.2 [ ] Search Engine Layout:
+        - Large "AEGIS SCAN" heading is centered on page
+        - Single input field is prominent and centered
+        - "Start Scan" button is visible below input
+
+2.3 [ ] Navigation:
+        - "New Scan" link is present
+        - "History" link is present
+        - "About" link is present
+
+2.4 [ ] Feature Pills:
+        - "Subdomain Discovery" pill is visible
+        - "Port Scanning" pill is visible
+        - "Web Probing" pill is visible
+        - "Vulnerability Detection" pill is visible
+
+================================================================================
+PART 3: FUNCTIONAL TEST - SCAN EXECUTION
+================================================================================
+
+3.1 [ ] Input Test Domain:
+        Enter: testphp.vulnweb.com
+        (This is a safe, intentionally vulnerable test site)
+
+3.2 [ ] Click "Start Scan" button
+
+3.3 [ ] Scanning Page:
+        - Progress bar animates
+        - Status shows current phase (Subfinder/Naabu/HTTPX/Nuclei)
+        - Activity log updates with timestamps
+
+3.4 [ ] Wait for scan completion:
+        - Progress bar reaches 100%
+        - Status shows "Completed"
+        - Page auto-redirects to Dashboard/Report
+
+================================================================================
+PART 4: DASHBOARD VERIFICATION
+================================================================================
+
+4.1 [ ] Header Section:
+        - "AEGIS Report" title is visible
+        - Target domain (testphp.vulnweb.com) is displayed
+        - "New Scan" button is present
+        - "Export PDF" button is present
+
+4.2 [ ] Statistics Cards (ROW OF 3):
+
+        CARD 1 - Assets Found:
+        [ ] Label shows "Assets Found"
+        [ ] Number is displayed (should be > 0)
+        Actual value: _______________
+
+        CARD 2 - Open Ports:
+        [ ] Label shows "Open Ports"
+        [ ] Number is displayed
+        Actual value: _______________
+
+        CARD 3 - Vulnerabilities Found:
+        [ ] Label shows "Vulnerabilities Found"
+        [ ] Number is displayed (should be > 0 for vulnweb.com)
+        Actual value: _______________
+
+4.3 [ ] Vulnerability Table:
+        - Table header shows: ID, Name, Severity, Location, Action
+        - At least one vulnerability row is displayed
+        - Severity badges are color-coded (Critical=red, High=orange, etc.)
+
+================================================================================
+PART 5: REMEDIATION MODAL (CRITICAL TEST)
+================================================================================
+
+5.1 [ ] Locate "Fix" Button:
+        - Find the "Fix" button in the Action column of any vulnerability row
+
+5.2 [ ] Click "Fix" Button:
+        - Modal popup appears with smooth animation
+
+5.3 [ ] Modal Content Verification:
+        [ ] Header shows "AEGIS Remediation Guide"
+        [ ] Severity badge is displayed with correct color
+        [ ] Vulnerability name is displayed
+        [ ] MITRE ATT&CK ID is shown (if available)
+        [ ] Description section has text content
+        [ ] "How to Fix" section has a code block with fix instructions
+
+5.4 [ ] Close Modal:
+        [ ] Click "Close" button or click outside modal
+        [ ] Modal closes properly
+
+================================================================================
+PART 6: ADDITIONAL FEATURES
+================================================================================
+
+6.1 [ ] History Page:
+        - Navigate to History page
+        - Previous scan is listed with timestamp
+        - "View" and "PDF" buttons are functional
+
+6.2 [ ] PDF Export:
+        - Click "Export PDF" on a completed scan
+        - PDF downloads successfully
+        - PDF contains scan data and styling
+
+================================================================================
+SUMMARY
+================================================================================
+
+Total Checks: 30
+Passed:  _____ / 30
+Failed:  _____ / 30
+
+Critical Issues Found:
+1. ________________________________________________________________
+2. ________________________________________________________________
+3. ________________________________________________________________
+
+Notes:
+______________________________________________________________________
+______________________________________________________________________
+______________________________________________________________________
+
+Tester Signature: _________________________ Date: _______________
+
+================================================================================
+                           END OF QA CHECKLIST
+================================================================================

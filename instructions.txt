@@ -1,0 +1,89 @@
+MASTER PROJECT SPECIFICATION: AEGIS (Automated EASM & Remediation System)
+Role: You are a Senior Principal Software Engineer.
+Project Name: AEGIS.
+Goal: Build a production-grade EASM dashboard that looks professional and runs flawlessly.
+Top Priority: The code must be highly readable, heavily commented, and perfectly structured.
+
+1. UI/UX Design Specifications (Strict Adherence to Wireframes)
+Generate HTML/CSS matching these 3 views exactly, using Bootstrap 5:
+
+View 1: The Landing Page (index.html)
+Layout: Minimalist "Search Engine" style.
+Elements:
+Top Left: "AEGIS" logo text.
+Top Right: "About" link.
+Center: "AEGIS SCAN" heading.
+Input: Large, rounded text box ("Enter Target Domain").
+Button: "Start Scan" (Centered below input).
+Style: Clean white background, plenty of whitespace.
+View 2: The Dashboard (report.html)
+Header: "AEGIS", {{ domain }}, and "New Scan" button.
+Top Row (3 Cards):
+Assets Found (Large Number).
+Open Ports (Large Number).
+Critical Issues (Large Number, Red text).
+Bottom Row (Details):
+Heading: "Vulnerability Details".
+Table Columns: ID, Name, Severity (Badge), Action.
+Action Button: "Fix" (Opens Modal).
+View 3: The Remediation Modal
+Header: "AEGIS Remediation Guide".
+Content:
+Severity: Displayed prominently.
+Description: Text box explaining the issue.
+How to Fix: Code block with the exact command.
+2. Backend Architecture (The "Sniper" Engine)
+Logic Pipeline (scanner.py)
+Run this in a background thread using Python threading.
+
+Discovery: subfinder -d <domain> -silent. (Count results for Card 1).
+Ports: naabu -top-ports 100. (Count results for Card 2).
+Tech: httpx -tech-detect. (Used for Nuclei filtering).
+Vulns: nuclei -severity critical,high. (Count results for Card 3).
+Enrichment: Match findings to remediation.py for fix advice.
+3. Code Quality & Standards (STRICT ENFORCEMENT)
+You must adhere to PEP 8 and Professional Engineering practices. The code must be "university submission ready."
+
+Rich Inline Comments:
+Do not just comment what the code does (e.g., # Connect to DB).
+Comment why it does it (e.g., # Use a timeout of 2000ms to prevent hanging on dead hosts).
+Comment every major step in the scanning pipeline.
+Type Hinting: All functions must use type hints.
+Example: def run_scan(domain: str, scan_id: str) -> Dict[str, Any]:
+Docstrings: Every function must have a docstring explaining arguments, return values, and potential exceptions.
+Modular Separation:
+app.py: Handles Routes only.
+scanner.py: Handles Logic only.
+db.py: Handles Data Persistence only.
+Variable Naming: Use descriptive snake_case.
+Bad: res = tools.run(d)
+Good: scan_results = tool_manager.execute_subfinder(target_domain)
+Input Sanitization: In app.py, validate that the domain input is clean before passing it to subprocess.
+Error Handling: Wrap all external tool executions in try/except blocks to prevent crashes.
+4. Database Schema (MongoDB)
+Data passed to the frontend must follow this structure:
+
+JSON
+
+{
+  "scan_id": "uuid-string",
+  "domain": "example.com",
+  "status": "completed",
+  "timestamp": "ISO-Date",
+  "stats": {
+    "assets_count": 14,
+    "open_ports_count": 5,
+    "critical_count": 2
+  },
+  "vulnerabilities": [
+    {
+      "id": "git-config",
+      "name": "Git Configuration Exposed",
+      "severity": "High",
+      "fix_command": "rm -rf .git",
+      "description": "The .git directory exposes version control history...",
+      "mitre_id": "T1003"
+    }
+  ]
+}
+Execute. Generate the file structure and the code following these strict standards.

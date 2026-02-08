@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}AEGIS Report - {{ scan.target_domain }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* =====================================================
+       AEGIS Report Dashboard Styles
+       ===================================================== */
+
+    /* Stat Cards */
+    .stat-card {
+        background-color: var(--aegis-card);
+        border: 1px solid var(--aegis-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-card .stat-number {
+        font-size: 3rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.9rem;
+        color: var(--aegis-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-card.critical .stat-number {
+        color: var(--color-critical);
+    }
+
+    /* Vulnerability Table */
+    .vuln-table {
+        background-color: var(--aegis-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .vuln-table table {
+        margin-bottom: 0;
+    }
+
+    .vuln-table thead th {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-color: var(--aegis-border);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        color: var(--aegis-text-muted);
+    }
+
+    .vuln-table tbody td {
+        border-color: var(--aegis-border);
+        vertical-align: middle;
+    }
+
+    .vuln-table tbody tr:hover {
+        background-color: rgba(99, 102, 241, 0.1);
+    }
+
+    /* Severity Badges */
+    .severity-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.35rem 0.75rem;
+        border-radius: 50px;
+        text-transform: uppercase;
+    }
+
+    /* Fix Button */
+    .btn-fix {
+        background-color: var(--aegis-primary);
+        border: none;
+        border-radius: 6px;
+        padding: 0.4rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .btn-fix:hover {
+        background-color: var(--aegis-primary-dark);
+    }
+
+    /* Remediation Modal */
+    .modal-content {
+        background-color: var(--aegis-dark);
+        border: 1px solid var(--aegis-border);
+    }
+
+    .modal-header {
+        border-bottom-color: var(--aegis-border);
+    }
+
+    .modal-footer {
+        border-top-color: var(--aegis-border);
+    }
+
+    .fix-code-block {
+        background-color: var(--aegis-darker);
+        border: 1px solid var(--aegis-border);
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.9rem;
+        overflow-x: auto;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--aegis-text-muted);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        color: var(--aegis-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">
+                <span class="brand-text">AEGIS</span> Report
+            </h1>
+            <p class="text-muted mb-0">{{ scan.target_domain }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-light me-2">
+                <i class="bi bi-plus-circle me-1"></i> New Scan
+            </a>
+            <a href="{{ url_for('download_pdf', scan_id=scan._id) }}" class="btn btn-primary">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards Row -->
+    <div class="row g-4 mb-4">
+        <!-- Assets Found -->
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-label">Assets Found</div>
+                <div class="stat-number">{{ statistics.total_assets }}</div>
+            </div>
+        </div>
+
+        <!-- Open Ports -->
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-label">Open Ports</div>
+                <div class="stat-number">{{ statistics.total_ports }}</div>
+            </div>
+        </div>
+
+        <!-- Vulnerabilities Found (All Severities) -->
+        <div class="col-md-4">
+            <div class="stat-card critical">
+                <div class="stat-label">Vulnerabilities Found</div>
+                <div class="stat-number">{{ vulnerabilities|length }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vulnerability Details Section -->
+    <div class="vuln-table">
+        <div class="p-3 border-bottom border-aegis d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-shield-exclamation me-2"></i> Vulnerability Details
+            </h5>
+            <span class="badge bg-secondary">{{ vulnerabilities|length }} Total</span>
+        </div>
+
+        {% if vulnerabilities %}
+        <table class="table table-dark table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Severity</th>
+                    <th>Location</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vuln in vulnerabilities %}
+                <tr>
+                    <td class="font-mono">{{ vuln.template_id }}</td>
+                    <td>{{ vuln.name }}</td>
+                    <td>
+                        {% if vuln.severity == 'critical' %}
+                        <span class="severity-badge badge-critical">Critical</span>
+                        {% elif vuln.severity == 'high' %}
+                        <span class="severity-badge badge-high">High</span>
+                        {% elif vuln.severity == 'medium' %}
+                        <span class="severity-badge badge-medium">Medium</span>
+                        {% elif vuln.severity == 'low' %}
+                        <span class="severity-badge badge-low">Low</span>
+                        {% else %}
+                        <span class="severity-badge badge-info">Info</span>
+                        {% endif %}
+                    </td>
+                    <td class="font-mono text-truncate" style="max-width: 300px;">
+                        {{ vuln.matched_at }}
+                    </td>
+                    <td>
+                        <button class="btn btn-fix" data-bs-toggle="modal" data-bs-target="#remediationModal"
+                            data-vuln-id="{{ vuln.template_id }}" data-vuln-name="{{ vuln.name }}"
+                            data-vuln-severity="{{ vuln.severity }}" data-vuln-description="{{ vuln.description }}"
+                            data-vuln-fix="{{ vuln.fix }}" data-vuln-mitre="{{ vuln.mitre_id }}">
+                            <i class="bi bi-wrench me-1"></i> Fix
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-shield-check"></i>
+            <h5>No Vulnerabilities Found</h5>
+            <p>Great news! The scan did not detect any vulnerabilities.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Remediation Modal -->
+<div class="modal fade" id="remediationModal" tabindex="-1" aria-labelledby="remediationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="remediationModalLabel">
+                    <span class="brand-text">AEGIS</span> Remediation Guide
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Severity Badge -->
+                <div class="mb-3">
+                    <span class="text-muted">Severity:</span>
+                    <span id="modal-severity" class="severity-badge ms-2">-</span>
+                </div>
+
+                <!-- Vulnerability Name -->
+                <h4 id="modal-vuln-name" class="mb-3">-</h4>
+
+                <!-- MITRE ATT&CK ID -->
+                <div class="mb-3">
+                    <span class="text-muted">MITRE ATT&CK:</span>
+                    <a id="modal-mitre-link" href="#" target="_blank" class="ms-2">
+                        <span id="modal-mitre-id">-</span>
+                    </a>
+                </div>
+
+                <!-- Description -->
+                <div class="mb-4">
+                    <h6 class="text-muted text-uppercase">Description</h6>
+                    <p id="modal-description" class="mb-0">-</p>
+                </div>
+
+                <!-- How to Fix -->
+                <div class="mb-3">
+                    <h6 class="text-muted text-uppercase">How to Fix</h6>
+                    <div id="modal-fix" class="fix-code-block">-</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Populate the remediation modal with data from the clicked row.
+    const remediationModal = document.getElementById('remediationModal');
+    if (remediationModal) {
+        remediationModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+
+            // Extract data from the button's data-* attributes.
+            const vulnId = button.getAttribute('data-vuln-id');
+            const vulnName = button.getAttribute('data-vuln-name');
+            const vulnSeverity = button.getAttribute('data-vuln-severity');
+            const vulnDescription = button.getAttribute('data-vuln-description') || 'No description available.';
+            const vulnFix = button.getAttribute('data-vuln-fix') || 'Refer to vendor documentation.';
+            const vulnMitre = button.getAttribute('data-vuln-mitre') || 'N/A';
+
+            // Update modal content.
+            document.getElementById('modal-vuln-name').textContent = vulnName;
+            document.getElementById('modal-description').textContent = vulnDescription;
+            document.getElementById('modal-fix').textContent = vulnFix;
+            document.getElementById('modal-mitre-id').textContent = vulnMitre;
+
+            // Update MITRE link.
+            const mitreLink = document.getElementById('modal-mitre-link');
+            if (vulnMitre && vulnMitre !== 'N/A') {
+                mitreLink.href = `https://attack.mitre.org/techniques/${vulnMitre}/`;
+            } else {
+                mitreLink.href = '#';
+            }
+
+            // Update severity badge.
+            const severityBadge = document.getElementById('modal-severity');
+            severityBadge.textContent = vulnSeverity.charAt(0).toUpperCase() + vulnSeverity.slice(1);
+            severityBadge.className = 'severity-badge ms-2';
+
+            // Add appropriate color class.
+            switch (vulnSeverity.toLowerCase()) {
+                case 'critical':
+                    severityBadge.classList.add('badge-critical');
+                    break;
+                case 'high':
+                    severityBadge.classList.add('badge-high');
+                    break;
+                case 'medium':
+                    severityBadge.classList.add('badge-medium');
+                    break;
+                case 'low':
+                    severityBadge.classList.add('badge-low');
+                    break;
+                default:
+                    severityBadge.classList.add('badge-info');
+            }
+        });
+    }
+</script>
+{% endblock %}
