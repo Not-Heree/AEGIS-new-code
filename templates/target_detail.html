@@ -1,0 +1,185 @@
+@"
+{% extends "base.html" %}
+{% block title %}Target Details - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="/targets" class="btn btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> Back to Targets</a>
+    <h2><i class="bi bi-bullseye"></i> Target Details</h2>
+    <h4 class="text-primary" id="domain-name">Loading...</h4>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-subs">-</div>
+            <div class="stat-label">Subdomains</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-ports">-</div>
+            <div class="stat-label">Open Ports</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-http">-</div>
+            <div class="stat-label">HTTP Assets</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-vulns">-</div>
+            <div class="stat-label">Vulnerabilities</div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5><i class="bi bi-diagram-3"></i> Subdomains</h5>
+                <span class="badge bg-primary" id="sub-count">0</span>
+            </div>
+            <div class="card-body" id="subdomains-list" style="max-height: 300px; overflow-y: auto;">Loading...</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5><i class="bi bi-hdd-network"></i> Open Ports</h5>
+                <span class="badge bg-primary" id="port-count">0</span>
+            </div>
+            <div class="card-body" id="ports-list" style="max-height: 300px; overflow-y: auto;">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5><i class="bi bi-bug"></i> Vulnerabilities</h5>
+                <span class="badge bg-danger" id="vuln-count">0</span>
+            </div>
+            <div class="card-body" id="vulns-list">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-lightning"></i> Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-success me-2" onclick="runFullScan()"><i class="bi bi-play"></i> Run Full
+                    Scan</button>
+                <button class="btn btn-primary me-2" onclick="generateReport()"><i class="bi bi-file-pdf"></i> Generate
+                    Report</button>
+                <button class="btn btn-danger" onclick="deleteTarget()"><i class="bi bi-trash"></i> Delete
+                    Target</button>
+                <div id="action-status" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    var domain = window.location.pathname.split('/').pop();
+
+    async function loadDetails() {
+        document.getElementById('domain-name').textContent = domain;
+
+        // Load summary
+        var summary = await api.get('/api/dashboard/summary/' + domain);
+        if (summary.success) {
+            document.getElementById('stat-subs').textContent = summary.summary.subdomains || 0;
+            document.getElementById('stat-ports').textContent = summary.summary.ports || 0;
+            document.getElementById('stat-http').textContent = summary.summary.http_assets || 0;
+            document.getElementById('stat-vulns').textContent = summary.summary.vulnerabilities || 0;
+        }
+
+        // Load subdomains
+        var subs = await api.get('/api/dashboard/subdomains/' + domain);
+        var subList = document.getElementById('subdomains-list');
+        if (subs.subdomains && subs.subdomains.length > 0) {
+            document.getElementById('sub-count').textContent = subs.subdomains.length;
+            subList.innerHTML = subs.subdomains.map(function (s) {
+                return '<span class="badge bg-secondary me-1 mb-1">' + s.subdomain + '</span>';
+            }).join('');
+        } else {
+            subList.innerHTML = '<p class="text-muted">No subdomains discovered yet. Run a scan!</p>';
+        }
+
+        // Load ports
+        var ports = await api.get('/api/dashboard/ports/' + domain);
+        var portList = document.getElementById('ports-list');
+        if (ports.ports && ports.ports.length > 0) {
+            document.getElementById('port-count').textContent = ports.ports.length;
+            portList.innerHTML = '<table class="table table-sm"><thead><tr><th>Host</th><th>Port</th><th>Status</th></tr></thead><tbody>' +
+                ports.ports.map(function (p) {
+                    return '<tr><td>' + p.host + '</td><td><code>' + p.port + '</code></td><td><span class="badge bg-success">' + (p.status || 'open') + '</span></td></tr>';
+                }).join('') + '</tbody></table>';
+        } else {
+            portList.innerHTML = '<p class="text-muted">No open ports discovered yet.</p>';
+        }
+
+        // Load vulnerabilities
+        var vulns = await api.get('/api/dashboard/vulns/' + domain);
+        var vulnList = document.getElementById('vulns-list');
+        if (vulns.vulnerabilities && vulns.vulnerabilities.length > 0) {
+            document.getElementById('vuln-count').textContent = vulns.vulnerabilities.length;
+            vulnList.innerHTML = '<table class="table table-sm"><thead><tr><th>Severity</th><th>Name</th><th>Host</th></tr></thead><tbody>' +
+                vulns.vulnerabilities.map(function (v) {
+                    return '<tr><td><span class="badge badge-' + v.severity + '">' + (v.severity || 'info').toUpperCase() + '</span></td><td>' + (v.name || v.template_id) + '</td><td>' + v.host + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        } else {
+            vulnList.innerHTML = '<p class="text-success"><i class="bi bi-check-circle"></i> No vulnerabilities found!</p>';
+        }
+    }
+
+    async function runFullScan() {
+        if (!confirm('Run full scan on ' + domain + '? This may take several minutes.')) return;
+        document.getElementById('action-status').innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Scan running... Please wait.</div>';
+        var result = await api.post('/api/scans/full/' + domain);
+        if (result.success) {
+            document.getElementById('action-status').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed!</div>';
+            loadDetails();
+        } else {
+            document.getElementById('action-status').innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ' + result.error + '</div>';
+        }
+    }
+
+    async function generateReport() {
+        document.getElementById('action-status').innerHTML = '<div class="alert alert-info">Generating report...</div>';
+        var result = await api.post('/api/reports/generate/' + domain);
+        if (result.success) {
+            document.getElementById('action-status').innerHTML = '<div class="alert alert-success">Report generated! <a href="/api/reports/download/' + domain + '">Download PDF</a></div>';
+        } else {
+            document.getElementById('action-status').innerHTML = '<div class="alert alert-danger">Error: ' + result.error + '</div>';
+        }
+    }
+
+    async function deleteTarget() {
+        if (!confirm('DELETE ' + domain + ' and ALL its data? This cannot be undone!')) return;
+        var result = await api.delete('/api/targets/' + domain);
+        if (result.success) {
+            alert('Target deleted!');
+            window.location.href = '/targets';
+        } else {
+            alert('Error: ' + result.error);
+        }
+    }
+
+    loadDetails();
+</script>
+{% endblock %}
+"@ | Set-Content -Path "templates/target_detail.html" -Encoding UTF8
+
+Write-Host "Created target_detail.html"

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Assets - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-globe"></i> HTTP Assets</h2>
+    <button class="btn btn-primary" onclick="loadAssets()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>URL</th>
+                        <th>Status</th>
+                        <th>Title</th>
+                        <th>Server</th>
+                        <th>Technologies</th>
+                    </tr>
+                </thead>
+                <tbody id="assets-table">
+                    <tr>
+                        <td colspan="5" class="text-center">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadAssets() {
+        try {
+            const data = await api.get('/api/assets/');
+            const tbody = document.getElementById('assets-table');
+            const assets = data.assets || data.http_assets || [];
+
+            if (assets.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No assets found. Run an HTTP scan first.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = assets.map(a => {
+                const statusCode = a.status_code || 0;
+                const statusClass = statusCode < 300 ? 'success' : statusCode < 400 ? 'warning' : 'danger';
+                const techs = a.technologies || a.tech || [];
+
+                return `
+            <tr>
+                <td><a href="${a.url}" target="_blank">${a.url}</a></td>
+                <td><span class="badge bg-${statusClass}">${statusCode}</span></td>
+                <td>${a.title || '-'}</td>
+                <td>${a.web_server || a.webserver || '-'}</td>
+                <td>${techs.slice(0, 3).join(', ') || '-'}</td>
+            </tr>`;
+            }).join('');
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('assets-table').innerHTML =
+                '<tr><td colspan="5" class="text-center text-danger">Error loading assets</td></tr>';
+        }
+    }
+
+    loadAssets();
+</script>
+{% endblock %}

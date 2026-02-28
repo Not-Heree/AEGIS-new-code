@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+    <button class="btn btn-primary btn-scan" onclick="refreshStats()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-2">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-targets">-</div>
+            <div class="stat-label">Targets</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-subdomains">-</div>
+            <div class="stat-label">Subdomains</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-ports">-</div>
+            <div class="stat-label">Open Ports</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-http">-</div>
+            <div class="stat-label">HTTP Assets</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-vulns">-</div>
+            <div class="stat-label">Vulnerabilities</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-changes">-</div>
+            <div class="stat-label">Changes</div>
+        </div>
+    </div>
+</div>
+
+<!-- Vulnerability Breakdown -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-bug"></i> Vulnerability Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col">
+                        <span class="badge badge-critical fs-5" id="vuln-critical">0</span>
+                        <br><small>Critical</small>
+                    </div>
+                    <div class="col">
+                        <span class="badge badge-high fs-5" id="vuln-high">0</span>
+                        <br><small>High</small>
+                    </div>
+                    <div class="col">
+                        <span class="badge badge-medium fs-5" id="vuln-medium">0</span>
+                        <br><small>Medium</small>
+                    </div>
+                    <div class="col">
+                        <span class="badge badge-low fs-5" id="vuln-low">0</span>
+                        <br><small>Low</small>
+                    </div>
+                    <div class="col">
+                        <span class="badge badge-info fs-5" id="vuln-info">0</span>
+                        <br><small>Info</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-shield-check"></i> Overall Risk</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="risk-score" id="risk-score">-</div>
+                <div id="risk-level">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Targets List -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5><i class="bi bi-bullseye"></i> Targets</h5>
+        <a href="/targets" class="btn btn-sm btn-outline-primary">View All</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Subdomains</th>
+                        <th>Ports</th>
+                        <th>HTTP</th>
+                        <th>Vulns</th>
+                        <th>Last Scan</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="targets-table">
+                    <tr>
+                        <td colspan="7" class="text-center">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function refreshStats() {
+        try {
+            // Get overall stats
+            const stats = await api.get('/api/stats');
+            document.getElementById('total-targets').textContent = stats.targets || 0;
+            document.getElementById('total-subdomains').textContent = stats.subdomains || 0;
+            document.getElementById('total-ports').textContent = stats.ports_services || 0;
+            document.getElementById('total-http').textContent = stats.http_assets || 0;
+            document.getElementById('total-vulns').textContent = stats.vulnerabilities || 0;
+            document.getElementById('total-changes').textContent = stats.changes || 0;
+
+            // Get dashboard data
+            const dashboard = await api.get('/api/dashboard/');
+            if (dashboard.success) {
+                document.getElementById('vuln-critical').textContent = dashboard.vuln_breakdown?.critical || 0;
+                document.getElementById('vuln-high').textContent = dashboard.vuln_breakdown?.high || 0;
+                document.getElementById('vuln-medium').textContent = dashboard.vuln_breakdown?.medium || 0;
+                document.getElementById('vuln-low').textContent = dashboard.vuln_breakdown?.low || 0;
+                document.getElementById('vuln-info').textContent = dashboard.vuln_breakdown?.info || 0;
+
+                const riskScore = dashboard.overall_risk_score || 0;
+                document.getElementById('risk-score').textContent = riskScore;
+
+                let riskClass = 'risk-minimal';
+                let riskText = 'MINIMAL';
+                if (riskScore >= 80) { riskClass = 'risk-critical'; riskText = 'CRITICAL'; }
+                else if (riskScore >= 60) { riskClass = 'risk-high'; riskText = 'HIGH'; }
+                else if (riskScore >= 40) { riskClass = 'risk-medium'; riskText = 'MEDIUM'; }
+                else if (riskScore >= 20) { riskClass = 'risk-low'; riskText = 'LOW'; }
+
+                document.getElementById('risk-score').className = 'risk-score ' + riskClass;
+                document.getElementById('risk-level').textContent = riskText;
+
+                // Load targets
+                loadTargets(dashboard.targets || []);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    function loadTargets(targets) {
+        const tbody = document.getElementById('targets-table');
+
+        if (targets.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No targets found. <a href="/targets">Add one!</a></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = targets.map(t => `
+            <tr>
+                <td><strong>${t.root_domain || t.domain || 'N/A'}</strong></td>
+                <td>${t.total_subdomains || 0}</td>
+                <td>${t.total_ports || 0}</td>
+                <td>${t.total_http_assets || 0}</td>
+                <td>${t.total_vulns || 0}</td>
+                <td>${t.last_scanned ? new Date(t.last_scanned).toLocaleDateString() : 'Never'}</td>
+                <td>
+                    <a href="/targets/${t.root_domain || t.domain}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Load on page load
+    refreshStats();
+</script>
+{% endblock %}

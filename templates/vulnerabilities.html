@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Vulnerabilities - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bug"></i> Vulnerabilities</h2>
+    <button class="btn btn-primary" onclick="loadVulns()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Severity Stats -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <span class="badge bg-danger fs-5" id="count-critical">0</span>
+                <br><small>Critical</small>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <span class="badge bg-warning text-dark fs-5" id="count-high">0</span>
+                <br><small>High</small>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <span class="badge bg-info fs-5" id="count-medium">0</span>
+                <br><small>Medium</small>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <span class="badge bg-primary fs-5" id="count-low">0</span>
+                <br><small>Low</small>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card text-center">
+            <div class="card-body py-2">
+                <span class="badge bg-secondary fs-5" id="count-info">0</span>
+                <br><small>Info</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vulns Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Name</th>
+                        <th>Host</th>
+                        <th>Domain</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="vulns-table">
+                    <tr>
+                        <td colspan="5" class="text-center">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadVulns() {
+        try {
+            const data = await api.get('/api/vulns/');
+            const tbody = document.getElementById('vulns-table');
+            const vulns = data.vulnerabilities || data.vulns || [];
+
+            if (vulns.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No vulnerabilities found. Run a vuln scan first.</td></tr>';
+                resetCounts();
+                return;
+            }
+
+            // Count by severity
+            const counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+            vulns.forEach(v => {
+                const sev = (v.severity || 'info').toLowerCase();
+                if (counts[sev] !== undefined) counts[sev]++;
+            });
+
+            document.getElementById('count-critical').textContent = counts.critical;
+            document.getElementById('count-high').textContent = counts.high;
+            document.getElementById('count-medium').textContent = counts.medium;
+            document.getElementById('count-low').textContent = counts.low;
+            document.getElementById('count-info').textContent = counts.info;
+
+            // Sort: critical first
+            const sevOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+            vulns.sort((a, b) => (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5));
+
+            tbody.innerHTML = vulns.map(v => {
+                const sev = (v.severity || 'info').toLowerCase();
+                const badgeClass = {
+                    critical: 'bg-danger',
+                    high: 'bg-warning text-dark',
+                    medium: 'bg-info',
+                    low: 'bg-primary',
+                    info: 'bg-secondary'
+                }[sev] || 'bg-secondary';
+
+                const name = v.name || v.template_id || v.vulnerability || 'Unknown';
+                const host = v.host || v.matched_at || '-';
+                const domain = v.target_domain || '-';
+                const vulnId = v._id || '';
+
+                return `
+            <tr>
+                <td><span class="badge ${badgeClass}">${sev.toUpperCase()}</span></td>
+                <td><strong>${name}</strong></td>
+                <td><small>${host}</small></td>
+                <td>${domain}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteVuln('${vulnId}')" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+            }).join('');
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('vulns-table').innerHTML =
+                '<tr><td colspan="5" class="text-center text-danger">Error loading vulnerabilities</td></tr>';
+        }
+    }
+
+    function resetCounts() {
+        ['critical', 'high', 'medium', 'low', 'info'].forEach(s => {
+            document.getElementById('count-' + s).textContent = '0';
+        });
+    }
+
+    async function deleteVuln(vulnId) {
+        if (!vulnId || !confirm('Delete this vulnerability?')) return;
+        try {
+            await api.delete('/api/vulns/' + vulnId);
+            loadVulns();
+        } catch (e) {
+            alert('Delete failed');
+        }
+    }
+
+    loadVulns();
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Changes - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clock-history"></i> Changes</h2>
+    <button class="btn btn-primary" onclick="loadChanges()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="changes-list">Loading...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadChanges() {
+        try {
+            const data = await api.get('/api/changes/');
+            const div = document.getElementById('changes-list');
+            const changes = data.changes || [];
+
+            if (changes.length === 0) {
+                div.innerHTML = '<p class="text-center text-muted">No changes detected yet. Run a scan first.</p>';
+                return;
+            }
+
+            div.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Detail</th>
+                            <th>Domain</th>
+                            <th>Detected</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${changes.map(c => {
+                const typeIcons = {
+                    'new_subdomain': '🟢',
+                    'removed_subdomain': '🔴',
+                    'new_port': '🟡',
+                    'new_vuln': '🔴',
+                    'resolved_vuln': '✅'
+                };
+                const icon = typeIcons[c.change_type] || '🔵';
+                const acked = c.acknowledged ? 'bg-success' : 'bg-warning text-dark';
+                const ackedText = c.acknowledged ? 'Acknowledged' : 'New';
+                const changeId = c._id || '';
+
+                return `
+                            <tr>
+                                <td>${icon} ${c.change_type || 'unknown'}</td>
+                                <td>${c.detail || c.entity || '-'}</td>
+                                <td>${c.target_domain || '-'}</td>
+                                <td><small>${c.detected_at ? new Date(c.detected_at).toLocaleString() : '-'}</small></td>
+                                <td>
+                                    <span class="badge ${acked}">${ackedText}</span>
+                                    ${!c.acknowledged && changeId ?
+                        `<button class="btn btn-sm btn-outline-success ms-1" onclick="ackChange('${changeId}')">
+                                            <i class="bi bi-check"></i>
+                                        </button>` : ''}
+                                </td>
+                            </tr>`;
+            }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('changes-list').innerHTML =
+                '<p class="text-center text-danger">Error loading changes</p>';
+        }
+    }
+
+    async function ackChange(changeId) {
+        try {
+            await api.patch('/api/changes/acknowledge/' + changeId);
+            loadChanges();
+        } catch (e) {
+            alert('Error acknowledging change');
+        }
+    }
+
+    loadChanges();
+</script>
+{% endblock %}

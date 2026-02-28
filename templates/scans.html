@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Scans - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2><i class="bi bi-radar"></i> Scans</h2>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Run Scan</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Target</label>
+                    <select class="form-select" id="scan-target">
+                        <option>Loading...</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Scan Type</label>
+                    <select class="form-select" id="scan-type">
+                        <option value="full">Full Scan</option>
+                        <option value="subdomains">Subdomains Only</option>
+                        <option value="ports">Ports Only</option>
+                        <option value="http">HTTP Only</option>
+                        <option value="vulns">Vulns Only</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="runScan()"><i class="bi bi-play"></i> Start Scan</button>
+                <div id="scan-status" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Recent Scans</h5>
+            </div>
+            <div class="card-body" id="scan-history">Loading...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadTargets() {
+        const data = await api.get('/api/targets/');
+        const select = document.getElementById('scan-target');
+        select.innerHTML = (data.targets || []).map(t => `<option value="${t.root_domain || t.domain}">${t.root_domain || t.domain}</option>`).join('') || '<option>No targets</option>';
+    }
+
+    async function runScan() {
+        const domain = document.getElementById('scan-target').value;
+        const type = document.getElementById('scan-type').value;
+        if (!domain) { alert('Select target'); return; }
+
+        document.getElementById('scan-status').innerHTML = '<div class="alert alert-info">Scanning...</div>';
+        const result = await api.post('/api/scans/' + type + '/' + domain);
+        document.getElementById('scan-status').innerHTML = result.success
+            ? '<div class="alert alert-success">Done!</div>'
+            : '<div class="alert alert-danger">Error: ' + result.error + '</div>';
+        loadHistory();
+    }
+
+    async function loadHistory() {
+        const domain = document.getElementById('scan-target').value;
+        if (!domain) return;
+        const data = await api.get('/api/scans/history/' + domain);
+        document.getElementById('scan-history').innerHTML = (data.history || []).map(s => `
+        <div class="border-bottom py-2"><strong>${s.scan_type}</strong> - ${s.status}<br><small>${s.started_at || ''}</small></div>
+    `).join('') || 'No history';
+    }
+
+    loadTargets();
+</script>
+{% endblock %}

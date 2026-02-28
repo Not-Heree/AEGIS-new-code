@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}Reports - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-pdf"></i> Reports</h2>
+</div>
+
+<div class="row">
+    <!-- Generate Report Panel -->
+    <div class="col-md-5">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> Generate Report</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Select Target</label>
+                    <select class="form-select" id="report-target">
+                        <option value="">Loading targets...</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Report Type</label>
+                    <select class="form-select" id="report-type">
+                        <option value="full">📄 Full PDF Report</option>
+                        <option value="json">📋 JSON Report</option>
+                        <option value="summary">📊 Executive Summary</option>
+                        <option value="remediation">🔧 Remediation Report</option>
+                    </select>
+                    <small class="text-muted" id="report-type-desc">
+                        Complete security assessment with all findings
+                    </small>
+                </div>
+
+                <button class="btn btn-primary w-100" onclick="generateReport()" id="generate-btn">
+                    <i class="bi bi-file-pdf"></i> Generate Report
+                </button>
+
+                <div id="report-status" class="mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="viewJSON()">
+                        <i class="bi bi-code-slash"></i> View JSON Report
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="viewSummary()">
+                        <i class="bi bi-speedometer2"></i> View Executive Summary
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" onclick="viewRemediation()">
+                        <i class="bi bi-wrench"></i> View Remediation Plan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports List Panel -->
+    <div class="col-md-7">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-folder2-open"></i> Generated Reports</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadReports()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="reports-list">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Report Preview -->
+        <div class="card" id="preview-card" style="display: none;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-eye"></i> Report Preview</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="closePreview()">
+                    <i class="bi bi-x"></i> Close
+                </button>
+            </div>
+            <div class="card-body">
+                <pre id="report-preview" class="bg-dark text-light p-3 rounded"
+                    style="max-height: 500px; overflow-y: auto; font-size: 0.8rem;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ─── Report Type Descriptions ───────────────────────────────────
+    const reportDescriptions = {
+        'full': 'Complete security assessment PDF with all findings, charts, and remediation',
+        'json': 'Machine-readable JSON format with all scan data',
+        'summary': 'Brief executive overview with risk score and key metrics',
+        'remediation': 'Vulnerability fixes grouped by priority with step-by-step actions'
+    };
+
+    document.getElementById('report-type').addEventListener('change', function () {
+        document.getElementById('report-type-desc').textContent = reportDescriptions[this.value] || '';
+    });
+
+    // ─── Load Targets ───────────────────────────────────────────────
+    async function loadTargets() {
+        try {
+            const data = await api.get('/api/targets/');
+            const select = document.getElementById('report-target');
+
+            if (data.targets && data.targets.length > 0) {
+                select.innerHTML = '<option value="">-- Select Target --</option>' +
+                    data.targets.map(t =>
+                        `<option value="${t.root_domain || t.domain}">${t.root_domain || t.domain} ${t.org_name ? '(' + t.org_name + ')' : ''}</option>`
+                    ).join('');
+            } else {
+                select.innerHTML = '<option value="">No targets — add one first!</option>';
+            }
+        } catch (error) {
+            console.error('Error loading targets:', error);
+            document.getElementById('report-target').innerHTML = '<option value="">Error loading</option>';
+        }
+    }
+
+    // ─── Load Reports List ──────────────────────────────────────────
+    async function loadReports() {
+        const listDiv = document.getElementById('reports-list');
+
+        try {
+            const data = await api.get('/api/reports/');
+            const reports = data.reports || [];
+
+            if (reports.length === 0) {
+                listDiv.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="bi bi-folder2 fs-1 text-muted"></i>
+                        <p class="mt-2 mb-0 text-muted">No reports generated yet</p>
+                        <small class="text-muted">Select a target and generate your first report</small>
+                    </div>`;
+                return;
+            }
+
+            listDiv.innerHTML = `
+                <div class="list-group list-group-flush">
+                    ${reports.map(r => `
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                                <strong class="ms-2">${r.filename || r.domain || 'Report'}</strong>
+                                <br>
+                                <small class="text-muted ms-4">
+                                    ${r.domain || ''} 
+                                    ${r.generated_at ? ' • ' + formatDate(r.generated_at) : ''}
+                                    ${r.size_kb ? ' • ' + r.size_kb + ' KB' : ''}
+                                    ${r.size ? ' • ' + formatBytes(r.size) : ''}
+                                </small>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" 
+                                        onclick="downloadReport('${r.domain || ''}')" 
+                                        title="Download PDF">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" 
+                                        onclick="previewReport('${r.domain || ''}')" 
+                                        title="Preview JSON">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>`;
+
+        } catch (error) {
+            console.error('Error loading reports:', error);
+            listDiv.innerHTML = `
+                <div class="text-center text-danger">
+                    <p>Error loading reports</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadReports()">Retry</button>
+                </div>`;
+        }
+    }
+
+    // ─── Generate Report ────────────────────────────────────────────
+    async function generateReport() {
+        const domain = document.getElementById('report-target').value;
+        const reportType = document.getElementById('report-type').value;
+
+        if (!domain) {
+            alert('Please select a target first');
+            return;
+        }
+
+        const btn = document.getElementById('generate-btn');
+        const statusDiv = document.getElementById('report-status');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generating...';
+        statusDiv.innerHTML = `
+            <div class="alert alert-info">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm me-2"></div>
+                    <div>Generating ${reportType} report for ${domain}...</div>
+                </div>
+            </div>`;
+
+        try {
+            let result;
+
+            if (reportType === 'full') {
+                // Generate PDF
+                result = await api.post(`/api/reports/generate/${domain}`);
+
+                if (result.success) {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle-fill"></i> <strong>PDF Report generated!</strong>
+                            <br>
+                            <button class="btn btn-sm btn-success mt-2" onclick="downloadReport('${domain}')">
+                                <i class="bi bi-download"></i> Download PDF
+                            </button>
+                        </div>`;
+                    loadReports();
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-x-circle-fill"></i> Error: ${result.error || 'Generation failed'}
+                        </div>`;
+                }
+
+            } else if (reportType === 'json') {
+                result = await api.get(`/api/reports/json/${domain}`);
+                showPreview(result);
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i> JSON report loaded — see preview below
+                    </div>`;
+
+            } else if (reportType === 'summary') {
+                result = await api.get(`/api/reports/summary/${domain}`);
+                showPreview(result);
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i> Executive summary loaded — see preview below
+                    </div>`;
+
+            } else if (reportType === 'remediation') {
+                result = await api.get(`/api/reports/remediation/${domain}`);
+                showPreview(result);
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i> Remediation report loaded — see preview below
+                    </div>`;
+            }
+
+        } catch (error) {
+            console.error('Report error:', error);
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle-fill"></i> Error generating report
+                </div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-file-pdf"></i> Generate Report';
+        }
+    }
+
+    // ─── Download Report ────────────────────────────────────────────
+    function downloadReport(domain) {
+        if (!domain) {
+            domain = document.getElementById('report-target').value;
+        }
+        if (!domain) {
+            alert('Select a target first');
+            return;
+        }
+        // Trigger browser download
+        window.open(`/api/reports/download/${domain}`, '_blank');
+    }
+
+    // ─── Quick Action Handlers ──────────────────────────────────────
+    async function viewJSON() {
+        const domain = document.getElementById('report-target').value;
+        if (!domain) { alert('Select a target first'); return; }
+
+        try {
+            const data = await api.get(`/api/reports/json/${domain}`);
+            showPreview(data);
+        } catch (error) {
+            alert('Error loading JSON report');
+        }
+    }
+
+    async function viewSummary() {
+        const domain = document.getElementById('report-target').value;
+        if (!domain) { alert('Select a target first'); return; }
+
+        try {
+            const data = await api.get(`/api/reports/summary/${domain}`);
+            showPreview(data);
+        } catch (error) {
+            alert('Error loading summary');
+        }
+    }
+
+    async function viewRemediation() {
+        const domain = document.getElementById('report-target').value;
+        if (!domain) { alert('Select a target first'); return; }
+
+        try {
+            const data = await api.get(`/api/reports/remediation/${domain}`);
+            showPreview(data);
+        } catch (error) {
+            alert('Error loading remediation report');
+        }
+    }
+
+    // ─── Preview Panel ──────────────────────────────────────────────
+    function showPreview(data) {
+        const previewCard = document.getElementById('preview-card');
+        const previewPre = document.getElementById('report-preview');
+
+        previewCard.style.display = 'block';
+        previewPre.textContent = JSON.stringify(data, null, 2);
+
+        // Scroll to preview
+        previewCard.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closePreview() {
+        document.getElementById('preview-card').style.display = 'none';
+    }
+
+    async function previewReport(domain) {
+        try {
+            const data = await api.get(`/api/reports/json/${domain}`);
+            showPreview(data);
+        } catch (error) {
+            alert('Error loading preview');
+        }
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        return new Date(dateStr).toLocaleString();
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes) return '';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // ─── Initialize ─────────────────────────────────────────────────
+    loadTargets();
+    loadReports();
+</script>
+{% endblock %}
