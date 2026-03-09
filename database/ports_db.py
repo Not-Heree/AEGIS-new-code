@@ -24,14 +24,14 @@ def serialize_doc(doc):
 
 # ─── CRUD Functions ──────────────────────────────────────────────────────
 
-def add_port(target_id, subdomain_id, host, ip, port, protocol="tcp", service="", version=""):
-    """Add a new port or update an existing one for a host."""
+def add_port(target_id, target_domain, subdomain_id, host, ip, port,
+             protocol="tcp", service="", version=""):
+    """Add or update a port. Now stores target_domain."""
     try:
         collection = get_collection(Config.PORTS_COLLECTION)
         target_oid = ObjectId(target_id)
         port = int(port)
 
-        # Check if this host+port combo already exists for this target
         existing = collection.find_one({
             "target_id": target_oid,
             "host": host,
@@ -39,79 +39,60 @@ def add_port(target_id, subdomain_id, host, ip, port, protocol="tcp", service=""
         })
 
         if existing:
-            # Update existing port entry
             update_fields = {
                 "last_seen": datetime.utcnow(),
-                "is_new": False
+                "is_new": False,
+                "target_domain": target_domain,
             }
             if ip:
                 update_fields["ip"] = ip
             if service:
                 update_fields["service"] = service
-            if version:
-                update_fields["version"] = version
 
             collection.update_one(
                 {"_id": existing["_id"]},
                 {"$set": update_fields}
             )
-            return {
-                "success": True,
-                "message": "Port updated",
-                "port_id": str(existing["_id"]),
-                "is_new": False
-            }
+            return {"success": True, "port_id": str(existing["_id"]), "is_new": False}
 
-        # Insert new port document
         doc = {
             "target_id": target_oid,
-            "subdomain_id": ObjectId(subdomain_id),
+            "target_domain": target_domain,       # NEW
+            "subdomain_id": ObjectId(subdomain_id) if subdomain_id else None,
             "host": host,
             "ip": ip,
             "port": port,
             "protocol": protocol,
             "service": service,
             "version": version,
+            "status": "open",
             "is_new": True,
             "first_seen": datetime.utcnow(),
             "last_seen": datetime.utcnow()
         }
         result = collection.insert_one(doc)
-
-        return {
-            "success": True,
-            "message": "New port added",
-            "port_id": str(result.inserted_id),
-            "is_new": True
-        }
+        return {"success": True, "port_id": str(result.inserted_id), "is_new": True}
 
     except Exception as e:
         return {"success": False, "message": str(e)}
 
 
-def add_ports_bulk(target_id, subdomain_id, host, ports_list):
-    """Add multiple ports at once for a single host."""
+def add_ports_bulk(target_id, target_domain, subdomain_id, host, ports_list):
+    """Add multiple ports. Passes target_domain through."""
     new_count = 0
     updated_count = 0
-    failed_count = 0
 
     for port in ports_list:
-        result = add_port(target_id, subdomain_id, host, "", int(port))
+        result = add_port(target_id, target_domain, subdomain_id,
+                         host, "", int(port))
         if result.get("success"):
             if result.get("is_new"):
                 new_count += 1
             else:
                 updated_count += 1
-        else:
-            failed_count += 1
 
-    return {
-        "success": True,
-        "total": len(ports_list),
-        "new": new_count,
-        "updated": updated_count,
-        "failed": failed_count
-    }
+    return {"success": True, "total": len(ports_list),
+            "new": new_count, "updated": updated_count}
 
 
 def get_ports_by_target(target_id):

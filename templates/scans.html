@@ -29,7 +29,9 @@
                         <option value="vulns">Vulns Only</option>
                     </select>
                 </div>
-                <button class="btn btn-primary w-100" onclick="runScan()"><i class="bi bi-play"></i> Start Scan</button>
+                <button class="btn btn-primary w-100" onclick="runScan()">
+                    <i class="bi bi-play"></i> Start Scan
+                </button>
                 <div id="scan-status" class="mt-3"></div>
             </div>
         </div>
@@ -48,33 +50,161 @@
 {% block extra_js %}
 <script>
     async function loadTargets() {
-        const data = await api.get('/api/targets/');
-        const select = document.getElementById('scan-target');
-        select.innerHTML = (data.targets || []).map(t => `<option value="${t.root_domain || t.domain}">${t.root_domain || t.domain}</option>`).join('') || '<option>No targets</option>';
+        try {
+            const data = await api.get('/api/targets/');
+            const select = document.getElementById('scan-target');
+            const targets = data.targets || [];
+
+            if (targets.length === 0) {
+                select.innerHTML = '<option value="">No targets — add one first</option>';
+                return;
+            }
+
+            select.innerHTML = targets.map(t => {
+                const domain = t.root_domain || t.domain || '';
+                return `<option value="${domain}">${domain}</option>`;
+            }).join('');
+
+            // Load history for the first target automatically
+            loadHistory();
+
+        } catch (error) {
+            console.error('Error loading targets:', error);
+            document.getElementById('scan-target').innerHTML =
+                '<option value="">Error loading targets</option>';
+        }
     }
 
     async function runScan() {
         const domain = document.getElementById('scan-target').value;
         const type = document.getElementById('scan-type').value;
-        if (!domain) { alert('Select target'); return; }
 
-        document.getElementById('scan-status').innerHTML = '<div class="alert alert-info">Scanning...</div>';
-        const result = await api.post('/api/scans/' + type + '/' + domain);
-        document.getElementById('scan-status').innerHTML = result.success
-            ? '<div class="alert alert-success">Done!</div>'
-            : '<div class="alert alert-danger">Error: ' + result.error + '</div>';
-        loadHistory();
+        if (!domain) {
+            alert('Select a target first');
+            return;
+        }
+
+        const statusDiv = document.getElementById('scan-status');
+        statusDiv.innerHTML = `
+            <div class="alert alert-info">
+                <span class="spinner-border spinner-border-sm"></span>
+                Scanning ${domain}... This may take several minutes.
+            </div>`;
+
+        try {
+            const result = await api.post('/api/scans/' + type + '/' + domain);
+
+            if (result.success) {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> Scan completed!
+                        ${result.results ? `
+                            <br><small>
+                                Subs: ${result.results.subdomains_found || 0} |
+                                Ports: ${result.results.ports_found || 0} |
+                                HTTP: ${result.results.http_assets_found || 0} |
+                                Vulns: ${result.results.vulns_found || 0}
+                            </small>
+                        ` : ''}
+                    </div>`;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-x-circle"></i> Error: ${result.error || 'Unknown error'}
+                    </div>`;
+            }
+
+            // Refresh history after scan
+            loadHistory();
+
+        } catch (error) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Scan failed: ${error.message}
+                </div>`;
+        }
     }
 
     async function loadHistory() {
         const domain = document.getElementById('scan-target').value;
-        if (!domain) return;
-        const data = await api.get('/api/scans/history/' + domain);
-        document.getElementById('scan-history').innerHTML = (data.history || []).map(s => `
-        <div class="border-bottom py-2"><strong>${s.scan_type}</strong> - ${s.status}<br><small>${s.started_at || ''}</small></div>
-    `).join('') || 'No history';
+        const historyDiv = document.getElementById('scan-history');
+
+        if (!domain) {
+            historyDiv.innerHTML = '<p class="text-muted">Select a target to see scan history</p>';
+            return;
+        }
+
+        try {
+            const data = await api.get('/api/scans/history/' + domain);
+            const history = data.history || [];
+
+            if (history.length === 0) {
+                historyDiv.innerHTML = '<p class="text-muted">No scans yet. Run your first scan!</p>';
+                return;
+            }
+
+            historyDiv.innerHTML = history.map(s => {
+                const statusBadge = {
+                    'completed': '<span class="badge bg-success">Completed</span>',
+                    'running': '<span class="badge bg-info">Running</span>',
+                    'failed': '<span class="badge bg-danger">Failed</span>',
+                    'partial': '<span class="badge bg-warning text-dark">Partial</span>'
+                }[s.status] || `<span class="badge bg-secondary">${s.status || 'unknown'}</span>`;
+
+                const scanType = {
+                    'full': '🔍 Full Scan',
+                    'subdomains': '🌐 Subdomains',
+                    'ports': '🔌 Ports',
+                    'http': '🌎 HTTP',
+                    'vulns': '🐛 Vulns'
+                }[s.scan_type] || s.scan_type || 'Unknown';
+
+                const startedAt = s.started_at
+                    ? new Date(s.started_at).toLocaleString()
+                    : 'Unknown';
+
+                // Show stats if available
+                let statsHtml = '';
+                if (s.stats) {
+                    const stats = s.stats;
+                    const parts = [];
+                    if (stats.subdomains_found) parts.push(`Subs: ${stats.subdomains_found}`);
+                    if (stats.ports_found) parts.push(`Ports: ${stats.ports_found}`);
+                    if (stats.http_assets_found) parts.push(`HTTP: ${stats.http_assets_found}`);
+                    if (stats.vulns_found) parts.push(`Vulns: ${stats.vulns_found}`);
+                    // Handle full scan nested results
+                    if (stats.subdomains && stats.subdomains.count) parts.push(`Subs: ${stats.subdomains.count}`);
+                    if (stats.ports && stats.ports.count) parts.push(`Ports: ${stats.ports.count}`);
+                    if (stats.http && stats.http.count) parts.push(`HTTP: ${stats.http.count}`);
+                    if (stats.vulns && stats.vulns.count) parts.push(`Vulns: ${stats.vulns.count}`);
+
+                    if (parts.length > 0) {
+                        statsHtml = `<br><small class="text-muted">${parts.join(' | ')}</small>`;
+                    }
+                }
+
+                return `
+                    <div class="border-bottom py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <strong>${scanType}</strong>
+                            ${statusBadge}
+                        </div>
+                        <small class="text-muted">${startedAt}</small>
+                        ${statsHtml}
+                        ${s.error ? `<br><small class="text-danger">Error: ${s.error}</small>` : ''}
+                    </div>`;
+            }).join('');
+
+        } catch (error) {
+            console.error('Error loading history:', error);
+            historyDiv.innerHTML = '<p class="text-danger">Error loading scan history</p>';
+        }
     }
 
+    // Reload history when target changes
+    document.getElementById('scan-target').addEventListener('change', loadHistory);
+
+    // Initialize
     loadTargets();
 </script>
 {% endblock %}

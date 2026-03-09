@@ -24,23 +24,21 @@ def serialize_doc(doc):
 
 # ─── CRUD Functions ──────────────────────────────────────────────────────
 
-def add_http_asset(target_id, subdomain_id, url, host, port,
+def add_http_asset(target_id, target_domain, subdomain_id, url, host, port,
                    status_code=0, title="", web_server="",
                    tech=None, content_length=0):
-    """Add a new HTTP asset or update an existing one."""
+    """Add or update HTTP asset. Now stores target_domain."""
     try:
         collection = get_collection(Config.HTTP_ASSETS_COLLECTION)
         target_oid = ObjectId(target_id)
         tech = tech if tech is not None else []
 
-        # Check if this URL already exists for this target
         existing = collection.find_one({
             "target_id": target_oid,
             "url": url
         })
 
         if existing:
-            # Update existing asset
             collection.update_one(
                 {"_id": existing["_id"]},
                 {"$set": {
@@ -50,20 +48,16 @@ def add_http_asset(target_id, subdomain_id, url, host, port,
                     "title": title,
                     "web_server": web_server,
                     "tech": tech,
-                    "content_length": content_length
+                    "content_length": content_length,
+                    "target_domain": target_domain,
                 }}
             )
-            return {
-                "success": True,
-                "message": "HTTP asset updated",
-                "asset_id": str(existing["_id"]),
-                "is_new": False
-            }
+            return {"success": True, "asset_id": str(existing["_id"]), "is_new": False}
 
-        # Insert new HTTP asset
         doc = {
             "target_id": target_oid,
-            "subdomain_id": ObjectId(subdomain_id),
+            "target_domain": target_domain,        # NEW
+            "subdomain_id": ObjectId(subdomain_id) if subdomain_id else None,
             "url": url,
             "host": host,
             "port": port,
@@ -77,13 +71,7 @@ def add_http_asset(target_id, subdomain_id, url, host, port,
             "last_seen": datetime.utcnow()
         }
         result = collection.insert_one(doc)
-
-        return {
-            "success": True,
-            "message": "New HTTP asset added",
-            "asset_id": str(result.inserted_id),
-            "is_new": True
-        }
+        return {"success": True, "asset_id": str(result.inserted_id), "is_new": True}
 
     except Exception as e:
         return {"success": False, "message": str(e)}

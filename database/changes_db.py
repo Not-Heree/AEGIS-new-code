@@ -24,19 +24,22 @@ def serialize_doc(doc):
 
 # ─── CRUD Functions ──────────────────────────────────────────────────────
 
-def add_change(target_id, change_type, severity, details, scan_id=None):
-    """Record a change in the attack surface."""
+def add_change(target_id, target_domain, change_type, severity,
+               details, scan_id=None):
+    """Record a change. Now stores target_domain for route queries."""
     try:
         collection = get_collection(Config.CHANGES_COLLECTION)
 
         doc = {
             "target_id": ObjectId(target_id),
+            "target_domain": target_domain,           # NEW — fixes empty changes page
             "scan_id": ObjectId(scan_id) if scan_id else None,
             "change_type": change_type,
             "severity": severity,
             "details": details,
             "acknowledged": False,
-            "timestamp": datetime.utcnow()
+            "detected_at": datetime.utcnow(),         # Renamed from timestamp
+            "timestamp": datetime.utcnow()            # Keep for backward compat
         }
         result = collection.insert_one(doc)
 

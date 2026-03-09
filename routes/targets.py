@@ -178,56 +178,47 @@ def update_target(domain):
 
 # ─── Delete Target ───────────────────────────────────────────────────────
 
+
 @targets_bp.route("/<domain>", methods=["DELETE"])
 def delete_target(domain):
-    """DELETE /api/targets/<domain> - Remove a target and all its data."""
+    """DELETE — Remove target and ALL data. Queries BOTH field names."""
     try:
         db = get_db()
 
-        # Check if target exists
         target = db[Config.TARGETS_COLLECTION].find_one({"root_domain": domain})
         if not target:
-            return jsonify({
-                "success": False,
-                "error": f"Target '{domain}' not found"
-            }), 404
+            return jsonify({"success": False, "error": "Not found"}), 404
 
-        # Cascade delete — remove ALL data for this domain
-        deleted_counts = {}
+        target_id = target["_id"]
 
-        deleted_counts["subdomains"] = db[Config.SUBDOMAINS_COLLECTION].delete_many(
-            {"target_domain": domain}
-        ).deleted_count
+        # Delete by BOTH target_domain AND target_id to catch all data
+        deleted = {}
+        for coll_name, field_pairs in [
+            (Config.SUBDOMAINS_COLLECTION,
+             [{"target_domain": domain}, {"target_id": target_id}]),
+            (Config.PORTS_COLLECTION,
+             [{"target_domain": domain}, {"target_id": target_id}]),
+            (Config.HTTP_ASSETS_COLLECTION,
+             [{"target_domain": domain}, {"target_id": target_id}]),
+            (Config.VULNS_COLLECTION,
+             [{"target_domain": domain}, {"target_id": target_id}]),
+            (Config.CHANGES_COLLECTION,
+             [{"target_domain": domain}, {"target_id": target_id}]),
+            (Config.SCANS_COLLECTION,
+             [{"target_domain": domain}, {"target_id": target_id}]),
+        ]:
+            count = 0
+            for query in field_pairs:
+                count += db[coll_name].delete_many(query).deleted_count
+            deleted[coll_name] = count
 
-        deleted_counts["ports"] = db[Config.PORTS_COLLECTION].delete_many(
-            {"target_domain": domain}
-        ).deleted_count
-
-        deleted_counts["http_assets"] = db[Config.HTTP_ASSETS_COLLECTION].delete_many(
-            {"target_domain": domain}
-        ).deleted_count
-
-        deleted_counts["vulnerabilities"] = db[Config.VULNS_COLLECTION].delete_many(
-            {"target_domain": domain}
-        ).deleted_count
-
-        deleted_counts["changes"] = db[Config.CHANGES_COLLECTION].delete_many(
-            {"target_domain": domain}
-        ).deleted_count
-
-        deleted_counts["scans"] = db[Config.SCANS_COLLECTION].delete_many(
-            {"target_domain": domain}
-        ).deleted_count
-
-        # Delete the target itself
-        db[Config.TARGETS_COLLECTION].delete_one({"root_domain": domain})
-
-        print(f"[TARGETS] Deleted target: {domain} (cascade)")
+        # Delete target itself
+        db[Config.TARGETS_COLLECTION].delete_one({"_id": target_id})
 
         return jsonify({
             "success": True,
-            "message": f"Target '{domain}' and all associated data deleted",
-            "deleted": deleted_counts
+            "message": f"'{domain}' and all data deleted",
+            "deleted": deleted
         })
 
     except Exception as e:

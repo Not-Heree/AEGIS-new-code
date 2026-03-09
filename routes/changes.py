@@ -9,14 +9,34 @@ changes_bp = Blueprint("changes", __name__, url_prefix="/api/changes")
 
 
 def _serialize(doc):
-    """Convert MongoDB document to JSON-safe dict."""
-    if doc and "_id" in doc:
-        doc["_id"] = str(doc["_id"])
-    return doc
+    """Convert MongoDB document to JSON-safe dict — handles ALL ObjectId and datetime fields."""
+    if doc is None:
+        return None
+
+    from bson import ObjectId
+    from datetime import datetime
+
+    result = {}
+    for key, value in doc.items():
+        if isinstance(value, ObjectId):
+            result[key] = str(value)
+        elif isinstance(value, datetime):
+            result[key] = value.isoformat()
+        elif isinstance(value, list):
+            result[key] = [
+                str(v) if isinstance(v, ObjectId)
+                else v.isoformat() if isinstance(v, datetime)
+                else v
+                for v in value
+            ]
+        elif isinstance(value, dict):
+            result[key] = _serialize(value)
+        else:
+            result[key] = value
+    return result
 
 
 def _serialize_list(docs):
-    """Convert list of MongoDB documents to JSON-safe list."""
     return [_serialize(doc) for doc in docs]
 
 

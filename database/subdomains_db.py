@@ -24,25 +24,25 @@ def serialize_doc(doc):
 
 # ─── CRUD Functions ──────────────────────────────────────────────────────
 
-def add_subdomain(target_id, subdomain, ip_addresses=None, source="subfinder"):
-    """Add a new subdomain or update an existing one for a target."""
+def add_subdomain(target_id, target_domain, subdomain,
+                  ip_addresses=None, source="subfinder"):
+    """Add or update a subdomain. Now stores target_domain for route queries."""
     try:
         collection = get_collection(Config.SUBDOMAINS_COLLECTION)
         subdomain = subdomain.strip().lower()
         target_oid = ObjectId(target_id)
 
-        # Check if subdomain already exists for this target
         existing = collection.find_one({
             "target_id": target_oid,
             "subdomain": subdomain
         })
 
         if existing:
-            # Update existing subdomain
             update_fields = {
                 "last_seen": datetime.utcnow(),
                 "is_new": False,
-                "is_alive": True
+                "is_alive": True,
+                "target_domain": target_domain,  # Ensure field exists
             }
             if ip_addresses is not None:
                 update_fields["ip_addresses"] = ip_addresses
@@ -53,16 +53,15 @@ def add_subdomain(target_id, subdomain, ip_addresses=None, source="subfinder"):
             )
             return {
                 "success": True,
-                "message": "Subdomain updated",
                 "subdomain_id": str(existing["_id"]),
                 "is_new": False
             }
 
-        # Insert new subdomain
         doc = {
             "target_id": target_oid,
+            "target_domain": target_domain,      # NEW FIELD
             "subdomain": subdomain,
-            "ip_addresses": ip_addresses if ip_addresses else [],
+            "ip_addresses": ip_addresses or [],
             "is_alive": True,
             "is_new": True,
             "source": source,
@@ -73,7 +72,6 @@ def add_subdomain(target_id, subdomain, ip_addresses=None, source="subfinder"):
 
         return {
             "success": True,
-            "message": "New subdomain added",
             "subdomain_id": str(result.inserted_id),
             "is_new": True
         }
@@ -82,30 +80,25 @@ def add_subdomain(target_id, subdomain, ip_addresses=None, source="subfinder"):
         return {"success": False, "message": str(e)}
 
 
-def add_subdomains_bulk(target_id, subdomains_list):
-    """Add multiple subdomains at once, tracking new vs updated counts."""
+def add_subdomains_bulk(target_id, target_domain, subdomains_list):
+    """Add multiple subdomains. Passes target_domain through."""
     new_count = 0
     updated_count = 0
-    failed_count = 0
 
     for subdomain in subdomains_list:
-        result = add_subdomain(target_id, subdomain)
+        result = add_subdomain(target_id, target_domain, subdomain)
         if result.get("success"):
             if result.get("is_new"):
                 new_count += 1
             else:
                 updated_count += 1
-        else:
-            failed_count += 1
 
     return {
         "success": True,
         "total": len(subdomains_list),
         "new": new_count,
-        "updated": updated_count,
-        "failed": failed_count
+        "updated": updated_count
     }
-
 
 def get_subdomains_by_target(target_id):
     """Return all subdomains for a target, sorted alphabetically."""

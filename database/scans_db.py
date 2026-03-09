@@ -104,6 +104,63 @@ def fail_scan(scan_id, error_message):
         return False
 
 
+
+def create_scan_with_domain(target_id, target_domain, scan_type="full"):
+    """Create scan record with target_domain for route queries."""
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+
+        doc = {
+            "target_id": ObjectId(target_id),
+            "target_domain": target_domain,            # NEW
+            "scan_type": scan_type,
+            "status": "running",
+            "started_at": datetime.utcnow(),
+            "completed_at": None,
+            "duration_seconds": 0,
+            "results": {},
+            "error_message": "",
+            "progress_percent": 0,
+            "current_phase": "starting",
+            "phase_detail": "Initializing scan...",
+        }
+        result = collection.insert_one(doc)
+
+        return {
+            "success": True,
+            "scan_id": str(result.inserted_id)
+        }
+
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def update_scan_progress(scan_id, progress_data):
+    """Update scan progress. Called by scanner.py at each phase."""
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        collection.update_one(
+            {"_id": ObjectId(scan_id)},
+            {"$set": {
+                "current_phase": progress_data.get("current_phase", ""),
+                "phase_detail": progress_data.get("phase_detail", ""),
+                "progress_percent": progress_data.get("progress_percent", 0),
+            }}
+        )
+    except Exception as e:
+        print(f"[SCANS_DB] Progress update error: {e}")
+
+def get_scan_progress(scan_id):
+    """Get scan progress for status endpoint."""
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        scan = collection.find_one({"_id": ObjectId(scan_id)})
+        if scan:
+            return serialize_doc(scan)
+        return None
+    except Exception:
+        return None
+    
 def get_scans_by_target(target_id, limit=50):
     """Return scan history for a target, newest first."""
     try:

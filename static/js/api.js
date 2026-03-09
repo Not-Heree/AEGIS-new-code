@@ -49,6 +49,20 @@ const api = {
             console.error('API PUT Error:', error);
             return { success: false, error: error.message };
         }
+    },
+
+    async patch(url, data = {}) {
+        try {
+            const response = await fetch(API_BASE + url, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('API PATCH Error:', error);
+            return { success: false, error: error.message };
+        }
     }
 };
 

@@ -85,13 +85,13 @@
                 const domain = t.root_domain || t.domain || 'N/A';
                 return `
             <tr>
-                <td><strong>${domain}</strong></td>
+                <td><a href="/targets/${domain}" class="text-decoration-none"><strong>${domain}</strong></a></td>
                 <td>${t.org_name || '-'}</td>
                 <td><span class="badge bg-success">${t.status || 'active'}</span></td>
                 <td>${t.total_subdomains || 0}</td>
                 <td>${t.total_vulns || 0}</td>
                 <td>${t.risk_score || 0}/100</td>
-                <td>${t.last_scanned ? new Date(t.last_scanned).toLocaleDateString() : 'Never'}</td>
+                <td>${(t.last_scanned || t.last_scan_at) ? new Date(t.last_scanned || t.last_scan_at).toLocaleDateString() : 'Never'}</td>
                 <td>
                     <button class="btn btn-sm btn-success" onclick="runScan('${domain}')"><i class="bi bi-play"></i></button>
                     <button class="btn btn-sm btn-danger" onclick="deleteTarget('${domain}')"><i class="bi bi-trash"></i></button>

@@ -25,7 +25,7 @@
             const changes = data.changes || [];
 
             if (changes.length === 0) {
-                div.innerHTML = '<p class="text-center text-muted">No changes detected yet. Run a scan first.</p>';
+                div.innerHTML = '<p class="text-center text-muted">No changes detected yet.</p>';
                 return;
             }
 
@@ -36,44 +36,52 @@
                         <tr>
                             <th>Type</th>
                             <th>Detail</th>
-                            <th>Domain</th>
+                            <th>Severity</th>
                             <th>Detected</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${changes.map(c => {
-                const typeIcons = {
-                    'new_subdomain': '🟢',
-                    'removed_subdomain': '🔴',
-                    'new_port': '🟡',
-                    'new_vuln': '🔴',
-                    'resolved_vuln': '✅'
+                const icons = {
+                    'new_subdomain': '🟢', 'subdomain_removed': '🔴',
+                    'new_port': '🟡', 'port_closed': '⚪',
+                    'new_vulnerability': '🔴', 'vulnerability_resolved': '✅'
                 };
-                const icon = typeIcons[c.change_type] || '🔵';
-                const acked = c.acknowledged ? 'bg-success' : 'bg-warning text-dark';
-                const ackedText = c.acknowledged ? 'Acknowledged' : 'New';
+                const icon = icons[c.change_type] || '🔵';
+                const details = c.details || {};
+                const message = details.message || c.change_type || 'Unknown';
+                const severity = c.severity || 'info';
+                const sevClass = {
+                    'high': 'bg-danger', 'medium': 'bg-warning text-dark',
+                    'low': 'bg-info', 'info': 'bg-secondary'
+                }[severity] || 'bg-secondary';
+
+                const acked = c.acknowledged;
                 const changeId = c._id || '';
+                const detected = c.detected_at || c.timestamp || '';
 
                 return `
                             <tr>
-                                <td>${icon} ${c.change_type || 'unknown'}</td>
-                                <td>${c.detail || c.entity || '-'}</td>
-                                <td>${c.target_domain || '-'}</td>
-                                <td><small>${c.detected_at ? new Date(c.detected_at).toLocaleString() : '-'}</small></td>
+                                <td>${icon} ${c.change_type || ''}</td>
+                                <td>${message}</td>
+                                <td><span class="badge ${sevClass}">${severity}</span></td>
+                                <td><small>${detected ? new Date(detected).toLocaleString() : '-'}</small></td>
                                 <td>
-                                    <span class="badge ${acked}">${ackedText}</span>
-                                    ${!c.acknowledged && changeId ?
-                        `<button class="btn btn-sm btn-outline-success ms-1" onclick="ackChange('${changeId}')">
-                                            <i class="bi bi-check"></i>
-                                        </button>` : ''}
+                                    ${acked
+                        ? '<span class="badge bg-success">Acknowledged</span>'
+                        : `<span class="badge bg-warning text-dark">New</span>
+                                           <button class="btn btn-sm btn-outline-success ms-1"
+                                                   onclick="ackChange('${changeId}')">
+                                               <i class="bi bi-check"></i>
+                                           </button>`
+                    }
                                 </td>
                             </tr>`;
             }).join('')}
                     </tbody>
                 </table>
             </div>`;
-
         } catch (error) {
             console.error('Error:', error);
             document.getElementById('changes-list').innerHTML =

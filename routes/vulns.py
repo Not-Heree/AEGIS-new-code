@@ -9,14 +9,34 @@ vulns_bp = Blueprint("vulns", __name__, url_prefix="/api/vulns")
 
 
 def _serialize(doc):
-    """Convert MongoDB document to JSON-safe dict."""
-    if doc and "_id" in doc:
-        doc["_id"] = str(doc["_id"])
-    return doc
+    """Convert MongoDB document to JSON-safe dict — handles ALL ObjectId and datetime fields."""
+    if doc is None:
+        return None
+
+    from bson import ObjectId
+    from datetime import datetime
+
+    result = {}
+    for key, value in doc.items():
+        if isinstance(value, ObjectId):
+            result[key] = str(value)
+        elif isinstance(value, datetime):
+            result[key] = value.isoformat()
+        elif isinstance(value, list):
+            result[key] = [
+                str(v) if isinstance(v, ObjectId)
+                else v.isoformat() if isinstance(v, datetime)
+                else v
+                for v in value
+            ]
+        elif isinstance(value, dict):
+            result[key] = _serialize(value)
+        else:
+            result[key] = value
+    return result
 
 
 def _serialize_list(docs):
-    """Convert list of MongoDB documents to JSON-safe list."""
     return [_serialize(doc) for doc in docs]
 
 
@@ -151,5 +171,68 @@ def delete_vuln(vuln_id):
             "success": True,
             "message": "Vulnerability deleted"
         })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# false positive─────────────────────────────────────────────────────────
+@vulns_bp.route("/<vuln_id>/status", methods=["PATCH"])
+def update_vuln_status(vuln_id):
+    """PATCH /api/vulns/<vuln_id>/status — Mark as resolved/false_positive/open.
+    
+    Body: {"status": "resolved"} or {"status": "false_positive"} or {"status": "open"}
+    """
+    try:
+        data = request.get_json()
+        if not data or "status" not in data:
+            return jsonify({
+                "success": False,
+                "error": "status required. Options: open, resolved, false_positive"
+            }), 400
+
+        new_status = data["status"].lower()
+        if new_status not in ("open", "resolved", "false_positive"):
+            return jsonify({
+                "success": False,
+                "error": f"Invalid status: {new_status}"
+            }), 400
+
+        db = get_db()
+        update_fields = {"status": new_status}
+        if new_status == "resolved":
+            from datetime import datetime
+            update_fields["resolved_at"] = datetime.utcnow()
+        elif new_status == "open":
+            update_fields["resolved_at"] = None
+
+        result = db[Config.VULNS_COLLECTION].update_one(
+            {"_id": ObjectId(vuln_id)},
+            {"$set": update_fields}
+        )
+
+        if result.matched_count == 0:
+            return jsonify({"success": False, "error": "Vuln not found"}), 404
+
+        return jsonify({
+            "success": True,
+            "message": f"Vulnerability marked as {new_status}"
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@vulns_bp.route("/<vuln_id>/detail", methods=["GET"])
+def get_vuln_detail(vuln_id):
+    """GET /api/vulns/<vuln_id>/detail — Full vulnerability details including remediation."""
+    try:
+        db = get_db()
+        vuln = db[Config.VULNS_COLLECTION].find_one(
+            {"_id": ObjectId(vuln_id)}
+        )
+        if not vuln:
+            return jsonify({"success": False, "error": "Not found"}), 404
+
+        return jsonify({"success": True, "vulnerability": _serialize(vuln)})
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

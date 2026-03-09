@@ -1,3 +1,5 @@
+# config.py
+
 import os
 from dotenv import load_dotenv
 
@@ -15,8 +17,8 @@ class Config:
     MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "easm_db")
 
     # ─── Flask Settings ─────────────────────────────────────────────────
-    SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "easm-default-secret-key")
-    DEBUG = os.getenv("FLASK_DEBUG", "True") == "True"
+    SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "easm-default-secret-key-change-in-production")
+    DEBUG = os.getenv("FLASK_DEBUG", "True").lower() == "true"
     PORT = int(os.getenv("FLASK_PORT", "5000"))
 
     # ─── Tool Paths ─────────────────────────────────────────────────────
@@ -26,10 +28,21 @@ class Config:
     NUCLEI_PATH = os.getenv("NUCLEI_PATH", "tools/nuclei.exe")
 
     # ─── Scan Settings ──────────────────────────────────────────────────
-    SCAN_TIMEOUT = 3600                              # seconds
-    NAABU_TOP_PORTS = "1000"                         # top N ports to scan
-    NUCLEI_SEVERITY = "critical,high,medium,low"     # severity filter
-    NUCLEI_RATE_LIMIT = 150                          # requests per second
+    SCAN_TIMEOUT = int(os.getenv("SCAN_TIMEOUT", "3600"))  # seconds (1 hour default)
+    
+    # Naabu (Port Scanner)
+    NAABU_TOP_PORTS = os.getenv("NAABU_TOP_PORTS", "1000")  # top N ports to scan
+    NAABU_RATE = int(os.getenv("NAABU_RATE", "1000"))       # packets per second
+    
+    # Nuclei (Vulnerability Scanner)
+    NUCLEI_SEVERITY = os.getenv("NUCLEI_SEVERITY", "critical,high,medium,low")
+    NUCLEI_RATE_LIMIT = int(os.getenv("NUCLEI_RATE_LIMIT", "150"))  # requests per second
+    NUCLEI_RETRIES = int(os.getenv("NUCLEI_RETRIES", "1"))
+    NUCLEI_TEMPLATES_PATH = os.getenv("NUCLEI_TEMPLATES_PATH", "")  # custom templates (optional)
+    
+    # HTTPX (HTTP Prober)
+    HTTPX_THREADS = int(os.getenv("HTTPX_THREADS", "50"))
+    HTTPX_TIMEOUT = int(os.getenv("HTTPX_TIMEOUT", "10"))  # seconds
 
     # ─── MongoDB Collection Names ────────────────────────────────────────
     TARGETS_COLLECTION = "targets"
@@ -39,3 +52,7 @@ class Config:
     VULNS_COLLECTION = "vulnerabilities"
     CHANGES_COLLECTION = "changes"
     SCANS_COLLECTION = "scan_history"
+
+    # ─── Report Settings ─────────────────────────────────────────────────
+    REPORTS_DIR = os.getenv("REPORTS_DIR", "generated_reports")
+    REPORT_COMPANY_NAME = os.getenv("REPORT_COMPANY_NAME", "EASM Tool")

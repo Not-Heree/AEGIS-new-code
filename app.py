@@ -12,6 +12,7 @@ from routes.assets import assets_bp
 from routes.changes import changes_bp
 from routes.vulns import vulns_bp
 from routes.reports import reports_bp
+from routes.remediation import remediation_bp
 
 # ─── Create Flask App ─────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -43,7 +44,7 @@ app.register_blueprint(assets_bp)
 app.register_blueprint(changes_bp)
 app.register_blueprint(vulns_bp)
 app.register_blueprint(reports_bp)
-
+app.register_blueprint(remediation_bp)
 
 # ─── Core API Routes ──────────────────────────────────────────────────────
 
@@ -146,5 +147,6 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=Config.PORT,
-        debug=Config.DEBUG
+        debug=Config.DEBUG,
+        threaded=True
     )
