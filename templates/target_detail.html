@@ -1,41 +1,50 @@
-@"
 {% extends "base.html" %}
 {% block title %}Target Details - EASM Tool{% endblock %}
 
 {% block content %}
 <div class="mb-4">
-    <a href="/targets" class="btn btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> Back to Targets</a>
+    <a href="/targets" class="btn btn-outline-secondary mb-3">
+        <i class="bi bi-arrow-left"></i> Back to Targets
+    </a>
     <h2><i class="bi bi-bullseye"></i> Target Details</h2>
     <h4 class="text-primary" id="domain-name">Loading...</h4>
 </div>
 
+<!-- Stat Cards -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="stat-subs">-</div>
             <div class="stat-label">Subdomains</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="stat-ports">-</div>
             <div class="stat-label">Open Ports</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="stat-http">-</div>
             <div class="stat-label">HTTP Assets</div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="stat-vulns">-</div>
             <div class="stat-label">Vulnerabilities</div>
         </div>
     </div>
+    <div class="col">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-emails">-</div>
+            <div class="stat-label">Emails</div>
+        </div>
+    </div>
 </div>
 
+<!-- Subdomains + Ports -->
 <div class="row mb-4">
     <div class="col-md-6">
         <div class="card">
@@ -43,7 +52,9 @@
                 <h5><i class="bi bi-diagram-3"></i> Subdomains</h5>
                 <span class="badge bg-primary" id="sub-count">0</span>
             </div>
-            <div class="card-body" id="subdomains-list" style="max-height: 300px; overflow-y: auto;">Loading...</div>
+            <div class="card-body" id="subdomains-list" style="max-height: 300px; overflow-y: auto;">
+                Loading...
+            </div>
         </div>
     </div>
     <div class="col-md-6">
@@ -52,11 +63,14 @@
                 <h5><i class="bi bi-hdd-network"></i> Open Ports</h5>
                 <span class="badge bg-primary" id="port-count">0</span>
             </div>
-            <div class="card-body" id="ports-list" style="max-height: 300px; overflow-y: auto;">Loading...</div>
+            <div class="card-body" id="ports-list" style="max-height: 300px; overflow-y: auto;">
+                Loading...
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Vulnerabilities -->
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -69,6 +83,62 @@
     </div>
 </div>
 
+<!-- Email Exposure -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5><i class="bi bi-envelope-exclamation"></i> Email Exposure</h5>
+                <span class="badge bg-warning text-dark" id="email-count">0</span>
+            </div>
+            <div class="card-body" id="emails-list">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Passive Intelligence (Shodan & Censys) -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between">
+                <h5><i class="bi bi-person-search"></i> Passive Intelligence (Shodan & Censys)</h5>
+                <div>
+                    <span class="badge bg-info" id="passive-host-count">0 Hosts</span>
+                    <span class="badge bg-warning text-dark" id="passive-service-count">0 Services</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs mb-3" id="passiveTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="hosts-tab" data-bs-toggle="tab" data-bs-target="#hosts-pane" type="button" role="tab">Host Details</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="services-tab" data-bs-toggle="tab" data-bs-target="#services-pane" type="button" role="tab">Service Banners</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="passive-vulns-tab" data-bs-toggle="tab" data-bs-target="#passive-vulns-pane" type="button" role="tab">Unverified CVEs</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="passiveTabContent">
+                    <div class="tab-pane fade show active" id="hosts-pane" role="tabpanel">
+                        <div id="passive-hosts-list" class="table-responsive">Loading hosts...</div>
+                    </div>
+                    <div class="tab-pane fade" id="services-pane" role="tabpanel">
+                        <div id="passive-services-list" class="table-responsive">Loading services...</div>
+                    </div>
+                    <div class="tab-pane fade" id="passive-vulns-pane" role="tabpanel">
+                        <div class="alert alert-warning py-2">
+                            <i class="bi bi-info-circle"></i> These CVEs are reported by Shodan based on banners. They are <strong>unverified</strong>.
+                        </div>
+                        <div id="passive-vulns-list" class="table-responsive">Loading CVEs...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
 <div class="row">
     <div class="col-md-12">
         <div class="card">
@@ -76,12 +146,18 @@
                 <h5><i class="bi bi-lightning"></i> Quick Actions</h5>
             </div>
             <div class="card-body">
-                <button class="btn btn-success me-2" onclick="runFullScan()"><i class="bi bi-play"></i> Run Full
-                    Scan</button>
-                <button class="btn btn-primary me-2" onclick="generateReport()"><i class="bi bi-file-pdf"></i> Generate
-                    Report</button>
-                <button class="btn btn-danger" onclick="deleteTarget()"><i class="bi bi-trash"></i> Delete
-                    Target</button>
+                <button class="btn btn-success me-2" onclick="runFullScan()">
+                    <i class="bi bi-play"></i> Run Full Scan
+                </button>
+                <button class="btn btn-primary me-2" onclick="generateReport()">
+                    <i class="bi bi-file-pdf"></i> Generate Report
+                </button>
+                <button class="btn btn-warning me-2" onclick="harvestEmails()">
+                    <i class="bi bi-envelope"></i> Harvest Emails
+                </button>
+                <button class="btn btn-danger" onclick="deleteTarget()">
+                    <i class="bi bi-trash"></i> Delete Target
+                </button>
                 <div id="action-status" class="mt-3"></div>
             </div>
         </div>
@@ -111,7 +187,10 @@
         if (subs.subdomains && subs.subdomains.length > 0) {
             document.getElementById('sub-count').textContent = subs.subdomains.length;
             subList.innerHTML = subs.subdomains.map(function (s) {
-                return '<span class="badge bg-secondary me-1 mb-1">' + s.subdomain + '</span>';
+                var source = (s.sources && s.sources.length > 0)
+                    ? ' <small class="text-muted">(' + s.sources.join(', ') + ')</small>'
+                    : '';
+                return '<span class="badge bg-secondary me-1 mb-1">' + s.subdomain + source + '</span>';
             }).join('');
         } else {
             subList.innerHTML = '<p class="text-muted">No subdomains discovered yet. Run a scan!</p>';
@@ -135,24 +214,240 @@
         var vulnList = document.getElementById('vulns-list');
         if (vulns.vulnerabilities && vulns.vulnerabilities.length > 0) {
             document.getElementById('vuln-count').textContent = vulns.vulnerabilities.length;
-            vulnList.innerHTML = '<table class="table table-sm"><thead><tr><th>Severity</th><th>Name</th><th>Host</th></tr></thead><tbody>' +
+            vulnList.innerHTML = '<table class="table table-sm"><thead><tr><th>Severity</th><th>Name</th><th>Host</th><th>Source</th></tr></thead><tbody>' +
                 vulns.vulnerabilities.map(function (v) {
-                    return '<tr><td><span class="badge badge-' + v.severity + '">' + (v.severity || 'info').toUpperCase() + '</span></td><td>' + (v.name || v.template_id) + '</td><td>' + v.host + '</td></tr>';
+                    var tags = v.tags || [];
+                    var source = '';
+                    if (tags.indexOf('shodan') >= 0) {
+                        source = '<span class="badge bg-info">Shodan</span>';
+                    } else if (tags.indexOf('passive') >= 0) {
+                        source = '<span class="badge bg-secondary">Passive</span>';
+                    } else {
+                        source = '<span class="badge bg-primary">Nuclei</span>';
+                    }
+                    return '<tr><td><span class="badge badge-' + v.severity + '">' + (v.severity || 'info').toUpperCase() + '</span></td><td>' + (v.name || v.template_id) + '</td><td>' + v.host + '</td><td>' + source + '</td></tr>';
                 }).join('') + '</tbody></table>';
         } else {
             vulnList.innerHTML = '<p class="text-success"><i class="bi bi-check-circle"></i> No vulnerabilities found!</p>';
         }
+
+        // Load emails
+        var emails = await api.get('/api/emails/' + domain);
+        var emailList = document.getElementById('emails-list');
+        if (emails.emails && emails.emails.length > 0) {
+            document.getElementById('stat-emails').textContent = emails.emails.length;
+            document.getElementById('email-count').textContent = emails.emails.length;
+
+            var breachedCount = 0;
+            emails.emails.forEach(function (e) {
+                if (e.breach_status === 'breached') breachedCount++;
+            });
+
+            var emailSummary = '<div class="mb-3">' +
+                '<span class="badge bg-primary me-2">Total: ' + emails.emails.length + '</span>' +
+                '<span class="badge bg-danger me-2">Breached: ' + breachedCount + '</span>' +
+                '<span class="badge bg-success">Clean: ' + (emails.emails.length - breachedCount) + '</span>' +
+                '</div>';
+
+            emailList.innerHTML = emailSummary +
+                '<table class="table table-sm"><thead><tr><th>Status</th><th>Email</th><th>Breaches</th><th>Sources</th></tr></thead><tbody>' +
+                emails.emails.slice(0, 20).map(function (e) {
+                    var status = e.breach_status === 'breached'
+                        ? '<span class="badge bg-danger">Breached</span>'
+                        : e.breach_status === 'clean'
+                            ? '<span class="badge bg-success">Clean</span>'
+                            : '<span class="badge bg-warning text-dark">Unchecked</span>';
+                    var breachCount = e.breach_count || 0;
+                    var sources = (e.sources || []).join(', ');
+                    var pwdWarning = e.password_leaked
+                        ? ' <small class="text-danger">⚠️ PWD</small>'
+                        : '';
+                    return '<tr><td>' + status + '</td><td>' + e.email + pwdWarning + '</td><td>' + breachCount + '</td><td><small>' + sources + '</small></td></tr>';
+                }).join('') + '</tbody></table>';
+
+            if (emails.emails.length > 20) {
+                emailList.innerHTML += '<p class="text-muted text-center"><a href="/emails">View all ' + emails.emails.length + ' emails</a></p>';
+            }
+        } else {
+            document.getElementById('stat-emails').textContent = '0';
+            emailList.innerHTML = '<p class="text-muted">No emails discovered. They are harvested automatically when the target is added. <button class="btn btn-sm btn-outline-warning" onclick="harvestEmails()">Harvest Now</button></p>';
+        }
+
+        // Load Passive Recon
+        loadPassiveRecon();
+    }
+
+    async function loadPassiveRecon() {
+        // 1. Load Hosts
+        const hostsData = await api.get('/api/passive/hosts/' + domain);
+        const hostList = document.getElementById('passive-hosts-list');
+        if (hostsData.success && hostsData.hosts.length > 0) {
+            document.getElementById('passive-host-count').textContent = hostsData.hosts.length + ' Hosts';
+            hostList.innerHTML = `
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Hostnames</th>
+                            <th>Org / ISP</th>
+                            <th>Ports</th>
+                            <th>OS</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${hostsData.hosts.map(h => `
+                            <tr>
+                                <td><strong>${h.ip}</strong><br><small class="text-muted">${h.city || ''}, ${h.country || ''}</small></td>
+                                <td><small>${h.hostnames.join('<br>') || '-'}</small></td>
+                                <td><small>${h.org || '-'}<br><span class="text-muted">${h.isp || ''}</span></small></td>
+                                <td>${h.ports.map(p => `<span class="badge bg-dark me-1">${p}</span>`).join('')}</td>
+                                <td><small>${h.os || '-'}</small></td>
+                                <td>${h.sources.map(s => `<span class="badge bg-outline-primary text-primary border border-primary">${s}</span>`).join(' ')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+        } else {
+            hostList.innerHTML = '<p class="text-muted p-3">No passive host data found.</p>';
+        }
+
+        // 2. Load Services
+        const svcData = await api.get('/api/passive/services/' + domain);
+        const svcList = document.getElementById('passive-services-list');
+        if (svcData.success && svcData.services.length > 0) {
+            document.getElementById('passive-service-count').textContent = svcData.services.length + ' Services';
+            svcList.innerHTML = `
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Host:Port</th>
+                            <th>Product / Version</th>
+                            <th>Banner / Software</th>
+                            <th>Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${svcData.services.map(s => `
+                            <tr>
+                                <td><code>${s.host}:${s.port}</code></td>
+                                <td><strong>${s.product || '-'}</strong><br><small>${s.version || ''}</small></td>
+                                <td>
+                                    <div class="small text-truncate" style="max-width: 300px;" title="${s.banner}">${s.banner || '-'}</div>
+                                    ${s.software.map(sw => `<span class="badge bg-light text-dark border me-1">${sw}</span>`).join('')}
+                                </td>
+                                <td>${s.sources.map(src => `<span class="badge bg-secondary">${src}</span>`).join(' ')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+        } else {
+            svcList.innerHTML = '<p class="text-muted p-3">No service banner data found.</p>';
+        }
+
+        // 3. Load Passive Vulns
+        const vulnData = await api.get('/api/passive/vulns/' + domain);
+        const vList = document.getElementById('passive-vulns-list');
+        if (vulnData.success && vulnData.vulnerabilities.length > 0) {
+            vList.innerHTML = `
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Severity</th>
+                            <th>CVE ID</th>
+                            <th>Host:Port</th>
+                            <th>Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${vulnData.vulnerabilities.map(v => `
+                            <tr>
+                                <td><span class="badge badge-${v.derived_severity}">${v.derived_severity.toUpperCase()}</span></td>
+                                <td><a href="https://nvd.nist.gov/vuln/detail/${v.cve_id}" target="_blank">${v.cve_id}</a></td>
+                                <td><code>${v.ip}:${v.port}</code></td>
+                                <td><small>${v.summary}</small></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>`;
+        } else {
+            vList.innerHTML = '<p class="text-muted p-3">No unverified CVEs found in passive recon.</p>';
+        }
     }
 
     async function runFullScan() {
-        if (!confirm('Run full scan on ' + domain + '? This may take several minutes.')) return;
-        document.getElementById('action-status').innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Scan running... Please wait.</div>';
-        var result = await api.post('/api/scans/full/' + domain);
-        if (result.success) {
-            document.getElementById('action-status').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed!</div>';
-            loadDetails();
-        } else {
-            document.getElementById('action-status').innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ' + result.error + '</div>';
+        if (!confirm('Run full scan on ' + domain + '? This will run in the background.')) return;
+
+        const statusDiv = document.getElementById('action-status');
+        statusDiv.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2"></div>
+                <div class="flex-grow-1">
+                    <strong>Full scan started...</strong>
+                    <div id="scan-phase" class="text-muted small">Initializing...</div>
+                    <div class="progress mt-2" style="height: 22px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             id="scan-progress" role="progressbar"
+                             style="width: 0%">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        try {
+            var result = await api.post('/api/scans/full/' + domain);
+
+            if (!result.success) {
+                statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ' + (result.error || 'Error') + '</div>';
+                return;
+            }
+
+            var scanId = result.scan_id;
+
+            var pollInterval = setInterval(async function () {
+                try {
+                    var status = await api.get('/api/scans/status/' + scanId);
+                    var scan = status.scan || {};
+
+                    var percent = scan.progress_percent || 0;
+                    var bar = document.getElementById('scan-progress');
+                    if (bar) {
+                        bar.style.width = percent + '%';
+                        bar.textContent = percent + '%';
+                    }
+
+                    var phaseEl = document.getElementById('scan-phase');
+                    if (phaseEl) {
+                        phaseEl.textContent = scan.phase_detail || scan.current_phase || 'Processing...';
+                    }
+
+                    if (scan.status === 'completed') {
+                        clearInterval(pollInterval);
+                        var r = scan.results || {};
+                        statusDiv.innerHTML =
+                            '<div class="alert alert-success">' +
+                            '<i class="bi bi-check-circle-fill"></i> <strong>Scan completed!</strong><br>' +
+                            '<small>Subs: ' + (r.subdomains_found || 0) +
+                            ' | Ports: ' + (r.ports_found || 0) +
+                            ' | HTTP: ' + (r.http_assets_found || 0) +
+                            ' | Vulns: ' + (r.vulns_found || 0) +
+                            ' | Risk: ' + (r.risk_score || 0) + '/100</small></div>';
+                        loadDetails();
+                    } else if (scan.status === 'failed') {
+                        clearInterval(pollInterval);
+                        statusDiv.innerHTML =
+                            '<div class="alert alert-danger">' +
+                            '<i class="bi bi-x-circle-fill"></i> Scan failed: ' +
+                            (scan.error_message || 'Unknown') + '</div>';
+                    }
+                } catch (e) {
+                    console.error('Poll error:', e);
+                }
+            }, 3000);
+
+        } catch (e) {
+            statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ' + e.message + '</div>';
         }
     }
 
@@ -163,6 +458,17 @@
             document.getElementById('action-status').innerHTML = '<div class="alert alert-success">Report generated! <a href="/api/reports/download/' + domain + '">Download PDF</a></div>';
         } else {
             document.getElementById('action-status').innerHTML = '<div class="alert alert-danger">Error: ' + result.error + '</div>';
+        }
+    }
+
+    async function harvestEmails() {
+        document.getElementById('action-status').innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Harvesting emails... This may take 1-2 minutes.</div>';
+        var result = await api.post('/api/emails/harvest/' + domain);
+        if (result.success) {
+            document.getElementById('action-status').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Found ' + (result.emails_found || 0) + ' emails, ' + (result.emails_breached || 0) + ' breached!</div>';
+            loadDetails();
+        } else {
+            document.getElementById('action-status').innerHTML = '<div class="alert alert-danger">Error: ' + (result.error || 'Unknown') + '</div>';
         }
     }
 
@@ -180,6 +486,3 @@
     loadDetails();
 </script>
 {% endblock %}
-"@ | Set-Content -Path "templates/target_detail.html" -Encoding UTF8
-
-Write-Host "Created target_detail.html"

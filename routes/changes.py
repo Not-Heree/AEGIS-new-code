@@ -4,12 +4,15 @@ from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from database.connection import get_db
 from config import Config
+from utils.sanitize import (                              # ◄ NEW
+    sanitize_domain, sanitize_object_id                   # ◄ NEW
+)                                                         # ◄ NEW
 
 changes_bp = Blueprint("changes", __name__, url_prefix="/api/changes")
 
 
 def _serialize(doc):
-    """Convert MongoDB document to JSON-safe dict — handles ALL ObjectId and datetime fields."""
+    """Convert MongoDB document to JSON-safe dict."""
     if doc is None:
         return None
 
@@ -67,6 +70,13 @@ def get_all_changes():
 def get_changes_by_domain(domain):
     """GET /api/changes/<domain> - Get changes for a domain"""
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         changes = _serialize_list(
             db[Config.CHANGES_COLLECTION].find(
@@ -87,8 +97,15 @@ def get_changes_by_domain(domain):
 
 @changes_bp.route("/unacknowledged/<domain>", methods=["GET"])
 def get_unacknowledged(domain):
-    """GET /api/changes/unacknowledged/<domain> - Unacknowledged changes"""
+    """GET /api/changes/unacknowledged/<domain>"""
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         changes = _serialize_list(
             db[Config.CHANGES_COLLECTION].find({
@@ -110,8 +127,17 @@ def get_unacknowledged(domain):
 
 @changes_bp.route("/acknowledge/<change_id>", methods=["PATCH"])
 def acknowledge_change(change_id):
-    """PATCH /api/changes/acknowledge/<change_id> - Acknowledge a change"""
+    """PATCH /api/changes/acknowledge/<change_id>"""
     try:
+        try:                                               # ◄ NEW
+            change_id = sanitize_object_id(                # ◄ NEW
+                change_id, "change_id"                     # ◄ NEW
+            )                                              # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         result = db[Config.CHANGES_COLLECTION].update_one(
             {"_id": ObjectId(change_id)},
@@ -137,6 +163,13 @@ def acknowledge_change(change_id):
 def delete_changes(domain):
     """DELETE /api/changes/<domain> - Delete all changes for domain"""
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         result = db[Config.CHANGES_COLLECTION].delete_many(
             {"target_domain": domain}

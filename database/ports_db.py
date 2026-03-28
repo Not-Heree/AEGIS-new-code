@@ -25,8 +25,14 @@ def serialize_doc(doc):
 # ─── CRUD Functions ──────────────────────────────────────────────────────
 
 def add_port(target_id, target_domain, subdomain_id, host, ip, port,
-             protocol="tcp", service="", version=""):
-    """Add or update a port. Now stores target_domain."""
+             protocol="tcp", service="", version="", source="unknown"):
+    """
+    Add or update a port. Now tracks discovery source.
+    
+    Args:
+        ... existing args ...
+        source: Discovery tool — "shodan", "censys", "naabu", etc.
+    """
     try:
         collection = get_collection(Config.PORTS_COLLECTION)
         target_oid = ObjectId(target_id)
@@ -48,16 +54,33 @@ def add_port(target_id, target_domain, subdomain_id, host, ip, port,
                 update_fields["ip"] = ip
             if service:
                 update_fields["service"] = service
+            if version:
+                update_fields["version"] = version
+
+            # ── Source tracking (same pattern as subdomains) ──
+            old_sources = existing.get("sources", [])
+            if isinstance(old_sources, str):
+                old_sources = [old_sources]
+            # Backfill: if old doc has no sources, seed from source field
+            if not old_sources and existing.get("source"):
+                old_sources = [existing["source"]]
+            if source and source != "unknown" and source not in old_sources:
+                old_sources.append(source)
+            update_fields["sources"] = old_sources
 
             collection.update_one(
                 {"_id": existing["_id"]},
                 {"$set": update_fields}
             )
-            return {"success": True, "port_id": str(existing["_id"]), "is_new": False}
+            return {
+                "success": True,
+                "port_id": str(existing["_id"]),
+                "is_new": False
+            }
 
         doc = {
             "target_id": target_oid,
-            "target_domain": target_domain,       # NEW
+            "target_domain": target_domain,
             "subdomain_id": ObjectId(subdomain_id) if subdomain_id else None,
             "host": host,
             "ip": ip,
@@ -67,32 +90,51 @@ def add_port(target_id, target_domain, subdomain_id, host, ip, port,
             "version": version,
             "status": "open",
             "is_new": True,
+            "source": source,                                  # First discoverer
+            "sources": [source] if source else [],             # All discoverers
             "first_seen": datetime.utcnow(),
             "last_seen": datetime.utcnow()
         }
         result = collection.insert_one(doc)
-        return {"success": True, "port_id": str(result.inserted_id), "is_new": True}
+        return {
+            "success": True,
+            "port_id": str(result.inserted_id),
+            "is_new": True
+        }
 
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-
-def add_ports_bulk(target_id, target_domain, subdomain_id, host, ports_list):
-    """Add multiple ports. Passes target_domain through."""
+def add_ports_bulk(target_id, target_domain, subdomain_id, host, ports_list,
+                   source="unknown"):
+    """
+    Add multiple ports. Now passes source through.
+    
+    Args:
+        ... existing args ...
+        source: Discovery tool — "shodan", "censys", "naabu", etc.
+    """
     new_count = 0
     updated_count = 0
 
     for port in ports_list:
-        result = add_port(target_id, target_domain, subdomain_id,
-                         host, "", int(port))
+        result = add_port(
+            target_id, target_domain, subdomain_id,
+            host, "", int(port), source=source
+        )
         if result.get("success"):
             if result.get("is_new"):
                 new_count += 1
             else:
                 updated_count += 1
 
-    return {"success": True, "total": len(ports_list),
-            "new": new_count, "updated": updated_count}
+    return {
+        "success": True,
+        "total": len(ports_list),
+        "new": new_count,
+        "updated": updated_count
+    }
+
 
 
 def get_ports_by_target(target_id):
@@ -205,3 +247,43 @@ def delete_ports_by_subdomain(subdomain_id):
         return result.deleted_count
     except Exception:
         return 0
+def get_ports_by_source(target_id, source):
+    """
+    Return ports discovered by a specific source.
+    
+    Args:
+        target_id: Target document ObjectId string
+        source: Source name — "shodan", "censys", "naabu", etc.
+    
+    Returns:
+        List of serialized port documents
+    """
+    try:
+        collection = get_collection(Config.PORTS_COLLECTION)
+        docs = collection.find({
+            "target_id": ObjectId(target_id),
+            "sources": source
+        }).sort([("host", 1), ("port", 1)])
+        return [serialize_doc(d) for d in docs]
+    except Exception:
+        return []
+
+
+def get_source_port_summary(target_id):
+    """
+    Return summary of how many ports each source discovered.
+    
+    Returns: [{"_id": "shodan", "count": 15}, 
+              {"_id": "naabu", "count": 42}, ...]
+    """
+    try:
+        collection = get_collection(Config.PORTS_COLLECTION)
+        pipeline = [
+            {"$match": {"target_id": ObjectId(target_id)}},
+            {"$unwind": "$sources"},
+            {"$group": {"_id": "$sources", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]
+        return list(collection.aggregate(pipeline))
+    except Exception:
+        return []

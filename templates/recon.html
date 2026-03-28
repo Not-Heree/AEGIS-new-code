@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block title %}Passive Recon - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-binoculars"></i> Passive Reconnaissance</h2>
+    <small class="text-muted">Zero traffic to targets — Shodan & Censys intelligence</small>
+</div>
+
+<!-- Global Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value text-primary" id="recon-total-targets">-</div>
+            <div class="stat-label">Targets Scanned</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value text-info" id="recon-total-hosts">-</div>
+            <div class="stat-label">Hosts Discovered</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value text-warning" id="recon-total-services">-</div>
+            <div class="stat-label">Services Found</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value text-danger" id="recon-total-cves">-</div>
+            <div class="stat-label">CVEs Reported</div>
+        </div>
+    </div>
+</div>
+
+<!-- No Data Message -->
+<div class="alert alert-info" id="recon-no-data" style="display:none;">
+    <i class="bi bi-info-circle"></i>
+    <strong>No passive recon data yet.</strong>
+    Run a full scan on a target to collect Shodan & Censys intelligence.
+    Make sure <code>SHODAN_API_KEY</code> and <code>CENSYS_API_ID</code> are set in your <code>.env</code> file.
+</div>
+
+<!-- Per-Domain Recon Cards -->
+<div id="recon-domains-container"></div>
+
+<!-- Shodan CVEs Section -->
+<div class="card mb-4" id="all-cves-card" style="display:none;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="bi bi-bug text-danger"></i> All Shodan-Reported CVEs
+            <span class="badge bg-warning text-dark ms-2">Unverified</span>
+        </h5>
+        <small class="text-muted">
+            Based on service fingerprints — not actively tested
+        </small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Domain</th>
+                        <th>CVE ID</th>
+                        <th>Host</th>
+                        <th>Port</th>
+                        <th>CVSS</th>
+                        <th>Severity</th>
+                    </tr>
+                </thead>
+                <tbody id="all-cves-table"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Service Fingerprints Section -->
+<div class="card mb-4" id="all-services-card" style="display:none;">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-hdd-network text-warning"></i> Service Fingerprints
+            <small class="text-muted ms-2">Software detected across all targets</small>
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Domain</th>
+                        <th>Host</th>
+                        <th>Port</th>
+                        <th>Product</th>
+                        <th>Version</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody id="all-services-table"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        loadPassiveReconPage();
+    });
+
+    async function loadPassiveReconPage() {
+        // Load overview
+        const overview = await api.get('/api/passive/');
+
+        if (!overview.success) {
+            document.getElementById('recon-no-data').style.display = '';
+            document.getElementById('recon-total-targets').textContent = '0';
+            document.getElementById('recon-total-hosts').textContent = '0';
+            document.getElementById('recon-total-services').textContent = '0';
+            document.getElementById('recon-total-cves').textContent = '0';
+            return;
+        }
+
+        // Update global stats
+        document.getElementById('recon-total-targets').textContent = overview.total_targets || 0;
+        document.getElementById('recon-total-hosts').textContent = overview.total_hosts || 0;
+        document.getElementById('recon-total-services').textContent = overview.total_services || 0;
+        document.getElementById('recon-total-cves').textContent = overview.total_cves || 0;
+
+        const domains = overview.domains || [];
+
+        if (domains.length === 0) {
+            document.getElementById('recon-no-data').style.display = '';
+            return;
+        }
+
+        // Build per-domain cards
+        const container = document.getElementById('recon-domains-container');
+        container.innerHTML = domains.map(d => buildDomainCard(d)).join('');
+
+        // Load detailed data for each domain
+        let allCves = [];
+        let allServices = [];
+
+        for (const d of domains) {
+            // Load CVEs
+            const cvesData = await api.get(`/api/passive/vulns/${d.domain}`);
+            if (cvesData.success && cvesData.vulnerabilities) {
+                for (const v of cvesData.vulnerabilities) {
+                    v._domain = d.domain;
+                    allCves.push(v);
+                }
+            }
+
+            // Load services
+            const svcData = await api.get(`/api/passive/services/${d.domain}`);
+            if (svcData.success && svcData.services) {
+                for (const s of svcData.services) {
+                    s._domain = d.domain;
+                    allServices.push(s);
+                }
+            }
+        }
+
+        // Render CVEs table
+        if (allCves.length > 0) {
+            document.getElementById('all-cves-card').style.display = '';
+            const cvesBody = document.getElementById('all-cves-table');
+
+            // Sort by CVSS descending
+            allCves.sort((a, b) => (b.cvss || 0) - (a.cvss || 0));
+
+            cvesBody.innerHTML = allCves.slice(0, 100).map(v => {
+                const severity = v.derived_severity || getSeverityFromCvss(v.cvss);
+                const badgeClass = getSeverityBadge(severity);
+                const cvss = v.cvss !== null && v.cvss !== undefined ? v.cvss : 'N/A';
+
+                return `
+                <tr>
+                    <td><strong>${esc(v._domain)}</strong></td>
+                    <td>
+                        <a href="https://nvd.nist.gov/vuln/detail/${esc(v.cve_id)}"
+                           target="_blank" class="text-decoration-none">
+                            <strong>${esc(v.cve_id)}</strong>
+                            <i class="bi bi-box-arrow-up-right small"></i>
+                        </a>
+                    </td>
+                    <td><code>${esc(v.host || v.ip || '-')}</code></td>
+                    <td>${v.port || '-'}</td>
+                    <td><strong>${cvss}</strong></td>
+                    <td><span class="badge ${badgeClass}">${severity.toUpperCase()}</span></td>
+                </tr>
+            `;
+            }).join('');
+
+            if (allCves.length > 100) {
+                cvesBody.innerHTML += `
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        ... and ${allCves.length - 100} more CVEs
+                    </td>
+                </tr>
+            `;
+            }
+        }
+
+        // Render services table
+        if (allServices.length > 0) {
+            document.getElementById('all-services-card').style.display = '';
+            const svcBody = document.getElementById('all-services-table');
+
+            // Sort: services with versions first
+            allServices.sort((a, b) => {
+                if (a.version && !b.version) return -1;
+                if (!a.version && b.version) return 1;
+                return 0;
+            });
+
+            svcBody.innerHTML = allServices.slice(0, 100).map(s => {
+                const sources = (s.sources || []).map(src =>
+                    `<span class="badge bg-secondary me-1">${esc(src)}</span>`
+                ).join('');
+
+                let versionHtml = '<span class="text-muted">-</span>';
+                if (s.version) {
+                    versionHtml = `<span class="badge bg-info text-dark">${esc(s.version)}</span>`;
+                }
+
+                return `
+                <tr>
+                    <td><strong>${esc(s._domain)}</strong></td>
+                    <td><code>${esc(s.host || '-')}</code></td>
+                    <td>${s.port || '-'}</td>
+                    <td>${s.product ? '<strong>' + esc(s.product) + '</strong>' : '-'}</td>
+                    <td>${versionHtml}</td>
+                    <td>${sources}</td>
+                </tr>
+            `;
+            }).join('');
+        }
+    }
+
+    function buildDomainCard(d) {
+        const shodan = d.shodan || {};
+        const censys = d.censys || {};
+        const products = (d.products || []).slice(0, 8);
+        const cves = d.cve_count_by_severity || {};
+
+        let shodanHtml = '';
+        if (shodan.available) {
+            shodanHtml = `
+            <span class="badge bg-primary me-1">Shodan</span>
+            ${shodan.hosts} hosts, ${shodan.services} services, ${shodan.cves} CVEs
+        `;
+        } else {
+            shodanHtml = '<span class="text-muted"><i class="bi bi-x-circle"></i> Shodan: Not configured</span>';
+        }
+
+        let censysHtml = '';
+        if (censys.available) {
+            censysHtml = `
+            <span class="badge bg-info me-1">Censys</span>
+            ${censys.hosts} hosts, ${censys.services} services
+        `;
+        } else {
+            censysHtml = '<span class="text-muted"><i class="bi bi-x-circle"></i> Censys: Not configured</span>';
+        }
+
+        let cveBadges = '';
+        if (d.total_cves > 0) {
+            if (cves.critical > 0) cveBadges += `<span class="badge bg-danger me-1">${cves.critical} Critical</span>`;
+            if (cves.high > 0) cveBadges += `<span class="badge bg-warning text-dark me-1">${cves.high} High</span>`;
+            if (cves.medium > 0) cveBadges += `<span class="badge bg-info text-dark me-1">${cves.medium} Medium</span>`;
+            if (cves.low > 0) cveBadges += `<span class="badge bg-secondary me-1">${cves.low} Low</span>`;
+        } else {
+            cveBadges = '<span class="text-success"><i class="bi bi-check-circle"></i> No CVEs reported</span>';
+        }
+
+        let productsHtml = products.map(p =>
+            `<span class="badge bg-light text-dark me-1 mb-1">${esc(p)}</span>`
+        ).join('');
+        if (d.products && d.products.length > 8) {
+            productsHtml += `<small class="text-muted">+${d.products.length - 8} more</small>`;
+        }
+
+        return `
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="bi bi-globe text-primary"></i>
+                    <a href="/targets/${esc(d.domain)}" class="text-decoration-none">
+                        <strong>${esc(d.domain)}</strong>
+                    </a>
+                </h6>
+                <div>
+                    <span class="badge bg-dark me-1">${d.total_hosts} hosts</span>
+                    <span class="badge bg-dark me-1">${d.total_services} services</span>
+                    <span class="badge bg-danger">${d.total_cves} CVEs</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-muted mb-2">Sources</h6>
+                        <div class="mb-1">${shodanHtml}</div>
+                        <div>${censysHtml}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted mb-2">CVEs</h6>
+                        <div>${cveBadges}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-muted mb-2">Technologies</h6>
+                        <div>${productsHtml || '<span class="text-muted">None detected</span>'}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    }
+
+    function getSeverityFromCvss(cvss) {
+        if (cvss === null || cvss === undefined) return 'unknown';
+        try {
+            const score = parseFloat(cvss);
+            if (score >= 9.0) return 'critical';
+            if (score >= 7.0) return 'high';
+            if (score >= 4.0) return 'medium';
+            return 'low';
+        } catch (e) {
+            return 'unknown';
+        }
+    }
+
+    function getSeverityBadge(severity) {
+        const map = {
+            'critical': 'bg-danger',
+            'high': 'bg-warning text-dark',
+            'medium': 'bg-info text-dark',
+            'low': 'bg-secondary',
+            'unknown': 'bg-light text-dark'
+        };
+        return map[severity] || 'bg-light text-dark';
+    }
+
+    function esc(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}

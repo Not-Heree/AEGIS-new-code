@@ -1,0 +1,134 @@
+<!-- 
+    Minimal base template — used for login page.
+    No sidebar, no navbar, just a clean centered layout.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EASM AEGIS{% endblock %}</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 420px;
+            width: 100%;
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            padding: 30px;
+            text-align: center;
+            color: white;
+        }
+
+        .login-header .icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .login-header h3 {
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .login-header p {
+            margin: 5px 0 0;
+            opacity: 0.85;
+            font-size: 0.9rem;
+        }
+
+        .login-body {
+            padding: 35px;
+        }
+
+        .login-body .form-control {
+            border-radius: 8px;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            transition: border-color 0.3s;
+        }
+
+        .login-body .form-control:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+        }
+
+        .login-body .form-label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 6px;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+        }
+
+        .btn-login:hover {
+            background: linear-gradient(135deg, #2980b9, #2471a3);
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .input-group-text {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+            color: #7f8c8d;
+        }
+
+        .input-group .form-control {
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .alert {
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .footer-text {
+            text-align: center;
+            padding: 15px 35px 25px;
+            color: #95a5a6;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+
+<body>
+    {% block content %}{% endblock %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

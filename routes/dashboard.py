@@ -45,7 +45,7 @@ def _get_vuln_stats(target_id):
     """Get vulnerability count grouped by severity for a target."""
     db = get_db()
     pipeline = [
-        {"$match": {"target_id": target_id}},
+        {"$match": {"target_id": ObjectId(target_id)}},
         {"$group": {"_id": "$severity", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}}
     ]
@@ -56,7 +56,7 @@ def _get_latest_scan(target_id):
     """Get the most recent scan for a target."""
     db = get_db()
     scan = db[Config.SCANS_COLLECTION].find_one(
-        {"target_id": target_id},
+        {"target_id": ObjectId(target_id)},
         sort=[("started_at", -1)]
     )
     return _serialize(scan) if scan else None
@@ -66,7 +66,7 @@ def _get_unacknowledged_count(target_id):
     """Count unacknowledged changes for a target."""
     db = get_db()
     return db[Config.CHANGES_COLLECTION].count_documents({
-        "target_id": target_id,
+        "target_id": ObjectId(target_id),
         "acknowledged": {"$ne": True}
     })
 
@@ -112,6 +112,22 @@ def dashboard_home():
         total_http_assets = db[Config.HTTP_ASSETS_COLLECTION].count_documents({})
         total_vulns = db[Config.VULNS_COLLECTION].count_documents({})
 
+        # Passive recon counts (Shodan + Censys)
+        passive_recon = {
+            "shodan_subdomains": db[Config.SUBDOMAINS_COLLECTION].count_documents(
+                {"sources": "shodan"}
+            ),
+            "censys_subdomains": db[Config.SUBDOMAINS_COLLECTION].count_documents(
+                {"sources": "censys"}
+            ),
+            "shodan_ports": db[Config.PORTS_COLLECTION].count_documents(
+                {"sources": "shodan"}                              # ← Fixed
+            ),
+            "censys_ports": db[Config.PORTS_COLLECTION].count_documents(
+                {"sources": "censys"}                              # ← Fixed
+            ),
+        }
+
         return jsonify({
             "success": True,
             "total_targets": total_targets,
@@ -126,6 +142,7 @@ def dashboard_home():
                 "medium": medium_vulns,
                 "low": low_vulns
             },
+            "passive_recon": passive_recon,
             "targets": all_targets
         })
 

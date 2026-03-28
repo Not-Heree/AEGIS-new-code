@@ -87,7 +87,7 @@
             const vulns = data.vulnerabilities || [];
 
             if (vulns.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No vulnerabilities found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">No vulnerabilities found.If you are running scan wait for some time.</td></tr>';
                 resetCounts();
                 return;
             }
@@ -156,9 +156,6 @@
                                     <i class="bi bi-arrow-counterclockwise"></i>
                                 </button>
                             `}
-                            <button class="btn btn-outline-danger" onclick="deleteVuln('${vulnId}')" title="Delete">
-                                <i class="bi bi-trash"></i>
-                            </button>
                         </div>
                     </td>
                 </tr>`;
@@ -185,14 +182,6 @@
         } catch (e) {
             alert('Error updating vulnerability');
         }
-    }
-
-    async function deleteVuln(vulnId) {
-        if (!vulnId || !confirm('Delete this vulnerability?')) return;
-        try {
-            await api.delete('/api/vulns/' + vulnId);
-            loadVulns();
-        } catch (e) { alert('Delete failed'); }
     }
 
     loadVulns();

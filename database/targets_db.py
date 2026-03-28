@@ -1,3 +1,23 @@
+"""
+Target Database Operations
+===========================
+CRUD functions for the targets collection.
+
+CANONICAL FIELD NAMES (consolidated):
+    root_domain   — primary domain identifier (unique index)
+    created_at    — when target was added
+    last_scan_at  — when last scan completed
+    scan_count    — number of completed scans
+
+REMOVED LEGACY FIELDS:
+    domain        — was identical to root_domain (removed)
+    added_at      — was identical to created_at (removed)
+    last_scanned  — was identical to last_scan_at (removed)
+    critical_count, high_count, medium_count, low_count, info_count
+                  — were NOT reliably updated; dashboard calculates
+                    these dynamically from the vulns collection (removed)
+"""
+
 from datetime import datetime
 from bson import ObjectId
 from database.connection import get_collection
@@ -7,17 +27,16 @@ from config import Config
 # ─── Helper ──────────────────────────────────────────────────────────────
 
 def serialize_doc(doc):
-    """Convert a MongoDB document to a JSON-serializable dict.
-    - Converts _id from ObjectId to string
-    - Converts datetime fields to ISO format strings
-    """
+    """Convert a MongoDB document to a JSON-serializable dict."""
     if doc is None:
         return None
 
     doc["_id"] = str(doc["_id"])
 
     for key, value in doc.items():
-        if isinstance(value, datetime):
+        if isinstance(value, ObjectId):                    # ◄ NEW: handle nested ObjectIds
+            doc[key] = str(value)
+        elif isinstance(value, datetime):
             doc[key] = value.isoformat()
 
     return doc
@@ -30,10 +49,8 @@ def add_target(root_domain, org_name=None):
     try:
         collection = get_collection(Config.TARGETS_COLLECTION)
 
-        # Clean the domain
         root_domain = root_domain.strip().lower()
 
-        # Check if target already exists
         existing = collection.find_one({"root_domain": root_domain})
         if existing:
             return {
@@ -42,23 +59,36 @@ def add_target(root_domain, org_name=None):
                 "target_id": str(existing["_id"])
             }
 
-        # Build the target document
         target = {
+            # ── Identity ──────────────────────────────
             "root_domain": root_domain,
-            "org_name": org_name,
+            # REMOVED: "domain" — was identical to root_domain
+
+            "org_name": org_name or "",
+            "description": "",
             "status": "active",
+
+            # ── Computed Stats (updated by scanner) ───
             "total_subdomains": 0,
             "total_ports": 0,
             "total_http_assets": 0,
             "total_vulns": 0,
+            "total_emails": 0,                             # ◄ NEW (was missing)
+            "total_breached_emails": 0,                    # ◄ NEW (was missing)
             "risk_score": 0,
-            "critical_count": 0,
-            "high_count": 0,
-            "medium_count": 0,
-            "low_count": 0,
-            "info_count": 0,
+
+            # REMOVED: critical_count, high_count, medium_count,
+            #          low_count, info_count
+            # These are calculated dynamically by the dashboard
+            # from the vulnerabilities collection.
+
+            # ── Timestamps ────────────────────────────
             "created_at": datetime.utcnow(),
+            # REMOVED: "added_at" — was identical to created_at
+
             "last_scan_at": None,
+            # REMOVED: "last_scanned" — was identical to last_scan_at
+
             "scan_count": 0
         }
 
@@ -98,7 +128,16 @@ def get_target_by_domain(root_domain):
     """Find a target by its root_domain field."""
     try:
         collection = get_collection(Config.TARGETS_COLLECTION)
-        doc = collection.find_one({"root_domain": root_domain.strip().lower()})
+        doc = collection.find_one(
+            {"root_domain": root_domain.strip().lower()}
+        )
+
+        # Fallback: check legacy "domain" field for old documents     # ◄ NEW
+        if not doc:                                                    # ◄ NEW
+            doc = collection.find_one(                                 # ◄ NEW
+                {"domain": root_domain.strip().lower()}                # ◄ NEW
+            )                                                          # ◄ NEW
+
         return serialize_doc(doc)
     except Exception:
         return None

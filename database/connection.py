@@ -61,14 +61,12 @@ def _safe_create_index(collection, keys, **kwargs):
         collection.create_index(keys, **kwargs)
     except Exception:
         try:
-            # Try dropping by name first
             index_name = kwargs.get("name", None)
             if index_name:
                 try:
                     collection.drop_index(index_name)
                 except Exception:
                     pass
-            # Drop all non-_id indexes and retry
             collection.drop_indexes()
             collection.create_index(keys, **kwargs)
         except Exception as e:
@@ -79,7 +77,7 @@ def _safe_create_index(collection, keys, **kwargs):
 
 def init_db():
     """
-    Initialize MongoDB connection and create indexes on all 7 collections.
+    Initialize MongoDB connection and create indexes on all 8 collections.
     
     Indexes match how routes actually query data:
     - Routes query by: root_domain, target_domain, subdomain, host, port
@@ -92,7 +90,6 @@ def init_db():
             connect_db()
 
         # ── 1. targets ──────────────────────────────
-        # Routes query: find_one({"root_domain": domain})
         _safe_create_index(
             db[Config.TARGETS_COLLECTION],
             [("root_domain", ASCENDING)],
@@ -109,8 +106,6 @@ def init_db():
         print("  ✅ targets indexes created")
 
         # ── 2. subdomains ───────────────────────────
-        # Routes query: find({"target_domain": domain})
-        # Scanner saves: update_one({"subdomain": sub})
         _safe_create_index(
             db[Config.SUBDOMAINS_COLLECTION],
             [("subdomain", ASCENDING)],
@@ -125,8 +120,6 @@ def init_db():
         print("  ✅ subdomains indexes created")
 
         # ── 3. ports_services ───────────────────────
-        # Routes query: find({"target_domain": domain})
-        # Scanner saves: by host + port
         _safe_create_index(
             db[Config.PORTS_COLLECTION],
             [("host", ASCENDING), ("port", ASCENDING)],
@@ -141,8 +134,6 @@ def init_db():
         print("  ✅ ports_services indexes created")
 
         # ── 4. http_assets ──────────────────────────
-        # Routes query: find({"target_domain": domain})
-        # Scanner saves: by url
         _safe_create_index(
             db[Config.HTTP_ASSETS_COLLECTION],
             [("url", ASCENDING)],
@@ -157,8 +148,6 @@ def init_db():
         print("  ✅ http_assets indexes created")
 
         # ── 5. vulnerabilities ──────────────────────
-        # Routes query: find({"target_domain": domain})
-        # Dashboard: count_documents({"severity": "critical"})
         _safe_create_index(
             db[Config.VULNS_COLLECTION],
             [("target_domain", ASCENDING)],
@@ -177,7 +166,6 @@ def init_db():
         print("  ✅ vulnerabilities indexes created")
 
         # ── 6. changes ──────────────────────────────
-        # Routes query: find({"target_domain": domain}).sort("detected_at", -1)
         _safe_create_index(
             db[Config.CHANGES_COLLECTION],
             [("target_domain", ASCENDING)],
@@ -191,7 +179,6 @@ def init_db():
         print("  ✅ changes indexes created")
 
         # ── 7. scan_history ─────────────────────────
-        # Routes query: find({"target_domain": domain}).sort("started_at", -1)
         _safe_create_index(
             db[Config.SCANS_COLLECTION],
             [("target_domain", ASCENDING)],
@@ -204,14 +191,47 @@ def init_db():
         )
         print("  ✅ scan_history indexes created")
 
-        print("✅ All 7 collections initialized!")
+        # ── 8. email_exposures ──────────────────────
+        _safe_create_index(
+            db[Config.EMAILS_COLLECTION],
+            [("target_id", ASCENDING), ("email", ASCENDING)],
+            unique=True,
+            name="email_target_unique"
+        )
+        _safe_create_index(
+            db[Config.EMAILS_COLLECTION],
+            [("target_domain", ASCENDING)],
+            name="email_target_domain"
+        )
+        _safe_create_index(
+            db[Config.EMAILS_COLLECTION],
+            [("breach_status", ASCENDING)],
+            name="email_breach_status"
+        )
+        print("  ✅ email_exposures indexes created")
+
+        print("✅ All 8 collections initialized!")
         return True
 
     except Exception as e:
         print(f"❌ Index creation failed: {e}")
         raise
+            # ── 9. passive_recon ────────────────────────
+        _safe_create_index(
+            db["passive_recon"],
+            [("target_domain", ASCENDING), ("source", ASCENDING)],
+            unique=True,
+            name="passive_domain_source_unique"
+        )
+        _safe_create_index(
+            db["passive_recon"],
+            [("target_id", ASCENDING)],
+            name="passive_target_id"
+        )
+        print("  ✅ passive_recon indexes created")
 
-
+# Update the success message:
+        print("✅ All 9 collections initialized!")
 # ─── Getters ─────────────────────────────────────────────────────────────
 
 def get_db():

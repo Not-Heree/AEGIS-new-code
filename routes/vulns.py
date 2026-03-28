@@ -4,12 +4,16 @@ from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from database.connection import get_db
 from config import Config
+from utils.sanitize import (                              # ◄ NEW
+    sanitize_domain, sanitize_object_id,                  # ◄ NEW
+    sanitize_status, sanitize_severity                    # ◄ NEW
+)                                                         # ◄ NEW
 
 vulns_bp = Blueprint("vulns", __name__, url_prefix="/api/vulns")
 
 
 def _serialize(doc):
-    """Convert MongoDB document to JSON-safe dict — handles ALL ObjectId and datetime fields."""
+    """Convert MongoDB document to JSON-safe dict."""
     if doc is None:
         return None
 
@@ -66,6 +70,13 @@ def get_all_vulns():
 def get_vulns_by_domain(domain):
     """GET /api/vulns/<domain> - Get vulnerabilities for a domain"""
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         vulns = _serialize_list(
             db[Config.VULNS_COLLECTION].find(
@@ -88,11 +99,19 @@ def get_vulns_by_domain(domain):
 def get_vulns_by_severity(domain, severity):
     """GET /api/vulns/<domain>/severity/<severity>"""
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+            severity = sanitize_severity(severity)         # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         vulns = _serialize_list(
             db[Config.VULNS_COLLECTION].find({
                 "target_domain": domain,
-                "severity": severity.lower()
+                "severity": severity
             })
         )
         return jsonify({
@@ -112,9 +131,15 @@ def get_vulns_by_severity(domain, severity):
 def get_vuln_stats(domain):
     """GET /api/vulns/stats/<domain> - Vulnerability statistics"""
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
 
-        # Count by severity
         severities = ["critical", "high", "medium", "low", "info"]
         breakdown = {}
         for sev in severities:
@@ -125,7 +150,6 @@ def get_vuln_stats(domain):
 
         total = sum(breakdown.values())
 
-        # Top vulnerability types
         pipeline = [
             {"$match": {"target_domain": domain}},
             {"$group": {
@@ -151,37 +175,21 @@ def get_vuln_stats(domain):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# ─── DELETE Vuln ─────────────────────────────────────────────────────────
+# ─── Update Vuln Status ─────────────────────────────────────────────────
 
-@vulns_bp.route("/<vuln_id>", methods=["DELETE"])
-def delete_vuln(vuln_id):
-    """DELETE /api/vulns/<vuln_id> - Delete a vulnerability"""
-    try:
-        db = get_db()
-        result = db[Config.VULNS_COLLECTION].delete_one(
-            {"_id": ObjectId(vuln_id)}
-        )
-        if result.deleted_count == 0:
-            return jsonify({
-                "success": False,
-                "error": "Vulnerability not found"
-            }), 404
-
-        return jsonify({
-            "success": True,
-            "message": "Vulnerability deleted"
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-# false positive─────────────────────────────────────────────────────────
 @vulns_bp.route("/<vuln_id>/status", methods=["PATCH"])
 def update_vuln_status(vuln_id):
-    """PATCH /api/vulns/<vuln_id>/status — Mark as resolved/false_positive/open.
-    
-    Body: {"status": "resolved"} or {"status": "false_positive"} or {"status": "open"}
-    """
+    """PATCH /api/vulns/<vuln_id>/status — Mark as resolved/false_positive/open."""
     try:
+        try:
+            vuln_id = sanitize_object_id(
+                vuln_id, "vuln_id"
+            )
+        except ValueError as e:
+            return jsonify({
+                "success": False, "error": str(e)
+            }), 400
+
         data = request.get_json()
         if not data or "status" not in data:
             return jsonify({
@@ -189,11 +197,15 @@ def update_vuln_status(vuln_id):
                 "error": "status required. Options: open, resolved, false_positive"
             }), 400
 
-        new_status = data["status"].lower()
-        if new_status not in ("open", "resolved", "false_positive"):
+        try:
+            new_status = sanitize_status(
+                data["status"],
+                ("open", "resolved", "false_positive"),
+                "status"
+            )
+        except ValueError as e:
             return jsonify({
-                "success": False,
-                "error": f"Invalid status: {new_status}"
+                "success": False, "error": str(e)
             }), 400
 
         db = get_db()
@@ -212,19 +224,63 @@ def update_vuln_status(vuln_id):
         if result.matched_count == 0:
             return jsonify({"success": False, "error": "Vuln not found"}), 404
 
-        return jsonify({
+        # ═══════════════════════════════════════════════      # ◄ NEW SECTION
+        # Recalculate risk score immediately
+        # ═══════════════════════════════════════════════
+        new_risk_score = None                                  # ◄ NEW
+        try:                                                   # ◄ NEW
+            vuln = db[Config.VULNS_COLLECTION].find_one(       # ◄ NEW
+                {"_id": ObjectId(vuln_id)}                     # ◄ NEW
+            )                                                  # ◄ NEW
+            if vuln and vuln.get("target_id"):                 # ◄ NEW
+                from core.risk_scorer import (                 # ◄ NEW
+                    calculate_risk_score                       # ◄ NEW
+                )                                              # ◄ NEW
+                target_id_str = str(vuln["target_id"])         # ◄ NEW
+                new_risk_score = calculate_risk_score(         # ◄ NEW
+                    target_id_str                              # ◄ NEW
+                )                                              # ◄ NEW
+                                                               # ◄ NEW
+                db[Config.TARGETS_COLLECTION].update_one(      # ◄ NEW
+                    {"_id": vuln["target_id"]},                # ◄ NEW
+                    {"$set": {"risk_score": new_risk_score}}   # ◄ NEW
+                )                                              # ◄ NEW
+                print(                                         # ◄ NEW
+                    f"[VULNS] Risk score recalculated: "       # ◄ NEW
+                    f"{new_risk_score}/100"                    # ◄ NEW
+                )                                              # ◄ NEW
+        except Exception as e:                                 # ◄ NEW
+            print(                                             # ◄ NEW
+                f"[VULNS] Risk recalc error: {e}"             # ◄ NEW
+            )                                                  # ◄ NEW
+
+        response = {                                           # ◄ CHANGED
             "success": True,
             "message": f"Vulnerability marked as {new_status}"
-        })
+        }
+        if new_risk_score is not None:                         # ◄ NEW
+            response["new_risk_score"] = new_risk_score        # ◄ NEW
+
+        return jsonify(response)
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# ─── GET Vuln Detail ────────────────────────────────────────────────────
 
 @vulns_bp.route("/<vuln_id>/detail", methods=["GET"])
 def get_vuln_detail(vuln_id):
-    """GET /api/vulns/<vuln_id>/detail — Full vulnerability details including remediation."""
+    """GET /api/vulns/<vuln_id>/detail — Full vulnerability details."""
     try:
+        try:                                               # ◄ NEW
+            vuln_id = sanitize_object_id(                  # ◄ NEW
+                vuln_id, "vuln_id"                         # ◄ NEW
+            )                                              # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         db = get_db()
         vuln = db[Config.VULNS_COLLECTION].find_one(
             {"_id": ObjectId(vuln_id)}

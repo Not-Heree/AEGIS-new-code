@@ -11,41 +11,59 @@
 
 <!-- Stats Cards -->
 <div class="row mb-4">
-    <div class="col-md-2">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="total-targets">-</div>
-            <div class="stat-label">Targets</div>
+            <div class="stat-label">Assets</div>
         </div>
     </div>
-    <div class="col-md-2">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="total-subdomains">-</div>
             <div class="stat-label">Subdomains</div>
         </div>
     </div>
-    <div class="col-md-2">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="total-ports">-</div>
             <div class="stat-label">Open Ports</div>
         </div>
     </div>
-    <div class="col-md-2">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="total-http">-</div>
-            <div class="stat-label">HTTP Assets</div>
+            <div class="stat-label">Technologies Used</div>
         </div>
     </div>
-    <div class="col-md-2">
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="total-vulns">-</div>
             <div class="stat-label">Vulnerabilities</div>
         </div>
     </div>
-    <div class="col-md-2">
+    <div class="col">
+        <div class="card stat-card">
+            <div class="stat-value" id="total-emails">-</div>
+            <div class="stat-label">Emails</div>
+        </div>
+    </div>
+    <div class="col">
         <div class="card stat-card">
             <div class="stat-value" id="total-changes">-</div>
             <div class="stat-label">Changes</div>
         </div>
+    </div>
+</div>
+
+<!-- Passive Recon Sources Summary -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6 class="mb-0">
+            <i class="bi bi-binoculars"></i> Passive Recon Sources
+        </h6>
+    </div>
+    <div class="card-body" id="dashboard-passive-recon">
+        <span class="text-muted">Loading...</span>
     </div>
 </div>
 
@@ -111,13 +129,14 @@
                         <th>Ports</th>
                         <th>HTTP</th>
                         <th>Vulns</th>
+                        <th>Emails</th>
                         <th>Last Scan</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="targets-table">
                     <tr>
-                        <td colspan="7" class="text-center">Loading...</td>
+                        <td colspan="8" class="text-center">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -127,82 +146,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    async function refreshStats() {
-        const btn = document.querySelector('.btn-scan');
-        const icon = btn?.querySelector('i');
-        if (icon) icon.classList.add('spinning');
-        if (btn) btn.disabled = true;
-        try {
-            // Run fetch + minimum delay in parallel so spin is always visible
-            const minDelay = new Promise(r => setTimeout(r, 600));
-            const [stats] = await Promise.all([api.get('/api/stats'), minDelay]);
-            document.getElementById('total-targets').textContent = stats.targets || 0;
-            document.getElementById('total-subdomains').textContent = stats.subdomains || 0;
-            document.getElementById('total-ports').textContent = stats.ports_services || 0;
-            document.getElementById('total-http').textContent = stats.http_assets || 0;
-            document.getElementById('total-vulns').textContent = stats.vulnerabilities || 0;
-            document.getElementById('total-changes').textContent = stats.changes || 0;
-
-            // Get dashboard data
-            const dashboard = await api.get('/api/dashboard/');
-            if (dashboard.success) {
-                document.getElementById('vuln-critical').textContent = dashboard.vuln_breakdown?.critical || 0;
-                document.getElementById('vuln-high').textContent = dashboard.vuln_breakdown?.high || 0;
-                document.getElementById('vuln-medium').textContent = dashboard.vuln_breakdown?.medium || 0;
-                document.getElementById('vuln-low').textContent = dashboard.vuln_breakdown?.low || 0;
-                document.getElementById('vuln-info').textContent = dashboard.vuln_breakdown?.info || 0;
-
-                const riskScore = dashboard.overall_risk_score || 0;
-                document.getElementById('risk-score').textContent = riskScore;
-
-                let riskClass = 'risk-minimal';
-                let riskText = 'MINIMAL';
-                if (riskScore >= 80) { riskClass = 'risk-critical'; riskText = 'CRITICAL'; }
-                else if (riskScore >= 60) { riskClass = 'risk-high'; riskText = 'HIGH'; }
-                else if (riskScore >= 40) { riskClass = 'risk-medium'; riskText = 'MEDIUM'; }
-                else if (riskScore >= 20) { riskClass = 'risk-low'; riskText = 'LOW'; }
-
-                document.getElementById('risk-score').className = 'risk-score ' + riskClass;
-                document.getElementById('risk-level').textContent = riskText;
-
-                // Load targets
-                loadTargets(dashboard.targets || []);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-        } finally {
-            if (icon) icon.classList.remove('spinning');
-            if (btn) btn.disabled = false;
-        }
-    }
-
-    function loadTargets(targets) {
-        const tbody = document.getElementById('targets-table');
-
-        if (targets.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No targets found. <a href="/targets">Add one!</a></td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = targets.map(t => `
-            <tr>
-                <td><strong>${t.root_domain || t.domain || 'N/A'}</strong></td>
-                <td>${t.total_subdomains || 0}</td>
-                <td>${t.total_ports || 0}</td>
-                <td>${t.total_http_assets || 0}</td>
-                <td>${t.total_vulns || 0}</td>
-                <td>${(t.last_scanned || t.last_scan_at) ? new Date(t.last_scanned || t.last_scan_at).toLocaleDateString() : 'Never'}</td>
-                <td>
-                    <a href="/targets/${t.root_domain || t.domain}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-eye"></i>
-                    </a>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // Load on page load
-    refreshStats();
-</script>
+<script src="/static/js/dashboard.js?v=4"></script>
 {% endblock %}

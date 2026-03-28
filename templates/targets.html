@@ -126,12 +126,19 @@
     }
 
     async function runScan(domain) {
-        if (!confirm('Run full scan on ' + domain + '?')) return;
+        if (!confirm('Run full scan on ' + domain + '? This will start in the background.')) return;
+
         try {
             const result = await api.post('/api/scans/full/' + domain);
-            alert(result.success ? 'Scan completed!' : 'Error: ' + result.error);
-            loadTargets();
-        } catch (e) { alert('Scan failed'); }
+            if (result.success) {
+                alert('Scan started for ' + domain + '! Check the Scans page for progress.');
+                loadTargets();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown'));
+            }
+        } catch (e) {
+            alert('Scan failed to start');
+        }
     }
 
     async function deleteTarget(domain) {

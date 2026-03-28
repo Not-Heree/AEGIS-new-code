@@ -1,0 +1,63 @@
+{% extends "base_minimal.html" %}
+
+{% block title %}Login - EASM AEGIS{% endblock %}
+
+{% block content %}
+<div class="login-card">
+    <!-- Header -->
+    <div class="login-header">
+        <div class="icon">
+            <i class="bi bi-shield-check"></i>
+        </div>
+        <h3>EASM AEGIS</h3>
+        <p>External Attack Surface Management</p>
+    </div>
+
+    <!-- Login Form -->
+    <div class="login-body">
+
+        {% if error %}
+        <div class="alert alert-danger d-flex align-items-center" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>{{ error }}</div>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/login" autocomplete="on">
+
+            <div class="mb-3">
+                <label class="form-label" for="username">Username</label>
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-person"></i>
+                    </span>
+                    <input type="text" class="form-control" id="username" name="username" placeholder="Enter username"
+                        required autofocus autocomplete="username">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label" for="password">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-lock"></i>
+                    </span>
+                    <input type="password" class="form-control" id="password" name="password"
+                        placeholder="Enter password" required autocomplete="current-password">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-login w-100">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+            </button>
+
+        </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer-text">
+        <i class="bi bi-lock-fill"></i>
+        Secure access to your attack surface dashboard
+    </div>
+</div>
+{% endblock %}

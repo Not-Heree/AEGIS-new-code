@@ -1,7 +1,13 @@
 # app.py
-from flask import Flask, jsonify, render_template
+
+from flask import (
+    Flask, jsonify, render_template,
+    request, session, redirect, url_for
+)
+from functools import wraps
 from config import Config
 from database.connection import init_db, test_connection, get_db
+from utils.logger import logger                                    # ◄ NEW
 import os
 
 # ─── Blueprint Imports ────────────────────────────────────────────────────
@@ -13,6 +19,8 @@ from routes.changes import changes_bp
 from routes.vulns import vulns_bp
 from routes.reports import reports_bp
 from routes.remediation import remediation_bp
+from routes.emails import emails_bp
+from routes.passive_recon import passive_bp
 
 # ─── Create Flask App ─────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -21,19 +29,22 @@ app.secret_key = Config.SECRET_KEY
 
 def initialize_app():
     """Initialize the EASM application and verify database connection."""
-    print("=" * 50)
-    print("  EASM TOOL - External Attack Surface Management")
-    print("=" * 50)
+    logger.info("=" * 50)                                         
+    logger.info("  EASM TOOL - External Attack Surface Management")
+    logger.info("=" * 50)                                         
 
     if test_connection():
         init_db()
-        print("✅ Application initialized successfully")
+        logger.info("Application initialized successfully")       
     else:
-        print("❌ Failed to connect to MongoDB")
-        print("   Make sure MongoDB is running on localhost:27017")
+        logger.error("Failed to connect to MongoDB")              
+        logger.error(                                              
+            "Make sure MongoDB is running on %s",                 
+            Config.MONGO_URI                                      
+        )                                                         
 
     os.makedirs("generated_reports", exist_ok=True)
-    print("✅ Reports directory ready")
+    logger.info("Reports directory ready")                        
 
 
 # ─── Register Blueprints ──────────────────────────────────────────────────
@@ -45,8 +56,80 @@ app.register_blueprint(changes_bp)
 app.register_blueprint(vulns_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(remediation_bp)
+app.register_blueprint(emails_bp)
+app.register_blueprint(passive_bp)
 
-# ─── Core API Routes ──────────────────────────────────────────────────────
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
+
+PUBLIC_ROUTES = {
+    "login",
+    "static",
+    "health_check",
+}
+
+
+@app.before_request
+def require_login():
+    """Global authentication guard."""
+    if request.endpoint in PUBLIC_ROUTES:
+        return None
+
+    if session.get("logged_in"):
+        return None
+
+    if request.path.startswith("/api/"):
+        return jsonify({
+            "success": False,
+            "error": "Authentication required. Please log in."
+        }), 401
+    else:
+        return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """GET /login — Show login form. POST /login — Authenticate."""
+    if session.get("logged_in"):
+        return redirect("/dashboard")
+
+    error = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if (
+            username == Config.ADMIN_USER
+            and password == Config.ADMIN_PASS
+        ):
+            session["logged_in"] = True
+            session["username"] = username
+            session.permanent = True
+            logger.info("User '%s' logged in", username)          
+            return redirect("/dashboard")
+        else:
+            error = "Invalid username or password"
+            logger.warning(                                       
+                "Failed login attempt for user '%s'", username    
+            )                                                     
+
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    """Clear session and redirect to login page."""
+    username = session.get("username", "unknown")
+    session.clear()
+    logger.info("User '%s' logged out", username)                 
+    return redirect(url_for("login"))
+
+
+# =============================================================================
+# CORE API ROUTES
+# =============================================================================
 
 @app.route("/")
 def index():
@@ -77,9 +160,25 @@ def stats():
             "http_assets": db[Config.HTTP_ASSETS_COLLECTION].count_documents({}),
             "vulnerabilities": db[Config.VULNS_COLLECTION].count_documents({}),
             "changes": db[Config.CHANGES_COLLECTION].count_documents({}),
-            "scan_history": db[Config.SCANS_COLLECTION].count_documents({})
+            "scan_history": db[Config.SCANS_COLLECTION].count_documents({}),
+            "emails": db[Config.EMAILS_COLLECTION].count_documents({}),
+             "passive_recon": {
+                "shodan_subdomains": db[Config.SUBDOMAINS_COLLECTION].count_documents(
+                    {"sources": "shodan"}
+                ),
+                "censys_subdomains": db[Config.SUBDOMAINS_COLLECTION].count_documents(
+                    {"sources": "censys"}
+                ),
+                "shodan_ports": db[Config.PORTS_COLLECTION].count_documents(
+                    {"sources": "shodan"}                         
+                ),
+                "censys_ports": db[Config.PORTS_COLLECTION].count_documents(
+                    {"sources": "censys"}                         
+                ),
+            }
         })
     except Exception as e:
+        logger.error("Stats endpoint error: %s", e)               # ◄ NEW
         return jsonify({"error": str(e)}), 500
 
 
@@ -104,49 +203,53 @@ def list_routes():
 def dashboard_view():
     return render_template("dashboard.html", active_page="dashboard")
 
-
 @app.route("/targets")
 def targets_view():
     return render_template("targets.html", active_page="targets")
 
-
 @app.route("/targets/<domain>")
 def target_detail_view(domain):
     return render_template("target_detail.html", active_page="targets", domain=domain)
-
-
+@app.route("/recon")
+def recon_view():
+    return render_template("recon.html", active_page="recon")
 @app.route("/scans")
 def scans_view():
     return render_template("scans.html", active_page="scans")
-
 
 @app.route("/assets")
 def assets_view():
     return render_template("assets.html", active_page="assets")
 
-
 @app.route("/vulnerabilities")
 def vulnerabilities_view():
     return render_template("vulnerabilities.html", active_page="vulnerabilities")
-
 
 @app.route("/changes")
 def changes_view():
     return render_template("changes.html", active_page="changes")
 
-
 @app.route("/reports")
 def reports_view():
     return render_template("reports.html", active_page="reports")
+
+@app.route("/emails")
+def emails_view():
+    return render_template("emails.html", active_page="emails")
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     initialize_app()
+    logger.info(                                                  
+        "Starting EASM AEGIS on port %d (debug=%s)",              
+        Config.PORT, Config.DEBUG                                  
+    )                                                             
     app.run(
         host="0.0.0.0",
         port=Config.PORT,
         debug=Config.DEBUG,
+        use_reloader=False,
         threaded=True
     )

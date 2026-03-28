@@ -44,17 +44,24 @@
                     <tbody>
                         ${changes.map(c => {
                 const icons = {
-                    'new_subdomain': '🟢', 'subdomain_removed': '🔴',
-                    'new_port': '🟡', 'port_closed': '⚪',
-                    'new_vulnerability': '🔴', 'vulnerability_resolved': '✅'
+                    'new_subdomain': '🟢',
+                    'subdomain_removed': '🔴',
+                    'new_port': '🟡',
+                    'port_closed': '⚪',
+                    'new_vulnerability': '🔴',
+                    'vulnerability_resolved': '✅',
+                    'new_email': '📧',
+                    'email_breached': '🔓'
                 };
                 const icon = icons[c.change_type] || '🔵';
                 const details = c.details || {};
                 const message = details.message || c.change_type || 'Unknown';
                 const severity = c.severity || 'info';
                 const sevClass = {
-                    'high': 'bg-danger', 'medium': 'bg-warning text-dark',
-                    'low': 'bg-info', 'info': 'bg-secondary'
+                    'high': 'bg-danger',
+                    'medium': 'bg-warning text-dark',
+                    'low': 'bg-info',
+                    'info': 'bg-secondary'
                 }[severity] || 'bg-secondary';
 
                 const acked = c.acknowledged;

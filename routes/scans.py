@@ -1,22 +1,22 @@
+# routes/scans.py
+
+import threading
 from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from database.connection import get_db
 from config import Config
 from datetime import datetime
+from utils.sanitize import sanitize_domain, sanitize_object_id
+from utils.logger import logger                                    # ◄ NEW
 
 scans_bp = Blueprint("scans", __name__, url_prefix="/api/scans")
 
 
-# ─── Helpers ─────────────────────────────────────────────────────────────
+# ─── Helpers (unchanged) ─────────────────────────────────────────────────
 
 def _serialize(doc):
-    """Convert MongoDB document to JSON-safe dict — handles ALL ObjectId and datetime fields."""
     if doc is None:
         return None
-
-    from bson import ObjectId
-    from datetime import datetime
-
     result = {}
     for key, value in doc.items():
         if isinstance(value, ObjectId):
@@ -89,64 +89,27 @@ def _complete_scan_record(scan_id, status, stats=None, error=None):
     )
 
 
-# ─── Status & History ────────────────────────────────────────────────────
+# ─── Background runners ──────────────────────────────────────────────────
 
-@scans_bp.route("/status", methods=["GET"])
-def scan_status():
-    return jsonify({
-        "success": True, "status": "ready",
-        "available_scans": ["full", "subdomains", "ports", "http", "vulns"]
-    })
-
-
-@scans_bp.route("/history/<domain>", methods=["GET"])
-def scan_history(domain):
+def _run_scan_background(target_id, domain, scan_id):
+    """Execute full scan in background thread."""
     try:
-        db = get_db()
-        history = list(db[Config.SCANS_COLLECTION].find(
-            {"target_domain": domain}
-        ).sort("started_at", -1).limit(20))
-
-        # Serialize ALL fields properly
-        serialized = [_serialize(r) for r in history]
-
-        return jsonify({
-            "success": True,
-            "domain": domain,
-            "count": len(serialized),
-            "history": serialized
-        })
+        from core.scanner import run_full_scan
+        run_full_scan(target_id, domain, scan_id)
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        from database.scans_db import fail_scan
+        fail_scan(scan_id, str(e))
+        logger.error(
+            "Background scan failed for %s: %s",
+            domain, e, exc_info=True
+        )
 
 
-@scans_bp.route("/status/<scan_id>", methods=["GET"])
-def get_scan_status(scan_id):
-    try:
-        db = get_db()
-        scan = db[Config.SCANS_COLLECTION].find_one(
-            {"_id": ObjectId(scan_id)})
-        if not scan:
-            return jsonify({"success": False, "error": "Not found"}), 404
-        return jsonify({"success": True, "scan": _serialize(scan)})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-
-# ─── Subdomain Scan ──────────────────────────────────────────────────────
-
-@scans_bp.route("/subdomains/<domain>", methods=["POST"])
-def subdomain_scan(domain):
+def _run_subdomain_background(scan_id, target_id, domain):
+    """Execute subdomain scan in background thread."""
     try:
         from core.subfinder import scan_subdomains
         from database.subdomains_db import add_subdomains_bulk
-
-        target = _find_target(domain)
-        if not target:
-            return jsonify({"success": False, "error": "Target not found"}), 404
-
-        target_id = str(target["_id"])
-        scan_id = _create_scan_record(target_id, domain, "subdomains")
 
         result = scan_subdomains(domain)
         saved = {"new": 0, "updated": 0}
@@ -160,77 +123,54 @@ def subdomain_scan(domain):
             "subdomains_found": result.get("count", 0),
             "new": saved.get("new", 0)
         })
-
-        return jsonify({
-            "success": True, "domain": domain, "scan_id": scan_id,
-            "count": result.get("count", 0),
-            "subdomains": result.get("subdomains", [])[:100]
-        })
-
+        logger.info(
+            "Subdomain scan complete for %s: %d found",
+            domain, result.get("count", 0)
+        )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        _complete_scan_record(scan_id, "failed", error=str(e))
+        logger.error(
+            "Subdomain scan failed for %s: %s",
+            domain, e, exc_info=True
+        )
 
 
-# ─── Port Scan ────────────────────────────────────────────────────────────
-
-@scans_bp.route("/ports/<domain>", methods=["POST"])
-def port_scan(domain):
+def _run_port_background(scan_id, target_id, domain, subdomain_list):
+    """Execute port scan in background thread."""
     try:
         from core.naabu import run_naabu
         from database.ports_db import add_ports_bulk
 
-        target = _find_target(domain)
-        if not target:
-            return jsonify({"success": False, "error": "Target not found"}), 404
-
-        target_id = str(target["_id"])
-        subdomain_list = _get_subdomains(domain)
-        if not subdomain_list:
-            return jsonify({"success": False,
-                           "error": "No subdomains. Run subdomain scan first."}), 400
-
-        scan_id = _create_scan_record(target_id, domain, "ports")
         result = run_naabu(subdomain_list)
 
         saved = 0
         if result.get("success"):
             for host, ports in result.get("ports_found", {}).items():
-                r = add_ports_bulk(target_id, domain, "", host, ports)
+                r = add_ports_bulk(target_id, domain, "", host, ports,
+                source="naabu")
                 saved += r.get("new", 0) + r.get("updated", 0)
 
         _complete_scan_record(scan_id, "completed", stats={
             "ports_found": result.get("total_ports", 0), "saved": saved
         })
-
-        return jsonify({
-            "success": True, "domain": domain, "scan_id": scan_id,
-            "ports_found": result.get("total_ports", 0),
-            "results": result.get("ports_found", {})
-        })
-
+        logger.info(
+            "Port scan complete for %s: %d ports",
+            domain, result.get("total_ports", 0)
+        )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        _complete_scan_record(scan_id, "failed", error=str(e))
+        logger.error(
+            "Port scan failed for %s: %s",
+            domain, e, exc_info=True
+        )
 
 
-# ─── HTTP Scan ────────────────────────────────────────────────────────────
-
-@scans_bp.route("/http/<domain>", methods=["POST"])
-def http_scan(domain):
+def _run_http_background(scan_id, target_id, domain, subdomain_list):
+    """Execute HTTP scan in background thread."""
     try:
         from core.httpx_runner import run_httpx
         from database.http_assets_db import add_http_asset
 
-        target = _find_target(domain)
-        if not target:
-            return jsonify({"success": False, "error": "Target not found"}), 404
-
-        target_id = str(target["_id"])
-        subdomain_list = _get_subdomains(domain)
-        if not subdomain_list:
-            return jsonify({"success": False,
-                           "error": "No subdomains."}), 400
-
-        scan_id = _create_scan_record(target_id, domain, "http")
         result = run_httpx(subdomain_list)
 
         saved = 0
@@ -248,46 +188,31 @@ def http_scan(domain):
         _complete_scan_record(scan_id, "completed", stats={
             "http_assets_found": result.get("count", 0), "saved": saved
         })
-
-        return jsonify({
-            "success": True, "domain": domain, "scan_id": scan_id,
-            "http_assets_found": result.get("count", 0)
-        })
-
+        logger.info(
+            "HTTP scan complete for %s: %d assets",
+            domain, result.get("count", 0)
+        )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        _complete_scan_record(scan_id, "failed", error=str(e))
+        logger.error(
+            "HTTP scan failed for %s: %s",
+            domain, e, exc_info=True
+        )
 
 
-# ─── Vuln Scan ────────────────────────────────────────────────────────────
-
-@scans_bp.route("/vulns/<domain>", methods=["POST"])
-def vuln_scan(domain):
+def _run_vuln_background(scan_id, target_id, domain, urls):
+    """Execute vulnerability scan in background thread."""
     try:
         from core.nuclei import run_nuclei
         from database.vulns_db import add_vulnerability
 
-        target = _find_target(domain)
-        if not target:
-            return jsonify({"success": False, "error": "Target not found"}), 404
-
-        target_id = str(target["_id"])
-        urls = _get_urls(domain)
-        if not urls:
-            subdomain_list = _get_subdomains(domain)
-            urls = [f"https://{s}" for s in subdomain_list]
-        if not urls:
-            return jsonify({"success": False, "error": "No targets."}), 400
-
-        scan_id = _create_scan_record(target_id, domain, "vulns")
         result = run_nuclei(urls)
 
         saved = 0
         if result.get("success"):
             for v in result.get("vulnerabilities", []):
-                # NOW stores ALL nuclei fields via DB layer with DEDUP
                 add_vulnerability(
-                    target_id=target_id,
-                    target_domain=domain,
+                    target_id=target_id, target_domain=domain,
                     subdomain_id="",
                     host=v.get("host", ""),
                     url=v.get("url", v.get("matched_at", "")),
@@ -311,56 +236,294 @@ def vuln_scan(domain):
             "vulns_found": result.get("count", 0), "saved": saved,
             "severity_breakdown": result.get("severity_breakdown", {})
         })
+        logger.info(
+            "Vuln scan complete for %s: %d vulns",
+            domain, result.get("count", 0)
+        )
+    except Exception as e:
+        _complete_scan_record(scan_id, "failed", error=str(e))
+        logger.error(
+            "Vuln scan failed for %s: %s",
+            domain, e, exc_info=True
+        )
+
+
+# ─── Status & History ────────────────────────────────────────────────────
+
+@scans_bp.route("/status", methods=["GET"])
+def scan_status():
+    return jsonify({
+        "success": True, "status": "ready",
+        "available_scans": ["full", "subdomains", "ports", "http", "vulns"]
+    })
+
+
+@scans_bp.route("/history/<domain>", methods=["GET"])
+def scan_history(domain):
+    try:
+        try:
+            domain = sanitize_domain(domain)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+
+        db = get_db()
+        history = list(db[Config.SCANS_COLLECTION].find(
+            {"target_domain": domain}
+        ).sort("started_at", -1).limit(20))
 
         return jsonify({
-            "success": True, "domain": domain, "scan_id": scan_id,
-            "vulns_found": result.get("count", 0),
-            "severity_breakdown": result.get("severity_breakdown", {})
+            "success": True,
+            "domain": domain,
+            "count": len(history),
+            "history": [_serialize(r) for r in history]
         })
+    except Exception as e:
+        logger.error("Error loading scan history for %s: %s", domain, e)
+        return jsonify({"success": False, "error": str(e)}), 500
 
+
+@scans_bp.route("/status/<scan_id>", methods=["GET"])
+def get_scan_status(scan_id):
+    try:
+        try:
+            scan_id = sanitize_object_id(scan_id, "scan_id")
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+
+        db = get_db()
+        scan = db[Config.SCANS_COLLECTION].find_one({"_id": ObjectId(scan_id)})
+        if not scan:
+            return jsonify({"success": False, "error": "Not found"}), 404
+        return jsonify({"success": True, "scan": _serialize(scan)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# ─── FULL SCAN — Calls scanner.py ────────────────────────────────────────
+# ─── Subdomain Scan ──────────────────────────────────────────────────────
 
-@scans_bp.route("/full/<domain>", methods=["POST"])
-def full_scan(domain):
-    """
-    Full scan pipeline.
-    
-    NOW calls core/scanner.py which:
-      - Uses DB layer functions (dedup, target_domain)
-      - Runs change detection
-      - Runs risk scoring
-      - Stores ALL vuln data from Nuclei
-    """
+@scans_bp.route("/subdomains/<domain>", methods=["POST"])
+def subdomain_scan(domain):
+    """Kicks off subdomain scan in a background thread."""
     try:
-        from core.scanner import run_full_scan
-        from database.scans_db import create_scan_with_domain
+        try:
+            domain = sanitize_domain(domain)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
 
         target = _find_target(domain)
         if not target:
-            return jsonify({
-                "success": False,
-                "error": f"Target '{domain}' not found. Add it first."
-            }), 404
+            return jsonify({"success": False, "error": "Target not found"}), 404
 
         target_id = str(target["_id"])
+        scan_id = _create_scan_record(target_id, domain, "subdomains")
 
-        print(f"\n{'='*50}")
-        print(f"[FULL SCAN] Starting for: {domain}")
-        print(f"{'='*50}")
+        logger.info("Subdomain scan started for %s", domain)
 
-        # Create scan record
-        scan = create_scan_with_domain(target_id, domain, "full")
-        scan_id = scan["scan_id"]
+        thread = threading.Thread(
+            target=_run_subdomain_background,
+            args=(scan_id, target_id, domain),
+            name=f"scan-subdomains-{domain}",
+            daemon=True
+        )
+        thread.start()
 
-        # Run unified scanner (does everything properly)
-        result = run_full_scan(target_id, domain, scan_id)
-
-        return jsonify(result)
+        return jsonify({
+            "success": True,
+            "message": f"Subdomain scan started for {domain}",
+            "scan_id": scan_id,
+            "status_url": f"/api/scans/status/{scan_id}"
+        }), 202
 
     except Exception as e:
-        print(f"[FULL SCAN] Error: {e}")
+        logger.error("Subdomain scan error for %s: %s", domain, e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ─── Port Scan ────────────────────────────────────────────────────────────
+
+@scans_bp.route("/ports/<domain>", methods=["POST"])
+def port_scan(domain):
+    """Kicks off port scan in a background thread."""
+    try:
+        try:
+            domain = sanitize_domain(domain)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+
+        target = _find_target(domain)
+        if not target:
+            return jsonify({"success": False, "error": "Target not found"}), 404
+
+        target_id = str(target["_id"])
+        subdomain_list = _get_subdomains(domain)
+        if not subdomain_list:
+            return jsonify({"success": False,
+                           "error": "No subdomains. Run subdomain scan first."}), 400
+
+        scan_id = _create_scan_record(target_id, domain, "ports")
+        logger.info("Port scan started for %s (%d hosts)", domain, len(subdomain_list))
+
+        thread = threading.Thread(
+            target=_run_port_background,
+            args=(scan_id, target_id, domain, subdomain_list),
+            name=f"scan-ports-{domain}",
+            daemon=True
+        )
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"Port scan started for {domain}",
+            "scan_id": scan_id,
+            "status_url": f"/api/scans/status/{scan_id}"
+        }), 202
+
+    except Exception as e:
+        logger.error("Port scan error for %s: %s", domain, e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ─── HTTP Scan ────────────────────────────────────────────────────────────
+
+@scans_bp.route("/http/<domain>", methods=["POST"])
+def http_scan(domain):
+    """Kicks off HTTP scan in a background thread."""
+    try:
+        try:
+            domain = sanitize_domain(domain)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+
+        target = _find_target(domain)
+        if not target:
+            return jsonify({"success": False, "error": "Target not found"}), 404
+
+        target_id = str(target["_id"])
+        subdomain_list = _get_subdomains(domain)
+        if not subdomain_list:
+            return jsonify({"success": False, "error": "No subdomains."}), 400
+
+        scan_id = _create_scan_record(target_id, domain, "http")
+        logger.info("HTTP scan started for %s", domain)
+
+        thread = threading.Thread(
+            target=_run_http_background,
+            args=(scan_id, target_id, domain, subdomain_list),
+            name=f"scan-http-{domain}",
+            daemon=True
+        )
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"HTTP scan started for {domain}",
+            "scan_id": scan_id,
+            "status_url": f"/api/scans/status/{scan_id}"
+        }), 202
+
+    except Exception as e:
+        logger.error("HTTP scan error for %s: %s", domain, e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ─── Vuln Scan ────────────────────────────────────────────────────────────
+
+@scans_bp.route("/vulns/<domain>", methods=["POST"])
+def vuln_scan(domain):
+    """Kicks off vulnerability scan in a background thread."""
+    try:
+        try:
+            domain = sanitize_domain(domain)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
+
+        target = _find_target(domain)
+        if not target:
+            return jsonify({"success": False, "error": "Target not found"}), 404
+
+        target_id = str(target["_id"])
+        urls = _get_urls(domain)
+        if not urls:
+            subdomain_list = _get_subdomains(domain)
+            urls = [f"https://{s}" for s in subdomain_list]
+        if not urls:
+            return jsonify({"success": False, "error": "No targets."}), 400
+
+        scan_id = _create_scan_record(target_id, domain, "vulns")
+        logger.info("Vuln scan started for %s (%d URLs)", domain, len(urls))
+
+        thread = threading.Thread(
+            target=_run_vuln_background,
+            args=(scan_id, target_id, domain, urls),
+            name=f"scan-vulns-{domain}",
+            daemon=True
+        )
+        thread.start()
+
+        return jsonify({
+            "success": True,
+            "message": f"Vulnerability scan started for {domain}",
+            "scan_id": scan_id,
+            "status_url": f"/api/scans/status/{scan_id}"
+        }), 202
+
+    except Exception as e:
+        logger.error("Vuln scan error for %s: %s", domain, e, exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ─── FULL SCAN ────────────────────────────────────────────────────────────
+
+@scans_bp.route("/full/<domain>", methods=["POST"])
+def full_scan(domain):
+    """Kicks off the full scan pipeline in a background thread."""
+    from database.scans_db import create_scan_with_domain
+
+    try:
+        domain = sanitize_domain(domain)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    target = _find_target(domain)
+    if not target:
+        return jsonify({
+            "success": False,
+            "error": f"Target '{domain}' not found. Add it first."
+        }), 404
+
+    target_id = str(target["_id"])
+
+    db = get_db()
+    running = db[Config.SCANS_COLLECTION].find_one({
+        "target_domain": domain,
+        "status": "running"
+    })
+    if running:
+        return jsonify({
+            "success": False,
+            "error": f"Scan already running for {domain}",
+            "scan_id": str(running["_id"])
+        }), 409
+
+    scan = create_scan_with_domain(target_id, domain, "full")
+    scan_id = scan["scan_id"]
+
+    logger.info("=" * 50)                                          # ◄ CHANGED
+    logger.info("Full scan starting for: %s (scan_id: %s)",       # ◄ CHANGED
+                domain, scan_id)                                   # ◄ CHANGED
+    logger.info("=" * 50)                                          # ◄ CHANGED
+
+    thread = threading.Thread(
+        target=_run_scan_background,
+        args=(target_id, domain, scan_id),
+        name=f"scan-{domain}",
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({
+        "success": True,
+        "message": f"Scan started for {domain}",
+        "scan_id": scan_id,
+        "status_url": f"/api/scans/status/{scan_id}"
+    }), 202

@@ -1,3 +1,10 @@
+"""
+Subdomains Database Layer
+=========================
+CRUD operations for discovered subdomains.
+Stores source information to distinguish between active and passive discovery.
+"""
+
 from datetime import datetime
 from bson import ObjectId
 from database.connection import get_collection
@@ -26,7 +33,21 @@ def serialize_doc(doc):
 
 def add_subdomain(target_id, target_domain, subdomain,
                   ip_addresses=None, source="subfinder"):
-    """Add or update a subdomain. Now stores target_domain for route queries."""
+    """
+    Add or update a subdomain. Now stores target_domain and source
+    for route queries and passive/active tracking.
+
+    Args:
+        target_id: Target document ObjectId string
+        target_domain: Root domain string (e.g., "example.com")
+        subdomain: Full subdomain string (e.g., "api.example.com")
+        ip_addresses: Optional list of resolved IPs
+        source: Discovery source — "subfinder", "crtsh", "shodan",
+                "censys", or other tool name
+
+    Returns:
+        Dict with success, subdomain_id, is_new
+    """
     try:
         collection = get_collection(Config.SUBDOMAINS_COLLECTION)
         subdomain = subdomain.strip().lower()
@@ -42,10 +63,23 @@ def add_subdomain(target_id, target_domain, subdomain,
                 "last_seen": datetime.utcnow(),
                 "is_new": False,
                 "is_alive": True,
-                "target_domain": target_domain,  # Ensure field exists
+                "target_domain": target_domain,
             }
+
             if ip_addresses is not None:
                 update_fields["ip_addresses"] = ip_addresses
+
+            # Merge sources — don't overwrite, append new ones
+            old_sources = existing.get("sources", [])
+            if isinstance(old_sources, str):
+                old_sources = [old_sources]
+            if source and source not in old_sources:
+                old_sources.append(source)
+            update_fields["sources"] = old_sources
+
+            # Keep the original single source field for backward compat
+            if not existing.get("source"):
+                update_fields["source"] = source
 
             collection.update_one(
                 {"_id": existing["_id"]},
@@ -59,12 +93,13 @@ def add_subdomain(target_id, target_domain, subdomain,
 
         doc = {
             "target_id": target_oid,
-            "target_domain": target_domain,      # NEW FIELD
+            "target_domain": target_domain,
             "subdomain": subdomain,
             "ip_addresses": ip_addresses or [],
             "is_alive": True,
             "is_new": True,
             "source": source,
+            "sources": [source] if source else [],
             "first_seen": datetime.utcnow(),
             "last_seen": datetime.utcnow()
         }
@@ -80,13 +115,27 @@ def add_subdomain(target_id, target_domain, subdomain,
         return {"success": False, "message": str(e)}
 
 
-def add_subdomains_bulk(target_id, target_domain, subdomains_list):
-    """Add multiple subdomains. Passes target_domain through."""
+def add_subdomains_bulk(target_id, target_domain, subdomains_list,
+                        source="subfinder"):
+    """
+    Add multiple subdomains. Passes target_domain and source through.
+
+    Args:
+        target_id: Target document ObjectId string
+        target_domain: Root domain string
+        subdomains_list: List of subdomain strings
+        source: Discovery source — "subfinder", "shodan", "censys", etc.
+
+    Returns:
+        Dict with success, total, new count, updated count
+    """
     new_count = 0
     updated_count = 0
 
     for subdomain in subdomains_list:
-        result = add_subdomain(target_id, target_domain, subdomain)
+        result = add_subdomain(
+            target_id, target_domain, subdomain, source=source
+        )
         if result.get("success"):
             if result.get("is_new"):
                 new_count += 1
@@ -99,6 +148,7 @@ def add_subdomains_bulk(target_id, target_domain, subdomains_list):
         "new": new_count,
         "updated": updated_count
     }
+
 
 def get_subdomains_by_target(target_id):
     """Return all subdomains for a target, sorted alphabetically."""
@@ -148,6 +198,28 @@ def get_alive_subdomains(target_id):
         return []
 
 
+def get_subdomains_by_source(target_id, source):
+    """
+    Return subdomains discovered by a specific source.
+
+    Args:
+        target_id: Target document ObjectId string
+        source: Source name — "subfinder", "shodan", "censys", etc.
+
+    Returns:
+        List of serialized subdomain documents
+    """
+    try:
+        collection = get_collection(Config.SUBDOMAINS_COLLECTION)
+        docs = collection.find({
+            "target_id": ObjectId(target_id),
+            "sources": source
+        }).sort("subdomain", 1)
+        return [serialize_doc(d) for d in docs]
+    except Exception:
+        return []
+
+
 def mark_subdomain_dead(subdomain_id):
     """Set is_alive=False for a single subdomain."""
     try:
@@ -183,10 +255,8 @@ def mark_dead_subdomains(target_id, alive_subdomains_list):
     try:
         collection = get_collection(Config.SUBDOMAINS_COLLECTION)
 
-        # Normalize the alive list
         alive_set = [s.strip().lower() for s in alive_subdomains_list]
 
-        # Set is_alive=False for any subdomain not in the alive list
         result = collection.update_many(
             {
                 "target_id": ObjectId(target_id),
@@ -203,16 +273,43 @@ def get_subdomain_count(target_id):
     """Return the total number of subdomains for a target."""
     try:
         collection = get_collection(Config.SUBDOMAINS_COLLECTION)
-        return collection.count_documents({"target_id": ObjectId(target_id)})
+        return collection.count_documents(
+            {"target_id": ObjectId(target_id)}
+        )
     except Exception:
         return 0
 
 
-def delete_subdomains_by_target(target_id):
-    """Delete ALL subdomains for a target. Used when removing a target entirely."""
+def get_source_summary(target_id):
+    """
+    Return a summary of how many subdomains each source discovered.
+
+    Uses aggregation to unwind the sources array and count occurrences.
+    Returns: [{"_id": "subfinder", "count": 30},
+              {"_id": "shodan", "count": 12}, ...]
+    """
     try:
         collection = get_collection(Config.SUBDOMAINS_COLLECTION)
-        result = collection.delete_many({"target_id": ObjectId(target_id)})
+        pipeline = [
+            {"$match": {"target_id": ObjectId(target_id)}},
+            {"$unwind": "$sources"},
+            {"$group": {"_id": "$sources", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]
+        return list(collection.aggregate(pipeline))
+    except Exception:
+        return []
+
+
+def delete_subdomains_by_target(target_id):
+    """Delete ALL subdomains for a target.
+    Used when removing a target entirely.
+    """
+    try:
+        collection = get_collection(Config.SUBDOMAINS_COLLECTION)
+        result = collection.delete_many(
+            {"target_id": ObjectId(target_id)}
+        )
         return result.deleted_count
     except Exception:
         return 0

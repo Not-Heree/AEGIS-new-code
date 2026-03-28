@@ -17,6 +17,7 @@ async function loadStats() {
     document.getElementById('total-ports').textContent = formatNumber(stats.ports_services);
     document.getElementById('total-http').textContent = formatNumber(stats.http_assets);
     document.getElementById('total-vulns').textContent = formatNumber(stats.vulnerabilities);
+    document.getElementById('total-emails').textContent = formatNumber(stats.emails);
     document.getElementById('total-changes').textContent = formatNumber(stats.changes);
 }
 
@@ -53,13 +54,39 @@ async function loadDashboardData() {
 
     // Targets table
     loadTargetsTable(data.targets || []);
+
+    // Passive Recon summary (if section exists in HTML)
+    const passiveSection = document.getElementById('dashboard-passive-recon');
+    if (passiveSection && data.passive_recon) {
+        const pr = data.passive_recon;
+        passiveSection.innerHTML = `
+            <div class="row text-center">
+                <div class="col-3">
+                    <h5 class="mb-0">${formatNumber(pr.shodan_subdomains)}</h5>
+                    <small class="text-muted">Shodan Subs</small>
+                </div>
+                <div class="col-3">
+                    <h5 class="mb-0">${formatNumber(pr.censys_subdomains)}</h5>
+                    <small class="text-muted">Censys Subs</small>
+                </div>
+                <div class="col-3">
+                    <h5 class="mb-0">${formatNumber(pr.shodan_ports)}</h5>
+                    <small class="text-muted">Shodan Ports</small>
+                </div>
+                <div class="col-3">
+                    <h5 class="mb-0">${formatNumber(pr.censys_ports)}</h5>
+                    <small class="text-muted">Censys Ports</small>
+                </div>
+            </div>
+        `;
+    }
 }
 
 function loadTargetsTable(targets) {
     const tbody = document.getElementById('targets-table');
 
     if (targets.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No targets. <a href="/targets">Add one!</a></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No targets. <a href="/targets">Add one!</a></td></tr>';
         return;
     }
 
@@ -70,6 +97,7 @@ function loadTargetsTable(targets) {
             <td>${formatNumber(t.total_ports)}</td>
             <td>${formatNumber(t.total_http_assets)}</td>
             <td>${formatNumber(t.total_vulns)}</td>
+            <td>${formatNumber(t.total_emails)}</td>
             <td>${t.last_scanned ? formatDate(t.last_scanned) : 'Never'}</td>
             <td>
                 <a href="/targets/${t.root_domain || t.domain}" class="btn btn-sm btn-outline-primary">

@@ -1,13 +1,5 @@
 """
-Remediation Routes — API Endpoints for Remediation Dashboard
-
-Endpoints:
-    GET  /api/remediation/<domain>              Full remediation plan
-    GET  /api/remediation/<domain>/summary       Quick stats (for dashboard)
-    GET  /api/remediation/vuln/<vuln_id>         Single vuln detail
-    PATCH /api/remediation/status/<vuln_id>      Update vuln status
-    GET  /remediation                            GUI page (template render)
-    GET  /remediation/<domain>                   GUI page for specific domain
+Remediation Routes
 """
 
 from flask import Blueprint, jsonify, request, render_template
@@ -22,7 +14,10 @@ from core.remediation_engine import (
     update_remediation_status,
     get_remediation_summary_stats
 )
-
+from utils.sanitize import (                              # ◄ NEW
+    sanitize_domain, sanitize_object_id,                  # ◄ NEW
+    sanitize_status, sanitize_string                      # ◄ NEW
+)                                                         # ◄ NEW
 
 remediation_bp = Blueprint("remediation", __name__)
 
@@ -32,7 +27,6 @@ remediation_bp = Blueprint("remediation", __name__)
 # =============================================================================
 
 def _find_target(domain):
-    """Find target by domain or root_domain."""
     db = get_db()
     target = db[Config.TARGETS_COLLECTION].find_one({"root_domain": domain})
     if not target:
@@ -41,13 +35,10 @@ def _find_target(domain):
 
 
 def _serialize(doc):
-    """Convert MongoDB document to JSON-safe dict."""
     if doc is None:
         return None
-
     from bson import ObjectId
     from datetime import datetime
-
     result = {}
     for key, value in doc.items():
         if isinstance(value, ObjectId):
@@ -74,10 +65,6 @@ def _serialize(doc):
 
 @remediation_bp.route("/remediation")
 def remediation_page_no_domain():
-    """
-    GET /remediation — Remediation page without domain selected.
-    Shows domain selector.
-    """
     try:
         db = get_db()
         targets = list(db[Config.TARGETS_COLLECTION].find(
@@ -104,10 +91,17 @@ def remediation_page_no_domain():
 
 @remediation_bp.route("/remediation/<domain>")
 def remediation_page(domain):
-    """
-    GET /remediation/<domain> — Remediation page for a specific domain.
-    The actual data is loaded via JavaScript calling the API endpoints.
-    """
+    try:                                                   # ◄ NEW
+        domain = sanitize_domain(domain)                   # ◄ NEW
+    except ValueError:                                     # ◄ NEW
+        return render_template(                            # ◄ NEW
+            "remediation.html",                            # ◄ NEW
+            active_page="remediation",                     # ◄ NEW
+            domain=domain,                                 # ◄ NEW
+            targets=[],                                    # ◄ NEW
+            error=f"Invalid domain: '{domain}'"            # ◄ NEW
+        )                                                  # ◄ NEW
+
     target = _find_target(domain)
     if not target:
         return render_template(
@@ -133,20 +127,14 @@ def remediation_page(domain):
 
 @remediation_bp.route("/api/remediation/<domain>", methods=["GET"])
 def api_remediation_plan(domain):
-    """
-    GET /api/remediation/<domain>
-
-    Returns full remediation plan with:
-        - Summary stats
-        - Priority breakdown
-        - All remediation items sorted by priority
-
-    Query params:
-        severity: Filter by severity (critical, high, medium, low, info)
-        status: Filter by status (open, in_progress, resolved, false_positive)
-        limit: Max items to return (default: all)
-    """
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         target = _find_target(domain)
         if not target:
             return jsonify({
@@ -155,29 +143,42 @@ def api_remediation_plan(domain):
             }), 404
 
         target_id = str(target["_id"])
-
-        # Generate remediation plan
         plan = get_remediation_plan(target_id, domain)
 
         if not plan.get("success"):
             return jsonify(plan), 500
 
-        # Apply filters
         items = plan.get("remediation_items", [])
 
         severity_filter = request.args.get("severity")
         if severity_filter:
-            items = [
-                i for i in items
-                if i.get("severity", "").lower() == severity_filter.lower()
-            ]
+            try:                                           # ◄ NEW
+                severity_filter = sanitize_string(         # ◄ NEW
+                    severity_filter, "severity"            # ◄ NEW
+                ).lower()                                  # ◄ NEW
+            except ValueError:                             # ◄ NEW
+                severity_filter = None                     # ◄ NEW
+
+            if severity_filter:
+                items = [
+                    i for i in items
+                    if i.get("severity", "").lower() == severity_filter
+                ]
 
         status_filter = request.args.get("status")
         if status_filter:
-            items = [
-                i for i in items
-                if i.get("status", "").lower() == status_filter.lower()
-            ]
+            try:                                           # ◄ NEW
+                status_filter = sanitize_string(           # ◄ NEW
+                    status_filter, "status"                # ◄ NEW
+                ).lower()                                  # ◄ NEW
+            except ValueError:                             # ◄ NEW
+                status_filter = None                       # ◄ NEW
+
+            if status_filter:
+                items = [
+                    i for i in items
+                    if i.get("status", "").lower() == status_filter
+                ]
 
         limit = request.args.get("limit", type=int)
         if limit and limit > 0:
@@ -190,21 +191,19 @@ def api_remediation_plan(domain):
 
     except Exception as e:
         print(f"[REMEDIATION API] Error: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @remediation_bp.route("/api/remediation/<domain>/summary", methods=["GET"])
 def api_remediation_summary(domain):
-    """
-    GET /api/remediation/<domain>/summary
-
-    Returns quick summary stats (no enrichment API calls).
-    Fast endpoint for dashboard widgets.
-    """
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         target = _find_target(domain)
         if not target:
             return jsonify({
@@ -222,30 +221,36 @@ def api_remediation_summary(domain):
         })
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @remediation_bp.route("/api/remediation/vuln/<vuln_id>", methods=["GET"])
 def api_single_remediation(vuln_id):
-    """
-    GET /api/remediation/vuln/<vuln_id>
-
-    Returns detailed remediation for a single vulnerability.
-    Used when user clicks on a vuln card for full details.
-
-    Query params:
-        target_id: Required — the target this vuln belongs to
-    """
     try:
+        try:                                               # ◄ NEW
+            vuln_id = sanitize_object_id(                  # ◄ NEW
+                vuln_id, "vuln_id"                         # ◄ NEW
+            )                                              # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         target_id = request.args.get("target_id")
         if not target_id:
             return jsonify({
                 "success": False,
                 "error": "target_id query parameter is required"
             }), 400
+
+        try:                                               # ◄ NEW
+            target_id = sanitize_object_id(                # ◄ NEW
+                target_id, "target_id"                     # ◄ NEW
+            )                                              # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
 
         item = get_single_remediation(vuln_id, target_id)
 
@@ -261,23 +266,26 @@ def api_single_remediation(vuln_id):
         })
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @remediation_bp.route("/api/remediation/status/<vuln_id>", methods=["PATCH"])
 def api_update_status(vuln_id):
     """
     PATCH /api/remediation/status/<vuln_id>
-
     Update vulnerability status from remediation page.
-
-    Body JSON:
-        {"status": "open|in_progress|resolved|false_positive"}
+    Also recalculates risk score.
     """
     try:
+        try:
+            vuln_id = sanitize_object_id(
+                vuln_id, "vuln_id"
+            )
+        except ValueError as e:
+            return jsonify({
+                "success": False, "error": str(e)
+            }), 400
+
         data = request.get_json()
         if not data or "status" not in data:
             return jsonify({
@@ -285,8 +293,45 @@ def api_update_status(vuln_id):
                 "error": "Request body must include 'status' field"
             }), 400
 
-        new_status = data["status"]
+        try:
+            new_status = sanitize_status(
+                data["status"],
+                ("open", "in_progress",
+                 "resolved", "false_positive"),
+                "status"
+            )
+        except ValueError as e:
+            return jsonify({
+                "success": False, "error": str(e)
+            }), 400
+
         result = update_remediation_status(vuln_id, new_status)
+
+        # ═══════════════════════════════════════════════      # ◄ NEW SECTION
+        # Recalculate risk score after status change
+        # ═══════════════════════════════════════════════
+        if result.get("success"):                              # ◄ NEW
+            try:                                               # ◄ NEW
+                db = get_db()                                  # ◄ NEW
+                vuln = db[Config.VULNS_COLLECTION].find_one(   # ◄ NEW
+                    {"_id": ObjectId(vuln_id)}                 # ◄ NEW
+                )                                              # ◄ NEW
+                if vuln and vuln.get("target_id"):             # ◄ NEW
+                    from core.risk_scorer import (             # ◄ NEW
+                        calculate_risk_score                   # ◄ NEW
+                    )                                          # ◄ NEW
+                    new_score = calculate_risk_score(           # ◄ NEW
+                        str(vuln["target_id"])                  # ◄ NEW
+                    )                                          # ◄ NEW
+                    db[Config.TARGETS_COLLECTION].update_one(  # ◄ NEW
+                        {"_id": vuln["target_id"]},            # ◄ NEW
+                        {"$set": {"risk_score": new_score}}    # ◄ NEW
+                    )                                          # ◄ NEW
+                    result["new_risk_score"] = new_score        # ◄ NEW
+            except Exception as e:                             # ◄ NEW
+                print(                                         # ◄ NEW
+                    f"[REMEDIATION] Risk recalc error: {e}"   # ◄ NEW
+                )                                              # ◄ NEW
 
         if result.get("success"):
             return jsonify(result)
@@ -294,24 +339,18 @@ def api_update_status(vuln_id):
             return jsonify(result), 400
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @remediation_bp.route("/api/remediation/<domain>/export", methods=["GET"])
 def api_export_plan(domain):
-    """
-    GET /api/remediation/<domain>/export
-
-    Export remediation plan as a structured report.
-    Can be used for PDF generation or management reporting.
-
-    Query params:
-        format: json (default) — more formats can be added later
-    """
     try:
+        try:                                               # ◄ NEW
+            domain = sanitize_domain(domain)               # ◄ NEW
+        except ValueError as e:                            # ◄ NEW
+            return jsonify({                               # ◄ NEW
+                "success": False, "error": str(e)          # ◄ NEW
+            }), 400                                        # ◄ NEW
+
         target = _find_target(domain)
         if not target:
             return jsonify({
@@ -325,7 +364,6 @@ def api_export_plan(domain):
         if not plan.get("success"):
             return jsonify(plan), 500
 
-        # Build export document
         export = {
             "report_title": f"Remediation Plan — {domain}",
             "generated_at": datetime.utcnow().isoformat(),
@@ -361,7 +399,4 @@ def api_export_plan(domain):
         })
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
