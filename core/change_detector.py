@@ -71,6 +71,7 @@ def detect_changes(target_id, target_domain, scan_id,
             "resolved_vulns": 0,
             "new_emails": 0,
             "new_breached_emails": 0,
+            "whois_changes": 0,
             "total_changes": 0
         }
 
@@ -275,6 +276,103 @@ def detect_changes(target_id, target_domain, scan_id,
         except Exception as e:
             print(f"[CHANGES] Email change detection error: {e}")
 
+        # ── WHOIS changes ───────────────────────────────
+        try:
+            old_whois = before_state.get("whois", {})
+
+            if (new_whois_result
+                    and new_whois_result.get("success")
+                    and old_whois):
+
+                # Nameserver change = possible hijack
+                old_ns = set(old_whois.get(
+                    "nameservers", []
+                ))
+                new_ns = set(new_whois_result.get(
+                    "nameservers", []
+                ))
+                if old_ns and new_ns and old_ns != new_ns:
+                    add_change(
+                        target_id, target_domain,
+                        "whois_nameserver_change", "high",
+                        {
+                            "old_nameservers": sorted(old_ns),
+                            "new_nameservers": sorted(new_ns),
+                            "message": (
+                                f"Nameservers changed from "
+                                f"{sorted(old_ns)} to "
+                                f"{sorted(new_ns)}. "
+                                f"Possible DNS migration "
+                                f"or domain hijack."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+                # Registrar change = possible transfer
+                old_reg = old_whois.get("registrar")
+                new_reg = new_whois_result.get("registrar")
+                if (old_reg and new_reg
+                        and old_reg != new_reg):
+                    add_change(
+                        target_id, target_domain,
+                        "whois_registrar_change", "critical",
+                        {
+                            "old_registrar": old_reg,
+                            "new_registrar": new_reg,
+                            "message": (
+                                f"Registrar changed from "
+                                f"'{old_reg}' to '{new_reg}'. "
+                                f"Investigate for unauthorized "
+                                f"domain transfer."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+                # DNSSEC removed = security downgrade
+                old_dnssec = old_whois.get("dnssec", False)
+                new_dnssec = new_whois_result.get(
+                    "dnssec", False
+                )
+                if old_dnssec and not new_dnssec:
+                    add_change(
+                        target_id, target_domain,
+                        "whois_dnssec_removed", "high",
+                        {
+                            "message": (
+                                "DNSSEC was enabled but is "
+                                "now disabled. DNS responses "
+                                "are no longer authenticated."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+                # DNSSEC added = security upgrade (positive)
+                elif not old_dnssec and new_dnssec:
+                    add_change(
+                        target_id, target_domain,
+                        "whois_dnssec_added", "info",
+                        {
+                            "message": (
+                                "DNSSEC has been enabled. "
+                                "DNS responses are now "
+                                "authenticated."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+        except Exception as e:
+            print(
+                f"[CHANGES] WHOIS change detection error: {e}"
+            )
+
         # ── Calculate total ─────────────────────────────
         changes["total_changes"] = sum(
             changes[k] for k in changes
@@ -286,6 +384,7 @@ def detect_changes(target_id, target_domain, scan_id,
             changes.get("new_emails", 0) +
             changes.get("new_breached_emails", 0)
         )
+        whois_changes = changes.get("whois_changes", 0)
         print(
             f"[CHANGES] {changes['total_changes']} total: "
             f"+{changes['new_subdomains']}/"
@@ -294,9 +393,9 @@ def detect_changes(target_id, target_domain, scan_id,
             f"-{changes['removed_ports']} ports, "
             f"+{changes['new_vulns']}/"
             f"-{changes['resolved_vulns']} vulns, "
-            f"+{email_changes} emails"
+            f"+{email_changes} emails, "
+            f"{whois_changes} whois"
         )
-
         return changes
 
     except Exception as e:
@@ -308,7 +407,8 @@ def detect_changes_with_snapshot(target_id, target_domain,
                                  scan_id, before_state,
                                  new_subs_result,
                                  new_ports_result,
-                                 new_vulns_result):
+                                 new_vulns_result,
+                                 new_whois_result=None):
     """
     Compare scan results against a pre-computed snapshot.
 
@@ -338,6 +438,7 @@ def detect_changes_with_snapshot(target_id, target_domain,
             "resolved_vulns": 0,
             "new_emails": 0,
             "new_breached_emails": 0,
+            "whois_changes": 0,
             "total_changes": 0
         }
 
@@ -524,6 +625,103 @@ def detect_changes_with_snapshot(target_id, target_domain,
         except Exception as e:
             print(f"[CHANGES] Email change detection error: {e}")
 
+        # ── WHOIS changes ───────────────────────────────
+        try:
+            old_whois = before_state.get("whois", {})
+
+            if (new_whois_result
+                    and new_whois_result.get("success")
+                    and old_whois):
+
+                # Nameserver change = possible hijack
+                old_ns = set(old_whois.get(
+                    "nameservers", []
+                ))
+                new_ns = set(new_whois_result.get(
+                    "nameservers", []
+                ))
+                if old_ns and new_ns and old_ns != new_ns:
+                    add_change(
+                        target_id, target_domain,
+                        "whois_nameserver_change", "high",
+                        {
+                            "old_nameservers": sorted(old_ns),
+                            "new_nameservers": sorted(new_ns),
+                            "message": (
+                                f"Nameservers changed from "
+                                f"{sorted(old_ns)} to "
+                                f"{sorted(new_ns)}. "
+                                f"Possible DNS migration "
+                                f"or domain hijack."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+                # Registrar change = possible transfer
+                old_reg = old_whois.get("registrar")
+                new_reg = new_whois_result.get("registrar")
+                if (old_reg and new_reg
+                        and old_reg != new_reg):
+                    add_change(
+                        target_id, target_domain,
+                        "whois_registrar_change", "critical",
+                        {
+                            "old_registrar": old_reg,
+                            "new_registrar": new_reg,
+                            "message": (
+                                f"Registrar changed from "
+                                f"'{old_reg}' to '{new_reg}'. "
+                                f"Investigate for unauthorized "
+                                f"domain transfer."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+                # DNSSEC removed = security downgrade
+                old_dnssec = old_whois.get("dnssec", False)
+                new_dnssec = new_whois_result.get(
+                    "dnssec", False
+                )
+                if old_dnssec and not new_dnssec:
+                    add_change(
+                        target_id, target_domain,
+                        "whois_dnssec_removed", "high",
+                        {
+                            "message": (
+                                "DNSSEC was enabled but is "
+                                "now disabled. DNS responses "
+                                "are no longer authenticated."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+                # DNSSEC added = security upgrade (positive)
+                elif not old_dnssec and new_dnssec:
+                    add_change(
+                        target_id, target_domain,
+                        "whois_dnssec_added", "info",
+                        {
+                            "message": (
+                                "DNSSEC has been enabled. "
+                                "DNS responses are now "
+                                "authenticated."
+                            )
+                        },
+                        scan_id
+                    )
+                    changes["whois_changes"] += 1
+
+        except Exception as e:
+            print(
+                f"[CHANGES] WHOIS change detection error: {e}"
+            )
+
         # ── Calculate total ─────────────────────────────
         changes["total_changes"] = sum(
             changes[k] for k in changes
@@ -535,6 +733,7 @@ def detect_changes_with_snapshot(target_id, target_domain,
             changes.get("new_emails", 0) +
             changes.get("new_breached_emails", 0)
         )
+        whois_changes = changes.get("whois_changes", 0)
         print(
             f"[CHANGES] {changes['total_changes']} total: "
             f"+{changes['new_subdomains']}/"
@@ -543,7 +742,8 @@ def detect_changes_with_snapshot(target_id, target_domain,
             f"-{changes['removed_ports']} ports, "
             f"+{changes['new_vulns']}/"
             f"-{changes['resolved_vulns']} vulns, "
-            f"+{email_changes} emails"
+            f"+{email_changes} emails, "
+            f"{whois_changes} whois"
         )
 
         return changes

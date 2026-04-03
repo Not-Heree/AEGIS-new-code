@@ -41,9 +41,10 @@ from database.scans_db import (
     update_scan_progress
 )
 from database.passive_recon_db import (
-    save_shodan_results, save_censys_results
+    save_shodan_results, save_censys_results,
+    save_whois_results, get_whois_data
 )
-from core.subfinder import scan_subdomains
+from core.subfinder import scan_subdomains, save_certificates
 from core.naabu import run_naabu
 from core.httpx_runner import run_httpx
 from core.nuclei import run_nuclei
@@ -94,7 +95,10 @@ def run_full_scan(target_id, domain, scan_id=None):
         "success": False, "subdomains": [],
         "ports_by_host": {}, "services": []
     }
-
+    whois_result = {
+        "success": False, "registrar": None,
+        "nameservers": [], "risk_flags": []
+    }
     try:
         # ── Mark existing assets as old ──────────────────
         mark_all_subdomains_old(target_id)
@@ -117,7 +121,8 @@ def run_full_scan(target_id, domain, scan_id=None):
                 f"{v.get('template_id', '')}||"
                 f"{v.get('host', '')}": v
                 for v in get_vulns_by_target(target_id)
-            }
+            },
+            "whois": get_whois_data(domain)
         }
 
         # ═════════════════════════════════════════════════
@@ -241,6 +246,43 @@ def run_full_scan(target_id, domain, scan_id=None):
                     "Phase 0b: Censys not configured — skipping"
                 )
 
+            # ── WHOIS ─────────────────────────────────
+            from core.whois_lookup import (
+                run_whois_recon as whois_recon,
+                is_available as whois_available
+            )
+
+            if whois_available():
+                _progress(
+                    scan_id, "passive_recon", 7,
+                    "Querying WHOIS..."
+                )
+                whois_result = whois_recon(domain)
+
+                if whois_result.get("success"):
+                    save_whois_results(
+                        target_id, domain, whois_result
+                    )
+
+                    w_stats = whois_result.get("stats", {})
+                    logger.info(
+                        "Phase 0c: WHOIS — registrar=%s, "
+                        "%d nameservers, %d risk flags",
+                        whois_result.get("registrar", "N/A"),
+                        w_stats.get("nameserver_count", 0),
+                        w_stats.get("risk_flags_count", 0)
+                    )
+                else:
+                    logger.warning(
+                        "Phase 0c: WHOIS — %s",
+                        whois_result.get("error", "No data")
+                    )
+            else:
+                logger.info(
+                    "Phase 0c: WHOIS not available — "
+                    "install python-whois"
+                )
+
             phases_completed.append("passive_recon")
 
         except Exception as e:
@@ -287,6 +329,11 @@ def run_full_scan(target_id, domain, scan_id=None):
                     target_id, domain, subdomain_list,
                     source="subfinder"
                 )
+                
+                # ── NEW: Save certificate data ────
+                certs = subs_result.get("certificates", [])
+                if certs:
+                    save_certificates(domain, certs)
 
             phases_completed.append("subdomain_discovery")
             logger.info(
@@ -877,9 +924,9 @@ def run_full_scan(target_id, domain, scan_id=None):
                 "Phase 4 failed: %s", e, exc_info=True
             )
         # ═════════════════════════════════════════════════
-        # PHASE 5: CHANGE DETECTION                       ◄ FIX: was
-        # ═════════════════════════════════════════════════   also indented
-        _progress(                                        #   inside Phase 3
+        # PHASE 5: CHANGE DETECTION                        
+        # ═════════════════════════════════════════════════   
+        _progress(                                        
             scan_id, "change_detection", 85,
             "Comparing with previous state..."
         )
@@ -900,7 +947,8 @@ def run_full_scan(target_id, domain, scan_id=None):
                 target_id, domain, scan_id,
                 before_state,
                 subs_result, ports_result,
-                vuln_data_for_changes
+                vuln_data_for_changes,
+                new_whois_result=whois_result
             )
             phases_completed.append("change_detection")
             logger.info(
@@ -916,9 +964,9 @@ def run_full_scan(target_id, domain, scan_id=None):
             logger.error("Phase 5 failed: %s", e, exc_info=True)
 
         # ═════════════════════════════════════════════════
-        # PHASE 6: RISK SCORING                           ◄ FIX: was
-        # ═════════════════════════════════════════════════   completely
-        _progress(                                        #   missing
+        # PHASE 6: RISK SCORING                           
+        # ═════════════════════════════════════════════════  
+        _progress(                                       
             scan_id, "risk_scoring", 93,
             "Calculating risk score..."
         )
@@ -1003,6 +1051,22 @@ def run_full_scan(target_id, domain, scan_id=None):
                         )
                     ),
                     "services": censys_service_count
+                },
+                "whois": {
+                    "registrar": whois_result.get(
+                        "registrar"
+                    ),
+                    "risk_flags": len(
+                        whois_result.get(
+                            "risk_flags", []
+                        )
+                    ),
+                    "dnssec": whois_result.get(
+                        "dnssec", False
+                    ),
+                    "days_until_expiry": whois_result.get(
+                        "days_until_expiry"
+                    )
                 }
             }
         }

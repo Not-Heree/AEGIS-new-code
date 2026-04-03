@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-bullseye"></i> Targets</h2>
+    <h2> Targets</h2>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTargetModal">
         <i class="bi bi-plus-circle"></i> Add Target
     </button>
@@ -35,9 +35,50 @@
     </div>
 </div>
 
+<style>
+    /* Premium Modal Styling - Centered in Content Area */
+    .modal-backdrop.show {
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        background-color: rgba(0, 0, 0, 0.3);
+    }
+
+    /* Offset modal to center within the 10-column main content area */
+    @media (min-width: 768px) {
+        #addTargetModal .modal-dialog {
+            margin-left: calc(50% + 8.333%);
+            /* Half of the 10-column width + 2-column sidebar */
+            transform: translateX(-50%) !important;
+        }
+    }
+
+    .modal-content {
+        border: none;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        background: #f8f9fa;
+        border-bottom: 1px solid #eee;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        background: #f8f9fa;
+        border-top: 1px solid #eee;
+    }
+</style>
+
 <!-- Add Target Modal -->
 <div class="modal fade" id="addTargetModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add New Target</h5>
@@ -48,7 +89,7 @@
                     <div class="mb-3">
                         <label class="form-label">Domain *</label>
                         <input type="text" class="form-control" id="domain" placeholder="example.com" required>
-                        <small class="text-muted">Enter root domain without http://</small>
+                        <small class="text-muted">Enter root domain </small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Organization</label>
@@ -91,7 +132,7 @@
                 <td>${t.total_subdomains || 0}</td>
                 <td>${t.total_vulns || 0}</td>
                 <td>${t.risk_score || 0}/100</td>
-                <td>${(t.last_scanned || t.last_scan_at) ? new Date(t.last_scanned || t.last_scan_at).toLocaleDateString() : 'Never'}</td>
+                <td>${t.last_scan_at ? new Date(t.last_scan_at).toLocaleDateString() : 'Never'}</td>
                 <td>
                     <button class="btn btn-sm btn-success" onclick="runScan('${domain}')"><i class="bi bi-play"></i></button>
                     <button class="btn btn-sm btn-danger" onclick="deleteTarget('${domain}')"><i class="bi bi-trash"></i></button>

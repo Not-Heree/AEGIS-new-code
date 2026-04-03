@@ -60,10 +60,10 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-envelope-exclamation"></i> Email Exposure</h2>
+    <h2> Email Exposure</h2>
     <div>
-        <button class="btn btn-outline-warning me-2" onclick="recheckBreaches()">
-            <i class="bi bi-shield-exclamation"></i> Re-check Breaches
+        <button class="btn btn-warning me-2" onclick="recheckBreaches()">
+            Re-check Breaches
         </button>
         <button class="btn btn-primary" onclick="loadEmails()">
             <i class="bi bi-arrow-clockwise"></i> Refresh
@@ -82,8 +82,8 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <button class="btn btn-success" onclick="runHarvest()">
-                    <i class="bi bi-search"></i> Harvest Emails
+                <button class="btn btn-primary" onclick="runHarvest()">
+                    Harvest Emails
                 </button>
             </div>
             <div class="col-md-4 text-end">
@@ -175,16 +175,16 @@
 
             if (targets.length === 0) {
                 select.innerHTML =
-                    '<option value="">No targets — add one first</option>';
+                    '<option value="">Add a target first</option>';
                 return;
             }
 
             select.innerHTML =
-                '<option value="">-- Select Domain --</option>' +
+                '<option value=""> Select Domain </option>' +
                 targets.map(t => {
                     const d = t.root_domain || t.domain || '';
                     const emails = t.total_emails || 0;
-                    return `<option value="${d}">${d} (${emails} emails)</option>`;
+                    return `<option value="${d}">${d} </option>`;
                 }).join('');
         } catch (e) {
             console.error('Error:', e);
@@ -245,9 +245,9 @@
             // Status icon
             const status = e.breach_status || 'unknown';
             const statusIcon = {
-                'breached': '<span class="badge bg-danger">🔴 Breached</span>',
-                'clean': '<span class="badge bg-success">🟢 Clean</span>',
-                'unknown': '<span class="badge bg-warning text-dark">🟡 Unchecked</span>'
+                'breached': '<span class="badge bg-danger"> Breached</span>',
+                'clean': '<span class="badge bg-success"> Clean</span>',
+                'unknown': '<span class="badge bg-warning text-dark"> Unchecked</span>'
             }[status] || '<span class="badge bg-secondary">Unknown</span>';
 
             // Name / Position
@@ -317,29 +317,26 @@
 
         const statusDiv = document.getElementById('harvest-status');
         statusDiv.innerHTML =
-            '<span class="badge bg-info">' +
+            '<span class="badge bg-primary">' +
             '<span class="spinner-border spinner-border-sm"></span>' +
-            ' Harvesting emails... This may take 1-2 minutes.' +
+            ' Harvesting emails' +
             '</span>';
 
         try {
             const result = await api.post(`/api/emails/harvest/${domain}`);
 
             if (result.success) {
-                statusDiv.innerHTML =
-                    `<span class="badge bg-success">` +
-                    `✅ Found ${result.emails_found} emails, ` +
-                    `${result.emails_breached} breached</span>`;
+                statusDiv.innerHTML = '';
                 loadEmails();
                 loadTargets();  // Refresh target email counts
             } else {
                 statusDiv.innerHTML =
                     `<span class="badge bg-danger">` +
-                    `❌ ${result.error || 'Harvest failed'}</span>`;
+                    ` ${result.error || 'Harvest failed'}</span>`;
             }
         } catch (e) {
             statusDiv.innerHTML =
-                '<span class="badge bg-danger">❌ Harvest failed</span>';
+                '<span class="badge bg-danger"> Harvest failed</span>';
         }
     }
 
@@ -372,17 +369,17 @@
                 const s = result.summary || {};
                 statusDiv.innerHTML =
                     `<span class="badge bg-success">` +
-                    `✅ Checked ${result.checked || 0}, ` +
+                    ` Checked ${result.checked || 0}, ` +
                     `${s.breached || 0} breached</span>`;
                 loadEmails();
             } else {
                 statusDiv.innerHTML =
                     `<span class="badge bg-danger">` +
-                    `❌ ${result.error}</span>`;
+                    ` ${result.error}</span>`;
             }
         } catch (e) {
             statusDiv.innerHTML =
-                '<span class="badge bg-danger">❌ Check failed</span>';
+                '<span class="badge bg-danger"> Check failed</span>';
         }
     }
 

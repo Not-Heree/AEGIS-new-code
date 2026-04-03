@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-file-earmark-pdf"></i> Reports</h2>
+    <h2> Reports</h2>
 </div>
 
 <div class="row">
@@ -11,7 +11,7 @@
     <div class="col-md-5">
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-file-earmark-plus"></i> Generate Report</h5>
+                <h5 class="mb-0"> Generate Report</h5>
             </div>
             <div class="card-body">
                 <div class="mb-3">
@@ -24,10 +24,10 @@
                 <div class="mb-3">
                     <label class="form-label">Report Type</label>
                     <select class="form-select" id="report-type">
-                        <option value="full">📄 Full PDF Report</option>
-                        <option value="json">📋 JSON Report</option>
-                        <option value="summary">📊 Executive Summary</option>
-                        <option value="remediation">🔧 Remediation Report</option>
+                        <option value="full"> Full PDF Report</option>
+                        <option value="json"> JSON Report</option>
+                        <option value="summary"> Executive Summary</option>
+                        <option value="remediation"> Remediation Report</option>
                     </select>
                     <small class="text-muted" id="report-type-desc">
                         Complete security assessment with all findings
@@ -35,7 +35,7 @@
                 </div>
 
                 <button class="btn btn-primary w-100" onclick="generateReport()" id="generate-btn">
-                    <i class="bi bi-file-pdf"></i> Generate Report
+                    Generate Report
                 </button>
 
                 <div id="report-status" class="mt-3"></div>
@@ -45,18 +45,18 @@
         <!-- Quick Actions -->
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h6>
+                <h6 class="mb-0"> Quick Actions</h6>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
                     <button class="btn btn-outline-primary btn-sm" onclick="viewJSON()">
-                        <i class="bi bi-code-slash"></i> View JSON Report
+                        View JSON Report
                     </button>
                     <button class="btn btn-outline-info btn-sm" onclick="viewSummary()">
-                        <i class="bi bi-speedometer2"></i> View Executive Summary
+                        View Executive Summary
                     </button>
                     <button class="btn btn-outline-warning btn-sm" onclick="viewRemediation()">
-                        <i class="bi bi-wrench"></i> View Remediation Plan
+                        View Remediation Plan
                     </button>
                 </div>
             </div>
@@ -115,12 +115,12 @@
             const select = document.getElementById('report-target');
 
             if (data.targets && data.targets.length > 0) {
-                select.innerHTML = '<option value="">-- Select Target --</option>' +
+                select.innerHTML = '<option value=""> Select Target </option>' +
                     data.targets.map(t =>
                         `<option value="${t.root_domain || t.domain}">${t.root_domain || t.domain} ${t.org_name ? '(' + t.org_name + ')' : ''}</option>`
                     ).join('');
             } else {
-                select.innerHTML = '<option value="">No targets — add one first!</option>';
+                select.innerHTML = '<option value="">Add a target first</option>';
             }
         } catch (error) {
             console.error('Error loading targets:', error);
@@ -349,7 +349,8 @@
     // ─── Helpers ────────────────────────────────────────────────────
     function formatDate(dateStr) {
         if (!dateStr) return '';
-        return new Date(dateStr).toLocaleString();
+        if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && dateStr.includes('T')) dateStr += 'Z';
+        return new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' });
     }
 
     function formatBytes(bytes) {

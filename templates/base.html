@@ -13,12 +13,29 @@
 
     <style>
         :root {
-            --primary-color: #2c3e50;
-            --secondary-color: #34495e;
-            --accent-color: #3498db;
-            --danger-color: #e74c3c;
-            --warning-color: #f39c12;
-            --success-color: #27ae60;
+            --sidebar-bg: #2b2d31;
+            --sidebar-hover: #3a3c42;
+            --sidebar-active: #4a4c52;
+            --navbar-bg: #1e1f22;
+            --body-bg: #f0f1f3;
+            --card-bg: #ffffff;
+            --card-border: #e5e7eb;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --accent: #4f8cff;
+
+            --severity-critical: #dc2626;
+            --severity-high: #ea580c;
+            --severity-medium: #d97706;
+            --severity-low: #0891b2;
+            --severity-info: #6b7280;
+
+            --grade-a: #16a34a;
+            --grade-b: #65a30d;
+            --grade-c: #d97706;
+            --grade-d: #ea580c;
+            --grade-f: #dc2626;
         }
 
         @keyframes spin {
@@ -37,146 +54,244 @@
         }
 
         body {
-            background-color: #f8f9fa;
+            background-color: var(--body-bg);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-primary);
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
+        /* ── Navbar ────────────────────────────────── */
         .navbar {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            background: var(--navbar-bg);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             flex-shrink: 0;
         }
 
         .navbar-brand {
             font-weight: bold;
-            font-size: 1.4rem;
+            font-size: 1.3rem;
+            color: #ffffff !important;
         }
 
+        .navbar .nav-link {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .navbar .nav-link:hover {
+            color: #ffffff !important;
+        }
+
+        /* ── Sidebar ───────────────────────────────── */
         .sidebar {
-            background: var(--primary-color);
-            padding-top: 20px;
+            background: var(--sidebar-bg);
+            min-height: calc(100vh - 56px);
+            padding-top: 16px;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         .sidebar .nav-link {
-            color: rgba(255, 255, 255, 0.8);
-            padding: 12px 20px;
-            margin: 2px 10px;
-            border-radius: 8px;
-            transition: all 0.3s;
+            color: rgba(255, 255, 255, 0.65);
+            padding: 10px 18px;
+            margin: 2px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
         }
 
-        .sidebar .nav-link:hover,
+        .sidebar .nav-link:hover {
+            background: var(--sidebar-hover);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
         .sidebar .nav-link.active {
-            background: var(--accent-color);
-            color: white;
+            background: var(--sidebar-active);
+            color: #ffffff;
+            border-left: 3px solid var(--accent);
         }
 
         .sidebar .nav-link i {
             margin-right: 10px;
-            width: 20px;
-        }
-
-        .main-content {
-            padding: 30px;
-        }
-
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
-            transition: transform 0.2s;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-        }
-
-        .stat-card {
-            padding: 25px;
+            width: 18px;
             text-align: center;
         }
 
+        /* ── Main Content ──────────────────────────── */
+        .main-content {
+            padding: 28px;
+        }
+
+        /* ── Cards ─────────────────────────────────── */
+        .card {
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            background: var(--card-bg);
+            transition: box-shadow 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        /* ── Stat Cards (Clickable) ────────────────── */
+        .stat-card {
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+
         .stat-card .stat-value {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: var(--primary-color);
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
         }
 
         .stat-card .stat-label {
-            color: #7f8c8d;
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
         }
 
+        .stat-card .stat-icon {
+            position: absolute;
+            top: 12px;
+            right: 14px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+
+        /* ── Filter Cards (Severity/Remediation) ───── */
+        .filter-card {
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            border-bottom: 3px solid transparent;
+        }
+
+        .filter-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .filter-card.active-filter {
+            border-bottom: 3px solid var(--accent);
+            box-shadow: 0 4px 12px rgba(79, 140, 255, 0.15);
+        }
+
+        /* ── Severity Badges ───────────────────────── */
         .badge-critical {
-            background-color: #c0392b;
+            background-color: var(--severity-critical);
         }
 
         .badge-high {
-            background-color: #e74c3c;
+            background-color: var(--severity-high);
         }
 
         .badge-medium {
-            background-color: #f39c12;
+            background-color: var(--severity-medium);
         }
 
         .badge-low {
-            background-color: #27ae60;
+            background-color: var(--severity-low);
         }
 
         .badge-info {
-            background-color: #3498db;
+            background-color: var(--severity-info);
         }
 
-        .risk-score {
-            font-size: 3rem;
-            font-weight: bold;
+        /* ── Risk Grade ────────────────────────────── */
+        .risk-grade {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1;
         }
 
-        .risk-minimal {
-            color: #27ae60;
+        .risk-subscore {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
         }
 
-        .risk-low {
-            color: #2ecc71;
+        .grade-a {
+            color: var(--grade-a);
         }
 
-        .risk-medium {
-            color: #f39c12;
+        .grade-b {
+            color: var(--grade-b);
         }
 
-        .risk-high {
-            color: #e74c3c;
+        .grade-c {
+            color: var(--grade-c);
         }
 
-        .risk-critical {
-            color: #c0392b;
+        .grade-d {
+            color: var(--grade-d);
         }
 
+        .grade-f {
+            color: var(--grade-f);
+        }
+
+        /* ── Table ─────────────────────────────────── */
         .table-hover tbody tr:hover {
-            background-color: rgba(52, 152, 219, 0.1);
+            background-color: rgba(79, 140, 255, 0.04);
         }
 
+        .table thead th {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--card-border);
+        }
+
+        /* ── Buttons ───────────────────────────────── */
         .btn-scan {
-            background: linear-gradient(135deg, var(--accent-color), #2980b9);
+            background: var(--accent);
             border: none;
+            color: white;
             padding: 10px 25px;
         }
 
         .btn-scan:hover {
-            background: linear-gradient(135deg, #2980b9, var(--accent-color));
+            background: #3d7ae6;
+            color: white;
         }
 
-        .loading {
-            display: none;
+        /* ── Scrollbar ─────────────────────────────── */
+        ::-webkit-scrollbar {
+            width: 6px;
         }
 
-        .loading.active {
-            display: inline-block;
+        ::-webkit-scrollbar-track {
+            background: var(--body-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c4c7cc;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
         }
     </style>
 
@@ -205,19 +320,6 @@
                             <i class="bi bi-diagram-3"></i> API
                         </a>
                     </li>
-                    <!-- ◄ NEW: User info + Logout button ─────────────── -->
-                    <li class="nav-item">
-                        <span class="nav-link text-light opacity-75">
-                            <i class="bi bi-person-circle"></i>
-                            {{ session.get('username', 'admin') }}
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-warning" href="/logout" title="Sign out">
-                            <i class="bi bi-box-arrow-right"></i> Logout
-                        </a>
-                    </li>
-                    <!-- ◄ END NEW ─────────────────────────────────────── -->
                 </ul>
             </div>
         </div>
@@ -226,7 +328,7 @@
     <div class="container-fluid flex-grow-1 overflow-hidden">
         <div class="row h-100">
             <!-- Sidebar -->
-            <nav class="col-md-2 d-none d-md-block sidebar h-100 overflow-auto">
+            <nav class="col-md-2 d-none d-md-block sidebar">
                 <ul class="nav flex-column">
                     <li class="nav-item">
                         <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="/dashboard">
@@ -244,11 +346,6 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if active_page == 'recon' %}active{% endif %}" href="/recon">
-                            <i class="bi bi-binoculars"></i> Passive Recon
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link {% if active_page == 'assets' %}active{% endif %}" href="/assets">
                             <i class="bi bi-globe"></i> Assets
                         </a>
@@ -257,6 +354,11 @@
                         <a class="nav-link {% if active_page == 'vulnerabilities' %}active{% endif %}"
                             href="/vulnerabilities">
                             <i class="bi bi-bug"></i> Vulnerabilities
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'emails' %}active{% endif %}" href="/emails">
+                            <i class="bi bi-envelope-exclamation"></i> Emails
                         </a>
                     </li>
                     <li class="nav-item">
@@ -274,9 +376,12 @@
                             <i class="bi bi-file-earmark-pdf"></i> Reports
                         </a>
                     </li>
+                    <li class="nav-item mt-4 mb-2">
+                        <hr style="border-color: rgba(255,255,255,0.1); margin: 0 15px;">
+                    </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if active_page == 'emails' %}active{% endif %}" href="/emails">
-                            <i class="bi bi-envelope-exclamation"></i> Emails
+                        <a class="nav-link" href="/logout" style="color: rgba(255,255,255,0.5);">
+                            <i class="bi bi-box-arrow-left"></i> Logout
                         </a>
                     </li>
                 </ul>
@@ -306,8 +411,42 @@
             btn.innerHTML = text;
         }
 
-        function showToast(message, type = 'success') {
-            alert(message);
+        function showAlert(message, type) {
+            // Could be replaced with toast notifications
+            console.log('[' + type + '] ' + message);
+        }
+
+        // ── Risk Grade Helper (global) ──────────────
+        function scoreToGrade(score) {
+            if (score >= 95) return { grade: 'A+', cls: 'grade-a' };
+            if (score >= 85) return { grade: 'A', cls: 'grade-a' };
+            if (score >= 75) return { grade: 'B+', cls: 'grade-b' };
+            if (score >= 65) return { grade: 'B', cls: 'grade-b' };
+            if (score >= 55) return { grade: 'C+', cls: 'grade-c' };
+            if (score >= 45) return { grade: 'C', cls: 'grade-c' };
+            if (score >= 35) return { grade: 'D+', cls: 'grade-d' };
+            if (score >= 25) return { grade: 'D', cls: 'grade-d' };
+            if (score >= 15) return { grade: 'F+', cls: 'grade-f' };
+            return { grade: 'F', cls: 'grade-f' };
+        }
+
+        // ── IMPORTANT: Invert for grade ─────────────
+        // Risk score 0 = safest = A+
+        // Risk score 100 = most dangerous = F
+        // Grade needs the INVERSE
+        function riskScoreToGrade(riskScore) {
+            var safetyScore = 100 - (riskScore || 0);
+            return scoreToGrade(safetyScore);
+        }
+
+        function formatNumber(n) {
+            if (n === undefined || n === null) return '0';
+            return n.toLocaleString();
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            try { return new Date(d).toLocaleString(); } catch (e) { return d; }
         }
     </script>
 

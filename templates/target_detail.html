@@ -2,12 +2,24 @@
 {% block title %}Target Details - EASM Tool{% endblock %}
 
 {% block content %}
+<!-- Header -->
 <div class="mb-4">
-    <a href="/targets" class="btn btn-outline-secondary mb-3">
+    <a href="/targets" class="btn btn-outline-secondary btn-sm mb-3">
         <i class="bi bi-arrow-left"></i> Back to Targets
     </a>
-    <h2><i class="bi bi-bullseye"></i> Target Details</h2>
-    <h4 class="text-primary" id="domain-name">Loading...</h4>
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-bullseye"></i> <span id="domain-name">Loading...</span></h2>
+            <span class="text-muted" id="target-status"></span>
+        </div>
+        <div>
+            <div class="text-center">
+                <div class="risk-score" id="risk-score-value" style="font-size: 2.8rem; font-weight: bold;">-</div>
+                <small class="text-muted">Risk Score</small>
+                <div id="risk-level-badge"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Stat Cards -->
@@ -42,9 +54,93 @@
             <div class="stat-label">Emails</div>
         </div>
     </div>
+    <div class="col">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-changes">-</div>
+            <div class="stat-label">Changes</div>
+        </div>
+    </div>
 </div>
 
-<!-- Subdomains + Ports -->
+<!-- Scan Progress (hidden by default, shown during scan) -->
+<div class="card mb-4 d-none" id="scan-progress-card">
+    <div class="card-header bg-info text-white">
+        <h6 class="mb-0">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Scan In Progress
+        </h6>
+    </div>
+    <div class="card-body">
+        <div class="progress mb-2" style="height: 25px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="scan-progress-bar"
+                role="progressbar" style="width: 0%;">0%</div>
+        </div>
+        <small class="text-muted" id="scan-phase-detail">Starting...</small>
+    </div>
+</div>
+
+<!-- Row 1: WHOIS Intelligence + Passive Recon -->
+<div class="row mb-4">
+    <!-- WHOIS Card -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> WHOIS Intelligence</h6>
+            </div>
+            <div class="card-body" id="whois-section">
+                <span class="text-muted">No WHOIS data yet. Run a scan.</span>
+            </div>
+        </div>
+    </div>
+    <!-- Passive Recon Card -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-binoculars"></i> Passive Recon Sources</h6>
+            </div>
+            <div class="card-body" id="passive-recon-section">
+                <span class="text-muted">No passive recon data yet. Run a scan.</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Vulnerability Breakdown + Email Exposure -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-bug"></i> Vulnerability Breakdown</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center" id="vuln-breakdown">
+                    <div class="col"><span class="badge badge-critical fs-5"
+                            id="vb-critical">0</span><br><small>Critical</small></div>
+                    <div class="col"><span class="badge badge-high fs-5" id="vb-high">0</span><br><small>High</small>
+                    </div>
+                    <div class="col"><span class="badge badge-medium fs-5"
+                            id="vb-medium">0</span><br><small>Medium</small></div>
+                    <div class="col"><span class="badge badge-low fs-5" id="vb-low">0</span><br><small>Low</small></div>
+                    <div class="col"><span class="badge badge-info fs-5" id="vb-info">0</span><br><small>Info</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between">
+                <h6 class="mb-0"><i class="bi bi-envelope-exclamation"></i> Email Exposure</h6>
+                <a href="/emails" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body" id="email-section">
+                <span class="text-muted">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: Subdomains + Open Ports -->
 <div class="row mb-4">
     <div class="col-md-6">
         <div class="card">
@@ -52,8 +148,8 @@
                 <h5><i class="bi bi-diagram-3"></i> Subdomains</h5>
                 <span class="badge bg-primary" id="sub-count">0</span>
             </div>
-            <div class="card-body" id="subdomains-list" style="max-height: 300px; overflow-y: auto;">
-                Loading...
+            <div class="card-body" id="subdomains-list" style="max-height: 350px; overflow-y: auto;">
+                <span class="text-muted">Loading...</span>
             </div>
         </div>
     </div>
@@ -63,14 +159,29 @@
                 <h5><i class="bi bi-hdd-network"></i> Open Ports</h5>
                 <span class="badge bg-primary" id="port-count">0</span>
             </div>
-            <div class="card-body" id="ports-list" style="max-height: 300px; overflow-y: auto;">
-                Loading...
+            <div class="card-body" id="ports-list" style="max-height: 350px; overflow-y: auto;">
+                <span class="text-muted">Loading...</span>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Vulnerabilities -->
+<!-- Row 4: HTTP Assets / Tech Stack -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5><i class="bi bi-globe2"></i> HTTP Assets & Technology Stack</h5>
+                <span class="badge bg-primary" id="http-count">0</span>
+            </div>
+            <div class="card-body" id="http-assets-list" style="max-height: 400px; overflow-y: auto;">
+                <span class="text-muted">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 5: Vulnerabilities -->
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -78,84 +189,49 @@
                 <h5><i class="bi bi-bug"></i> Vulnerabilities</h5>
                 <span class="badge bg-danger" id="vuln-count">0</span>
             </div>
-            <div class="card-body" id="vulns-list">Loading...</div>
+            <div class="card-body" id="vulns-list" style="max-height: 500px; overflow-y: auto;">
+                <span class="text-muted">Loading...</span>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Email Exposure -->
+<!-- Row 6: Recent Changes -->
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between">
-                <h5><i class="bi bi-envelope-exclamation"></i> Email Exposure</h5>
-                <span class="badge bg-warning text-dark" id="email-count">0</span>
+                <h5><i class="bi bi-clock-history"></i> Recent Changes</h5>
+                <a href="/changes" class="btn btn-sm btn-outline-primary">View All</a>
             </div>
-            <div class="card-body" id="emails-list">Loading...</div>
+            <div class="card-body" id="changes-list" style="max-height: 300px; overflow-y: auto;">
+                <span class="text-muted">Loading...</span>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Passive Intelligence (Shodan & Censys) -->
+<!-- Actions -->
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header bg-dark text-white d-flex justify-content-between">
-                <h5><i class="bi bi-person-search"></i> Passive Intelligence (Shodan & Censys)</h5>
-                <div>
-                    <span class="badge bg-info" id="passive-host-count">0 Hosts</span>
-                    <span class="badge bg-warning text-dark" id="passive-service-count">0 Services</span>
-                </div>
-            </div>
-            <div class="card-body">
-                <ul class="nav nav-tabs mb-3" id="passiveTab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="hosts-tab" data-bs-toggle="tab" data-bs-target="#hosts-pane" type="button" role="tab">Host Details</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="services-tab" data-bs-toggle="tab" data-bs-target="#services-pane" type="button" role="tab">Service Banners</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="passive-vulns-tab" data-bs-toggle="tab" data-bs-target="#passive-vulns-pane" type="button" role="tab">Unverified CVEs</button>
-                    </li>
-                </ul>
-                <div class="tab-content" id="passiveTabContent">
-                    <div class="tab-pane fade show active" id="hosts-pane" role="tabpanel">
-                        <div id="passive-hosts-list" class="table-responsive">Loading hosts...</div>
-                    </div>
-                    <div class="tab-pane fade" id="services-pane" role="tabpanel">
-                        <div id="passive-services-list" class="table-responsive">Loading services...</div>
-                    </div>
-                    <div class="tab-pane fade" id="passive-vulns-pane" role="tabpanel">
-                        <div class="alert alert-warning py-2">
-                            <i class="bi bi-info-circle"></i> These CVEs are reported by Shodan based on banners. They are <strong>unverified</strong>.
-                        </div>
-                        <div id="passive-vulns-list" class="table-responsive">Loading CVEs...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="row">
-    <div class="col-md-12">
-        <div class="card">
             <div class="card-header">
-                <h5><i class="bi bi-lightning"></i> Quick Actions</h5>
+                <h5><i class="bi bi-lightning"></i> Actions</h5>
             </div>
             <div class="card-body">
                 <button class="btn btn-success me-2" onclick="runFullScan()">
-                    <i class="bi bi-play"></i> Run Full Scan
+                    <i class="bi bi-play-fill"></i> Run Full Scan
                 </button>
+                <a href="/targets/{{ domain }}/assets" class="btn btn-info me-2" id="btn-asset-breakdown">
+                    <i class="bi bi-diagram-3"></i> Asset Breakdown
+                </a>
                 <button class="btn btn-primary me-2" onclick="generateReport()">
-                    <i class="bi bi-file-pdf"></i> Generate Report
+                    <i class="bi bi-file-earmark-pdf"></i> PDF Report
                 </button>
-                <button class="btn btn-warning me-2" onclick="harvestEmails()">
-                    <i class="bi bi-envelope"></i> Harvest Emails
+                <button class="btn btn-outline-primary me-2" onclick="downloadCSV()">
+                    <i class="bi bi-filetype-csv"></i> CSV Export
                 </button>
-                <button class="btn btn-danger" onclick="deleteTarget()">
+                <button class="btn btn-danger float-end" onclick="deleteTarget()">
                     <i class="bi bi-trash"></i> Delete Target
                 </button>
                 <div id="action-status" class="mt-3"></div>
@@ -167,322 +243,544 @@
 
 {% block extra_js %}
 <script>
+    // ── Get domain from URL ─────────────────────────────
     var domain = window.location.pathname.split('/').pop();
+    document.getElementById('domain-name').textContent = domain;
 
+    // Fix asset breakdown link
+    var abl = document.getElementById('btn-asset-breakdown');
+    if (abl) abl.href = '/targets/' + domain + '/assets';
+
+    // ── Severity badge helper ───────────────────────────
+    function sevBadge(sev) {
+        sev = (sev || 'info').toLowerCase();
+        var cls = {
+            critical: 'badge-critical', high: 'badge-high',
+            medium: 'badge-medium', low: 'badge-low', info: 'badge-info'
+        }[sev] || 'badge-info';
+        return '<span class="badge ' + cls + '">' + sev.toUpperCase() + '</span>';
+    }
+
+    function riskColor(score) {
+        if (score >= 80) return 'risk-critical';
+        if (score >= 60) return 'risk-high';
+        if (score >= 40) return 'risk-medium';
+        if (score >= 20) return 'risk-low';
+        return 'risk-minimal';
+    }
+
+    function riskLabel(score) {
+        if (score >= 80) return '<span class="badge bg-danger">CRITICAL</span>';
+        if (score >= 60) return '<span class="badge bg-warning text-dark">HIGH</span>';
+        if (score >= 40) return '<span class="badge" style="background:#f39c12">MEDIUM</span>';
+        if (score >= 20) return '<span class="badge bg-success">LOW</span>';
+        return '<span class="badge bg-secondary">MINIMAL</span>';
+    }
+
+    function escHtml(t) {
+        if (!t) return '';
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(t));
+        return d.innerHTML;
+    }
+
+    function formatDate(d) {
+        if (!d) return '-';
+        try { 
+            if (typeof d === 'string' && !d.endsWith('Z') && d.includes('T')) d += 'Z';
+            return new Date(d).toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }); 
+        } catch (e) { return d; }
+    }
+
+    // ── Load everything ─────────────────────────────────
     async function loadDetails() {
-        document.getElementById('domain-name').textContent = domain;
-
-        // Load summary
-        var summary = await api.get('/api/dashboard/summary/' + domain);
-        if (summary.success) {
-            document.getElementById('stat-subs').textContent = summary.summary.subdomains || 0;
-            document.getElementById('stat-ports').textContent = summary.summary.ports || 0;
-            document.getElementById('stat-http').textContent = summary.summary.http_assets || 0;
-            document.getElementById('stat-vulns').textContent = summary.summary.vulnerabilities || 0;
-        }
-
-        // Load subdomains
-        var subs = await api.get('/api/dashboard/subdomains/' + domain);
-        var subList = document.getElementById('subdomains-list');
-        if (subs.subdomains && subs.subdomains.length > 0) {
-            document.getElementById('sub-count').textContent = subs.subdomains.length;
-            subList.innerHTML = subs.subdomains.map(function (s) {
-                var source = (s.sources && s.sources.length > 0)
-                    ? ' <small class="text-muted">(' + s.sources.join(', ') + ')</small>'
-                    : '';
-                return '<span class="badge bg-secondary me-1 mb-1">' + s.subdomain + source + '</span>';
-            }).join('');
-        } else {
-            subList.innerHTML = '<p class="text-muted">No subdomains discovered yet. Run a scan!</p>';
-        }
-
-        // Load ports
-        var ports = await api.get('/api/dashboard/ports/' + domain);
-        var portList = document.getElementById('ports-list');
-        if (ports.ports && ports.ports.length > 0) {
-            document.getElementById('port-count').textContent = ports.ports.length;
-            portList.innerHTML = '<table class="table table-sm"><thead><tr><th>Host</th><th>Port</th><th>Status</th></tr></thead><tbody>' +
-                ports.ports.map(function (p) {
-                    return '<tr><td>' + p.host + '</td><td><code>' + p.port + '</code></td><td><span class="badge bg-success">' + (p.status || 'open') + '</span></td></tr>';
-                }).join('') + '</tbody></table>';
-        } else {
-            portList.innerHTML = '<p class="text-muted">No open ports discovered yet.</p>';
-        }
-
-        // Load vulnerabilities
-        var vulns = await api.get('/api/dashboard/vulns/' + domain);
-        var vulnList = document.getElementById('vulns-list');
-        if (vulns.vulnerabilities && vulns.vulnerabilities.length > 0) {
-            document.getElementById('vuln-count').textContent = vulns.vulnerabilities.length;
-            vulnList.innerHTML = '<table class="table table-sm"><thead><tr><th>Severity</th><th>Name</th><th>Host</th><th>Source</th></tr></thead><tbody>' +
-                vulns.vulnerabilities.map(function (v) {
-                    var tags = v.tags || [];
-                    var source = '';
-                    if (tags.indexOf('shodan') >= 0) {
-                        source = '<span class="badge bg-info">Shodan</span>';
-                    } else if (tags.indexOf('passive') >= 0) {
-                        source = '<span class="badge bg-secondary">Passive</span>';
-                    } else {
-                        source = '<span class="badge bg-primary">Nuclei</span>';
-                    }
-                    return '<tr><td><span class="badge badge-' + v.severity + '">' + (v.severity || 'info').toUpperCase() + '</span></td><td>' + (v.name || v.template_id) + '</td><td>' + v.host + '</td><td>' + source + '</td></tr>';
-                }).join('') + '</tbody></table>';
-        } else {
-            vulnList.innerHTML = '<p class="text-success"><i class="bi bi-check-circle"></i> No vulnerabilities found!</p>';
-        }
-
-        // Load emails
-        var emails = await api.get('/api/emails/' + domain);
-        var emailList = document.getElementById('emails-list');
-        if (emails.emails && emails.emails.length > 0) {
-            document.getElementById('stat-emails').textContent = emails.emails.length;
-            document.getElementById('email-count').textContent = emails.emails.length;
-
-            var breachedCount = 0;
-            emails.emails.forEach(function (e) {
-                if (e.breach_status === 'breached') breachedCount++;
-            });
-
-            var emailSummary = '<div class="mb-3">' +
-                '<span class="badge bg-primary me-2">Total: ' + emails.emails.length + '</span>' +
-                '<span class="badge bg-danger me-2">Breached: ' + breachedCount + '</span>' +
-                '<span class="badge bg-success">Clean: ' + (emails.emails.length - breachedCount) + '</span>' +
-                '</div>';
-
-            emailList.innerHTML = emailSummary +
-                '<table class="table table-sm"><thead><tr><th>Status</th><th>Email</th><th>Breaches</th><th>Sources</th></tr></thead><tbody>' +
-                emails.emails.slice(0, 20).map(function (e) {
-                    var status = e.breach_status === 'breached'
-                        ? '<span class="badge bg-danger">Breached</span>'
-                        : e.breach_status === 'clean'
-                            ? '<span class="badge bg-success">Clean</span>'
-                            : '<span class="badge bg-warning text-dark">Unchecked</span>';
-                    var breachCount = e.breach_count || 0;
-                    var sources = (e.sources || []).join(', ');
-                    var pwdWarning = e.password_leaked
-                        ? ' <small class="text-danger">⚠️ PWD</small>'
-                        : '';
-                    return '<tr><td>' + status + '</td><td>' + e.email + pwdWarning + '</td><td>' + breachCount + '</td><td><small>' + sources + '</small></td></tr>';
-                }).join('') + '</tbody></table>';
-
-            if (emails.emails.length > 20) {
-                emailList.innerHTML += '<p class="text-muted text-center"><a href="/emails">View all ' + emails.emails.length + ' emails</a></p>';
-            }
-        } else {
-            document.getElementById('stat-emails').textContent = '0';
-            emailList.innerHTML = '<p class="text-muted">No emails discovered. They are harvested automatically when the target is added. <button class="btn btn-sm btn-outline-warning" onclick="harvestEmails()">Harvest Now</button></p>';
-        }
-
-        // Load Passive Recon
-        loadPassiveRecon();
+        await loadSummary();
+        await loadSubdomains();
+        await loadPorts();
+        await loadHTTPAssets();
+        await loadVulns();
+        await loadEmails();
+        await loadChanges();
+        await loadPassiveRecon();
     }
 
-    async function loadPassiveRecon() {
-        // 1. Load Hosts
-        const hostsData = await api.get('/api/passive/hosts/' + domain);
-        const hostList = document.getElementById('passive-hosts-list');
-        if (hostsData.success && hostsData.hosts.length > 0) {
-            document.getElementById('passive-host-count').textContent = hostsData.hosts.length + ' Hosts';
-            hostList.innerHTML = `
-                <table class="table table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th>IP Address</th>
-                            <th>Hostnames</th>
-                            <th>Org / ISP</th>
-                            <th>Ports</th>
-                            <th>OS</th>
-                            <th>Source</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${hostsData.hosts.map(h => `
-                            <tr>
-                                <td><strong>${h.ip}</strong><br><small class="text-muted">${h.city || ''}, ${h.country || ''}</small></td>
-                                <td><small>${h.hostnames.join('<br>') || '-'}</small></td>
-                                <td><small>${h.org || '-'}<br><span class="text-muted">${h.isp || ''}</span></small></td>
-                                <td>${h.ports.map(p => `<span class="badge bg-dark me-1">${p}</span>`).join('')}</td>
-                                <td><small>${h.os || '-'}</small></td>
-                                <td>${h.sources.map(s => `<span class="badge bg-outline-primary text-primary border border-primary">${s}</span>`).join(' ')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>`;
-        } else {
-            hostList.innerHTML = '<p class="text-muted p-3">No passive host data found.</p>';
-        }
-
-        // 2. Load Services
-        const svcData = await api.get('/api/passive/services/' + domain);
-        const svcList = document.getElementById('passive-services-list');
-        if (svcData.success && svcData.services.length > 0) {
-            document.getElementById('passive-service-count').textContent = svcData.services.length + ' Services';
-            svcList.innerHTML = `
-                <table class="table table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th>Host:Port</th>
-                            <th>Product / Version</th>
-                            <th>Banner / Software</th>
-                            <th>Source</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${svcData.services.map(s => `
-                            <tr>
-                                <td><code>${s.host}:${s.port}</code></td>
-                                <td><strong>${s.product || '-'}</strong><br><small>${s.version || ''}</small></td>
-                                <td>
-                                    <div class="small text-truncate" style="max-width: 300px;" title="${s.banner}">${s.banner || '-'}</div>
-                                    ${s.software.map(sw => `<span class="badge bg-light text-dark border me-1">${sw}</span>`).join('')}
-                                </td>
-                                <td>${s.sources.map(src => `<span class="badge bg-secondary">${src}</span>`).join(' ')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>`;
-        } else {
-            svcList.innerHTML = '<p class="text-muted p-3">No service banner data found.</p>';
-        }
-
-        // 3. Load Passive Vulns
-        const vulnData = await api.get('/api/passive/vulns/' + domain);
-        const vList = document.getElementById('passive-vulns-list');
-        if (vulnData.success && vulnData.vulnerabilities.length > 0) {
-            vList.innerHTML = `
-                <table class="table table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th>Severity</th>
-                            <th>CVE ID</th>
-                            <th>Host:Port</th>
-                            <th>Summary</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${vulnData.vulnerabilities.map(v => `
-                            <tr>
-                                <td><span class="badge badge-${v.derived_severity}">${v.derived_severity.toUpperCase()}</span></td>
-                                <td><a href="https://nvd.nist.gov/vuln/detail/${v.cve_id}" target="_blank">${v.cve_id}</a></td>
-                                <td><code>${v.ip}:${v.port}</code></td>
-                                <td><small>${v.summary}</small></td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>`;
-        } else {
-            vList.innerHTML = '<p class="text-muted p-3">No unverified CVEs found in passive recon.</p>';
-        }
-    }
-
-    async function runFullScan() {
-        if (!confirm('Run full scan on ' + domain + '? This will run in the background.')) return;
-
-        const statusDiv = document.getElementById('action-status');
-        statusDiv.innerHTML = `
-        <div class="alert alert-info">
-            <div class="d-flex align-items-center">
-                <div class="spinner-border spinner-border-sm me-2"></div>
-                <div class="flex-grow-1">
-                    <strong>Full scan started...</strong>
-                    <div id="scan-phase" class="text-muted small">Initializing...</div>
-                    <div class="progress mt-2" style="height: 22px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                             id="scan-progress" role="progressbar"
-                             style="width: 0%">0%</div>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-
+    // ── Summary + Risk Score ────────────────────────────
+    async function loadSummary() {
         try {
-            var result = await api.post('/api/scans/full/' + domain);
+            var data = await api.get('/api/dashboard/summary/' + domain);
+            if (!data.success) return;
 
-            if (!result.success) {
-                statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ' + (result.error || 'Error') + '</div>';
+            var s = data.summary || {};
+            document.getElementById('stat-subs').textContent = s.subdomains || 0;
+            document.getElementById('stat-ports').textContent = s.ports || 0;
+            document.getElementById('stat-http').textContent = s.http_assets || 0;
+            document.getElementById('stat-vulns').textContent = s.vulnerabilities || 0;
+            document.getElementById('stat-changes').textContent = s.changes || 0;
+
+            // Risk score
+            var rs = data.risk_score || 0;
+            var rsEl = document.getElementById('risk-score-value');
+            rsEl.textContent = rs;
+            rsEl.className = 'risk-score ' + riskColor(rs);
+            document.getElementById('risk-level-badge').innerHTML = riskLabel(rs);
+
+            // Vuln breakdown
+            var vb = data.vuln_breakdown || {};
+            document.getElementById('vb-critical').textContent = vb.critical || 0;
+            document.getElementById('vb-high').textContent = vb.high || 0;
+            document.getElementById('vb-medium').textContent = vb.medium || 0;
+            document.getElementById('vb-low').textContent = vb.low || 0;
+            document.getElementById('vb-info').textContent = vb.info || 0;
+
+            // Target status
+            var statusEl = document.getElementById('target-status');
+            var lastScan = data.last_scan_at || null;
+            statusEl.innerHTML = lastScan
+                ? 'Last scanned: ' + formatDate(lastScan)
+                : '<span class="text-warning">Never scanned</span>';
+        } catch (e) { console.error('Summary error:', e); }
+    }
+
+    // ── Subdomains with sources ─────────────────────────
+    async function loadSubdomains() {
+        try {
+            var data = await api.get('/api/dashboard/subdomains/' + domain);
+            var el = document.getElementById('subdomains-list');
+            var subs = data.subdomains || [];
+            document.getElementById('sub-count').textContent = subs.length;
+
+            if (subs.length === 0) {
+                el.innerHTML = '<p class="text-muted">No subdomains discovered yet. Run a scan!</p>';
                 return;
             }
 
-            var scanId = result.scan_id;
-
-            var pollInterval = setInterval(async function () {
-                try {
-                    var status = await api.get('/api/scans/status/' + scanId);
-                    var scan = status.scan || {};
-
-                    var percent = scan.progress_percent || 0;
-                    var bar = document.getElementById('scan-progress');
-                    if (bar) {
-                        bar.style.width = percent + '%';
-                        bar.textContent = percent + '%';
-                    }
-
-                    var phaseEl = document.getElementById('scan-phase');
-                    if (phaseEl) {
-                        phaseEl.textContent = scan.phase_detail || scan.current_phase || 'Processing...';
-                    }
-
-                    if (scan.status === 'completed') {
-                        clearInterval(pollInterval);
-                        var r = scan.results || {};
-                        statusDiv.innerHTML =
-                            '<div class="alert alert-success">' +
-                            '<i class="bi bi-check-circle-fill"></i> <strong>Scan completed!</strong><br>' +
-                            '<small>Subs: ' + (r.subdomains_found || 0) +
-                            ' | Ports: ' + (r.ports_found || 0) +
-                            ' | HTTP: ' + (r.http_assets_found || 0) +
-                            ' | Vulns: ' + (r.vulns_found || 0) +
-                            ' | Risk: ' + (r.risk_score || 0) + '/100</small></div>';
-                        loadDetails();
-                    } else if (scan.status === 'failed') {
-                        clearInterval(pollInterval);
-                        statusDiv.innerHTML =
-                            '<div class="alert alert-danger">' +
-                            '<i class="bi bi-x-circle-fill"></i> Scan failed: ' +
-                            (scan.error_message || 'Unknown') + '</div>';
-                    }
-                } catch (e) {
-                    console.error('Poll error:', e);
-                }
-            }, 3000);
-
+            el.innerHTML = '<table class="table table-sm table-hover mb-0"><thead><tr>' +
+                '<th>Subdomain</th><th>Sources</th><th>Found</th></tr></thead><tbody>' +
+                subs.map(function (s) {
+                    var sources = (s.sources || []).map(function (src) {
+                        var colors = {
+                            shodan: 'bg-info', censys: 'bg-warning text-dark',
+                            subfinder: 'bg-success', naabu: 'bg-primary'
+                        };
+                        return '<span class="badge ' + (colors[src] || 'bg-secondary') +
+                            ' me-1">' + src + '</span>';
+                    }).join('');
+                    return '<tr><td><code>' + escHtml(s.subdomain) + '</code></td>' +
+                        '<td>' + (sources || '<span class="text-muted">-</span>') + '</td>' +
+                        '<td><small class="text-muted">' + formatDate(s.first_seen) + '</small></td></tr>';
+                }).join('') + '</tbody></table>';
         } catch (e) {
-            statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ' + e.message + '</div>';
+            document.getElementById('subdomains-list').innerHTML =
+                '<p class="text-danger">Error loading subdomains</p>';
+        }
+    }
+
+    // ── Ports with service and source ───────────────────
+    async function loadPorts() {
+        try {
+            var data = await api.get('/api/dashboard/ports/' + domain);
+            var el = document.getElementById('ports-list');
+            var ports = data.ports || [];
+            document.getElementById('port-count').textContent = ports.length;
+
+            if (ports.length === 0) {
+                el.innerHTML = '<p class="text-muted">No open ports discovered yet.</p>';
+                return;
+            }
+
+            var dangerPorts = [22, 23, 445, 1433, 3306, 3389, 5432, 5900, 6379, 9200, 27017];
+
+            el.innerHTML = '<table class="table table-sm table-hover mb-0"><thead><tr>' +
+                '<th>Host</th><th>Port</th><th>Service</th><th>Sources</th></tr></thead><tbody>' +
+                ports.map(function (p) {
+                    var portNum = p.port || 0;
+                    var isDanger = dangerPorts.indexOf(portNum) !== -1;
+                    var portBadge = isDanger
+                        ? '<span class="badge bg-danger">' + portNum + '</span>'
+                        : '<code>' + portNum + '</code>';
+                    var service = p.service || p.version || '';
+                    var sources = (p.sources || []).map(function (src) {
+                        var colors = {
+                            shodan: 'bg-info', censys: 'bg-warning text-dark',
+                            naabu: 'bg-success', scan: 'bg-secondary'
+                        };
+                        return '<span class="badge ' + (colors[src] || 'bg-secondary') +
+                            ' me-1" style="font-size:0.65rem">' + src + '</span>';
+                    }).join('');
+                    return '<tr><td><small>' + escHtml(p.host) + '</small></td>' +
+                        '<td>' + portBadge + '</td>' +
+                        '<td><small class="text-muted">' + escHtml(service) + '</small></td>' +
+                        '<td>' + sources + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        } catch (e) {
+            document.getElementById('ports-list').innerHTML =
+                '<p class="text-danger">Error loading ports</p>';
+        }
+    }
+
+    // ── HTTP Assets with tech stack ─────────────────────
+    async function loadHTTPAssets() {
+        try {
+            var data = await api.get('/api/dashboard/http/' + domain);
+            var el = document.getElementById('http-assets-list');
+            var assets = data.http_assets || [];
+            document.getElementById('http-count').textContent = assets.length;
+            document.getElementById('stat-emails').textContent = '-';
+
+            if (assets.length === 0) {
+                el.innerHTML = '<p class="text-muted">No HTTP assets discovered yet.</p>';
+                return;
+            }
+
+            el.innerHTML = '<table class="table table-sm table-hover mb-0"><thead><tr>' +
+                '<th>URL</th><th>Status</th><th>Title</th><th>Server</th><th>Technologies</th></tr></thead><tbody>' +
+                assets.map(function (a) {
+                    var statusCode = a.status_code || 0;
+                    var statusClass = statusCode < 300 ? 'bg-success'
+                        : statusCode < 400 ? 'bg-info'
+                            : statusCode < 500 ? 'bg-warning text-dark' : 'bg-danger';
+                    var techBadges = (a.tech || []).map(function (t) {
+                        return '<span class="badge bg-secondary me-1 mb-1" style="font-size:0.65rem">' +
+                            escHtml(t) + '</span>';
+                    }).join('');
+                    return '<tr>' +
+                        '<td><small><a href="' + escHtml(a.url) + '" target="_blank">' +
+                        escHtml(a.url) + '</a></small></td>' +
+                        '<td><span class="badge ' + statusClass + '">' + statusCode + '</span></td>' +
+                        '<td><small>' + escHtml(a.title || '-') + '</small></td>' +
+                        '<td><small class="text-muted">' + escHtml(a.web_server || '-') + '</small></td>' +
+                        '<td>' + (techBadges || '<small class="text-muted">-</small>') + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        } catch (e) {
+            document.getElementById('http-assets-list').innerHTML =
+                '<p class="text-danger">Error loading HTTP assets</p>';
+        }
+    }
+
+    // ── Vulnerabilities with CVE and confidence ─────────
+    async function loadVulns() {
+        try {
+            var data = await api.get('/api/dashboard/vulns/' + domain);
+            var el = document.getElementById('vulns-list');
+            var vulns = data.vulnerabilities || [];
+            document.getElementById('vuln-count').textContent = vulns.length;
+
+            if (vulns.length === 0) {
+                el.innerHTML = '<p class="text-success"><i class="bi bi-check-circle"></i> No vulnerabilities found!</p>';
+                return;
+            }
+
+            // Sort by severity
+            var sevOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+            vulns.sort(function (a, b) {
+                return (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5);
+            });
+
+            el.innerHTML = '<table class="table table-sm table-hover mb-0"><thead><tr>' +
+                '<th>Severity</th><th>Name</th><th>Host</th><th>CVE</th>' +
+                '<th>Confidence</th><th>Status</th></tr></thead><tbody>' +
+                vulns.map(function (v) {
+                    var sev = (v.severity || 'info').toLowerCase();
+                    var name = v.name || v.template_id || 'Unknown';
+                    var cveId = v.cve_id || '';
+                    var cvss = v.cvss_score ? ' <small class="text-muted">(CVSS: ' + v.cvss_score + ')</small>' : '';
+
+                    // Confidence badge
+                    var conf = v.confidence || 'standard';
+                    var confBadge = {
+                        high: '<span class="badge bg-success">High</span>',
+                        medium: '<span class="badge bg-info">Medium</span>',
+                        standard: '<span class="badge bg-secondary">Standard</span>'
+                    }[conf] || '<span class="badge bg-secondary">' + conf + '</span>';
+
+                    // Verification source
+                    var vs = v.verification_source || '';
+                    var vsLabel = vs ? '<br><small class="text-muted">' + vs.replace(/_/g, ' ') + '</small>' : '';
+
+                    var status = v.status || 'open';
+                    var statusBadge = status === 'open'
+                        ? '<span class="badge bg-danger">Open</span>'
+                        : '<span class="badge bg-success">Resolved</span>';
+
+                    return '<tr><td>' + sevBadge(sev) + '</td>' +
+                        '<td><strong>' + escHtml(name) + '</strong>' +
+                        (v.description ? '<br><small class="text-muted">' +
+                            escHtml(v.description).substring(0, 120) + '</small>' : '') + '</td>' +
+                        '<td><small>' + escHtml(v.host) + '</small></td>' +
+                        '<td>' + (cveId ? '<code>' + escHtml(cveId) + '</code>' + cvss : '-') + '</td>' +
+                        '<td>' + confBadge + vsLabel + '</td>' +
+                        '<td>' + statusBadge + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        } catch (e) {
+            document.getElementById('vulns-list').innerHTML =
+                '<p class="text-danger">Error loading vulnerabilities</p>';
+        }
+    }
+
+    // ── Emails ──────────────────────────────────────────
+    async function loadEmails() {
+        try {
+            var data = await api.get('/api/emails/' + domain);
+            var el = document.getElementById('email-section');
+            var emails = data.emails || [];
+            document.getElementById('stat-emails').textContent = emails.length;
+
+            if (emails.length === 0) {
+                el.innerHTML = '<p class="text-muted">No emails discovered. Emails are harvested when target is added.</p>';
+                return;
+            }
+
+            var breached = emails.filter(function (e) { return e.breach_status === 'breached'; }).length;
+            var clean = emails.filter(function (e) { return e.breach_status === 'clean'; }).length;
+            var unknown = emails.length - breached - clean;
+
+            el.innerHTML =
+                '<div class="row text-center mb-3">' +
+                '<div class="col"><h4 class="text-danger mb-0">' + breached + '</h4><small>Breached</small></div>' +
+                '<div class="col"><h4 class="text-success mb-0">' + clean + '</h4><small>Clean</small></div>' +
+                '<div class="col"><h4 class="text-muted mb-0">' + unknown + '</h4><small>Unchecked</small></div>' +
+                '<div class="col"><h4 class="mb-0">' + emails.length + '</h4><small>Total</small></div>' +
+                '</div>' +
+                (breached > 0 ? '<div class="alert alert-danger py-2 mb-0"><small>' +
+                    '<i class="bi bi-exclamation-triangle"></i> ' + breached +
+                    ' email(s) found in data breaches. Check the Emails page for details.</small></div>' : '');
+        } catch (e) {
+            document.getElementById('email-section').innerHTML =
+                '<span class="text-muted">Email data unavailable</span>';
+        }
+    }
+
+    // ── Recent Changes ──────────────────────────────────
+    async function loadChanges() {
+        try {
+            var data = await api.get('/api/dashboard/changes/' + domain);
+            var el = document.getElementById('changes-list');
+            var changes = data.changes || [];
+            document.getElementById('stat-changes').textContent = changes.length;
+
+            if (changes.length === 0) {
+                el.innerHTML = '<p class="text-muted">No changes detected. Changes appear after the second scan.</p>';
+                return;
+            }
+
+            var icons = {
+                'new_subdomain': '🟢', 'subdomain_removed': '🔴',
+                'new_port': '🟡', 'port_closed': '⚪',
+                'new_vulnerability': '🔴', 'vulnerability_resolved': '✅',
+                'email_breached': '🔓', 'new_email': '📧',
+                'whois_nameserver_change': '🔄', 'whois_registrar_change': '⚠️',
+                'whois_dnssec_removed': '🔓', 'whois_dnssec_added': '🔒'
+            };
+
+            // Show last 10
+            var recent = changes.slice(0, 10);
+            el.innerHTML = recent.map(function (c) {
+                var icon = icons[c.change_type] || '🔵';
+                var msg = (c.details || {}).message || c.change_type || '';
+                var sevClass = {
+                    high: 'text-danger', medium: 'text-warning',
+                    critical: 'text-danger fw-bold', info: 'text-muted'
+                }[c.severity] || 'text-muted';
+                return '<div class="d-flex justify-content-between align-items-center border-bottom py-2">' +
+                    '<span>' + icon + ' <small class="' + sevClass + '">' + escHtml(msg) + '</small></span>' +
+                    '<small class="text-muted">' + formatDate(c.detected_at) + '</small></div>';
+            }).join('');
+        } catch (e) {
+            document.getElementById('changes-list').innerHTML =
+                '<p class="text-danger">Error loading changes</p>';
+        }
+    }
+
+    // ── Passive Recon (Shodan + Censys + WHOIS) ─────────
+    async function loadPassiveRecon() {
+        try {
+            var data = await api.get('/api/passive-recon/' + domain);
+            if (!data || !data.success) return;
+
+            var records = data.records || [];
+
+            // ── WHOIS section ───────────────────────
+            var whoisEl = document.getElementById('whois-section');
+            var whoisRec = records.find(function (r) { return r.source === 'whois'; });
+
+            if (whoisRec) {
+                var ns = (whoisRec.nameservers || []).join(', ') || 'Unknown';
+                var flags = whoisRec.risk_flags || [];
+                var flagsHtml = flags.length > 0
+                    ? flags.map(function (f) {
+                        var c = {
+                            critical: 'bg-danger', high: 'bg-warning text-dark',
+                            medium: 'bg-info', low: 'bg-secondary'
+                        }[f.severity] || 'bg-secondary';
+                        return '<span class="badge ' + c + ' me-1 mb-1">' + escHtml(f.detail) + '</span>';
+                    }).join('')
+                    : '<span class="text-success"><i class="bi bi-check-circle"></i> No risk flags</span>';
+
+                whoisEl.innerHTML =
+                    '<table class="table table-sm table-borderless mb-2">' +
+                    '<tr><td class="fw-bold" style="width:130px">Registrar</td><td>' +
+                    escHtml(whoisRec.registrar || 'Unknown') + '</td></tr>' +
+                    '<tr><td class="fw-bold">Created</td><td>' +
+                    (whoisRec.creation_date ? whoisRec.creation_date.substring(0, 10) : '-') + '</td></tr>' +
+                    '<tr><td class="fw-bold">Expires</td><td>' +
+                    (whoisRec.expiration_date ? whoisRec.expiration_date.substring(0, 10) : '-') +
+                    (whoisRec.days_until_expiry != null
+                        ? ' <small class="text-muted">(' + whoisRec.days_until_expiry + ' days)</small>' : '') +
+                    '</td></tr>' +
+                    '<tr><td class="fw-bold">DNSSEC</td><td>' +
+                    (whoisRec.dnssec
+                        ? '<span class="text-success"><i class="bi bi-shield-check"></i> Enabled</span>'
+                        : '<span class="text-danger"><i class="bi bi-shield-x"></i> Not Enabled</span>') +
+                    '</td></tr>' +
+                    '<tr><td class="fw-bold">Nameservers</td><td><small>' + escHtml(ns) + '</small></td></tr>' +
+                    '<tr><td class="fw-bold">Privacy</td><td>' +
+                    (whoisRec.privacy_enabled
+                        ? '<span class="text-success">Enabled</span>'
+                        : '<span class="text-warning">Not Enabled</span>') +
+                    '</td></tr>' +
+                    '</table>' +
+                    '<div class="mt-2"><strong class="small">Risk Flags:</strong><br>' + flagsHtml + '</div>';
+            } else {
+                whoisEl.innerHTML = '<span class="text-muted">No WHOIS data yet. Run a scan.</span>';
+            }
+
+            // ── Passive Recon Sources section ───────
+            var prEl = document.getElementById('passive-recon-section');
+            var shodanRec = records.find(function (r) { return r.source === 'shodan'; });
+            var censysRec = records.find(function (r) { return r.source === 'censys'; });
+
+            var shodanStats = shodanRec ? (shodanRec.stats || {}) : null;
+            var censysStats = censysRec ? (censysRec.stats || {}) : null;
+            var shodanCVEs = shodanRec ? (shodanRec.vulnerabilities || []).length : 0;
+
+            prEl.innerHTML =
+                '<div class="row text-center">' +
+                '<div class="col-6">' +
+                '<h6 class="text-info">Shodan</h6>' +
+                (shodanStats
+                    ? '<div class="row">' +
+                    '<div class="col"><h5 class="mb-0">' + (shodanStats.subdomains_found || 0) + '</h5><small>Subs</small></div>' +
+                    '<div class="col"><h5 class="mb-0">' + (shodanStats.unique_ports || 0) + '</h5><small>Ports</small></div>' +
+                    '<div class="col"><h5 class="mb-0">' + shodanCVEs + '</h5><small>CVEs</small></div>' +
+                    '</div>'
+                    : '<small class="text-muted">Not available</small>') +
+                '</div>' +
+                '<div class="col-6">' +
+                '<h6 class="text-warning">Censys</h6>' +
+                (censysStats
+                    ? '<div class="row">' +
+                    '<div class="col"><h5 class="mb-0">' + (censysStats.total_subdomains || 0) + '</h5><small>Subs</small></div>' +
+                    '<div class="col"><h5 class="mb-0">' + (censysStats.unique_ports || 0) + '</h5><small>Ports</small></div>' +
+                    '<div class="col"><h5 class="mb-0">' + (censysStats.total_services || 0) + '</h5><small>Services</small></div>' +
+                    '</div>'
+                    : '<small class="text-muted">Not available</small>') +
+                '</div>' +
+                '</div>';
+        } catch (e) {
+            console.error('Passive recon load error:', e);
+        }
+    }
+
+    // ── Scan Actions ────────────────────────────────────
+    var scanPollInterval = null;
+
+    async function runFullScan() {
+        if (!confirm('Run full scan on ' + domain + '? This may take several minutes.')) return;
+
+        var statusEl = document.getElementById('action-status');
+        statusEl.innerHTML = '';
+
+        // Show progress card
+        var progressCard = document.getElementById('scan-progress-card');
+        progressCard.classList.remove('d-none');
+
+        try {
+            var result = await api.post('/api/scans/full/' + domain);
+            if (result.scan_id) {
+                // Start polling for progress
+                scanPollInterval = setInterval(function () {
+                    pollScanProgress(result.scan_id);
+                }, 2000);
+            } else if (result.success) {
+                progressCard.classList.add('d-none');
+                statusEl.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed!</div>';
+                loadDetails();
+            } else {
+                progressCard.classList.add('d-none');
+                statusEl.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ' +
+                    escHtml(result.error || 'Scan failed') + '</div>';
+            }
+        } catch (e) {
+            progressCard.classList.add('d-none');
+            statusEl.innerHTML = '<div class="alert alert-danger">Scan request failed</div>';
+        }
+    }
+
+    async function pollScanProgress(scanId) {
+        try {
+            var data = await api.get('/api/scans/status/' + scanId);
+            var bar = document.getElementById('scan-progress-bar');
+            var detail = document.getElementById('scan-phase-detail');
+            var progressCard = document.getElementById('scan-progress-card');
+
+            var pct = data.progress_percent || 0;
+            bar.style.width = pct + '%';
+            bar.textContent = pct + '%';
+            detail.textContent = data.phase_detail || data.current_phase || 'Working...';
+
+            if (data.status === 'completed' || data.status === 'partial' ||
+                data.status === 'failed' || pct >= 100) {
+                clearInterval(scanPollInterval);
+                scanPollInterval = null;
+
+                setTimeout(function () {
+                    progressCard.classList.add('d-none');
+                    var statusEl = document.getElementById('action-status');
+                    if (data.status === 'failed') {
+                        statusEl.innerHTML = '<div class="alert alert-danger">Scan failed: ' +
+                            escHtml(data.error || 'Unknown error') + '</div>';
+                    } else {
+                        statusEl.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed!</div>';
+                    }
+                    loadDetails();
+                }, 1000);
+            }
+        } catch (e) {
+            // Polling error — keep trying
         }
     }
 
     async function generateReport() {
-        document.getElementById('action-status').innerHTML = '<div class="alert alert-info">Generating report...</div>';
-        var result = await api.post('/api/reports/generate/' + domain);
-        if (result.success) {
-            document.getElementById('action-status').innerHTML = '<div class="alert alert-success">Report generated! <a href="/api/reports/download/' + domain + '">Download PDF</a></div>';
-        } else {
-            document.getElementById('action-status').innerHTML = '<div class="alert alert-danger">Error: ' + result.error + '</div>';
+        document.getElementById('action-status').innerHTML =
+            '<div class="alert alert-info"><span class="spinner-border spinner-border-sm me-2"></span>Generating PDF...</div>';
+        try {
+            window.open('/api/reports/pdf/' + domain, '_blank');
+            document.getElementById('action-status').innerHTML =
+                '<div class="alert alert-success">PDF report opened in new tab!</div>';
+        } catch (e) {
+            document.getElementById('action-status').innerHTML =
+                '<div class="alert alert-danger">Report generation failed</div>';
         }
     }
 
-    async function harvestEmails() {
-        document.getElementById('action-status').innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Harvesting emails... This may take 1-2 minutes.</div>';
-        var result = await api.post('/api/emails/harvest/' + domain);
-        if (result.success) {
-            document.getElementById('action-status').innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Found ' + (result.emails_found || 0) + ' emails, ' + (result.emails_breached || 0) + ' breached!</div>';
-            loadDetails();
-        } else {
-            document.getElementById('action-status').innerHTML = '<div class="alert alert-danger">Error: ' + (result.error || 'Unknown') + '</div>';
-        }
+    async function downloadCSV() {
+        window.open('/api/reports/csv/' + domain, '_blank');
     }
 
     async function deleteTarget() {
         if (!confirm('DELETE ' + domain + ' and ALL its data? This cannot be undone!')) return;
-        var result = await api.delete('/api/targets/' + domain);
-        if (result.success) {
-            alert('Target deleted!');
-            window.location.href = '/targets';
-        } else {
-            alert('Error: ' + result.error);
-        }
+        try {
+            var result = await api.delete('/api/targets/' + domain);
+            if (result.success) {
+                alert('Target deleted!');
+                window.location.href = '/targets';
+            } else {
+                alert('Error: ' + (result.error || 'Unknown'));
+            }
+        } catch (e) { alert('Delete failed'); }
     }
 
+    // ── Initialize ──────────────────────────────────────
     loadDetails();
 </script>
 {% endblock %}

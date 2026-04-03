@@ -1,37 +1,5 @@
-"""
-Risk Scorer Module
-==================
-Calculates a 0-100 risk score for a target based on three factors:
-
-1. VULNERABILITY SCORING (0-100 base):
-   - Critical vulns × 40 points each
-   - High vulns × 25 points each
-   - Medium vulns × 10 points each
-   - Low vulns × 3 points each
-   - Info vulns × 1 point each
-
-2. EXPOSURE SCORING (0-25 bonus):
-   - More than 50 subdomains → +10
-   - More than 100 open ports → +10
-   - More than 20 HTTP assets → +5
-
-3. EMAIL BREACH SCORING (0-20 bonus):
-   - More than 10 breached emails → +15
-   - More than 5 breached emails → +10
-   - Any breached emails → +5
-   - More than 50% emails breached → +5 additional
-
-Final score is capped at 100.
-
-Risk levels:
-    0-19:  MINIMAL  (green)
-   20-39:  LOW      (light green)
-   40-59:  MEDIUM   (orange)
-   60-79:  HIGH     (red)
-   80-100: CRITICAL (dark red)
-"""
-
-from database.vulns_db import get_vuln_stats
+import math
+from database.vulns_db import get_vuln_stats, get_vulns_by_target
 from database.subdomains_db import get_subdomain_count
 from database.ports_db import get_port_count
 from database.http_assets_db import get_http_asset_count
@@ -39,8 +7,12 @@ from database.emails_db import (
     get_breached_email_count,
     get_email_count
 )
+from database.passive_recon_db import get_whois_risk_flags
 from utils.logger import logger
+from utils.asset_classifier import get_multiplier
 
+
+# ─── CONFIGURATION ──────────────────────────────────────────────────────────
 
 # Severity weights for vulnerability scoring
 SEVERITY_WEIGHTS = {
@@ -51,46 +23,151 @@ SEVERITY_WEIGHTS = {
     "info": 1
 }
 
+# Scale factors control how fast each severity saturates
+SEVERITY_SCALE = {
+    "critical": 15.0,
+    "high": 12.0,
+    "medium": 8.0,
+    "low": 5.0,
+    "info": 3.0
+}
+
+# Maximum contribution from ALL vulnerabilities combined
+VULN_SCORE_CAP = 60
+
+# Confidence weights based on discovery method
+CONFIDENCE_WEIGHTS = {
+    "high": 1.0,       # Shodan CVE confirmed by Nuclei
+    "medium": 0.85,    # Tech/port/header targeted scan
+    "standard": 0.65,  # Broad catch-all scan
+}
+
+WHOIS_RISK_WEIGHTS = {
+    "critical": 10,
+    "high": 5,
+    "medium": 2,
+    "low": 1,
+    "info": 0
+}
+
+
+# ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
+
+def _log_vuln_score(severity, count):
+    """
+    Calculate diminishing-returns score for a severity tier.
+    Uses natural log to compress high counts.
+    """
+    if count <= 0:
+        return 0.0
+
+    weight = SEVERITY_WEIGHTS.get(severity, 1)
+    scale = SEVERITY_SCALE.get(severity, 5.0)
+
+    return weight * math.log(1 + count) * (scale / 10.0)
+
+
+# ─── MAIN SCORING ENGINE ─────────────────────────────────────────────────────
 
 def calculate_risk_score(target_id):
     """
     Calculate a risk score (0-100) for a target.
 
-    Combines vulnerability severity, asset exposure,
-    and email breach data into a single score.
+    Uses logarithmic vulnerability scoring and asset criticality
+    multipliers to prevent score inflation from duplicate findings.
 
-    Args:
-        target_id: Target document ObjectId string
+    Components:
+      V (0-60): Vulnerability severity (log-scaled + multipliers)
+      E (0-25): Asset exposure (graduated points)
+      B (0-20): Email breaches (threshold-based)
+      W (0-20): WHOIS infrastructure risk (flag-based)
 
-    Returns:
-        Integer risk score from 0 to 100
+    Total is capped at 100.
     """
     try:
         base_score = 0
 
-        # ─── Vulnerability Scoring ───────────────────────
+        # ─── Vulnerability Scoring (Log + Asset Criticality + Confidence) ──
         vuln_stats = get_vuln_stats(target_id)
-        vuln_score = 0
-        for entry in vuln_stats:
-            severity = entry["_id"].lower()
-            count = entry["count"]
-            weight = SEVERITY_WEIGHTS.get(severity, 1)
-            vuln_score += count * weight
+        all_vulns = get_vulns_by_target(target_id, status="open")
 
+        vuln_score = 0.0
+        severity_counts = {}
+
+        if all_vulns:
+            # Score each vulnerability individually with multipliers
+            for v in all_vulns:
+                sev = v.get("severity", "info").lower()
+                host = v.get("host", "")
+                confidence = v.get("confidence", "standard")
+
+                weight = SEVERITY_WEIGHTS.get(sev, 1)
+                multiplier = get_multiplier(host)
+                conf_weight = CONFIDENCE_WEIGHTS.get(confidence, 0.65)
+
+                vuln_score += weight * multiplier * conf_weight
+
+                severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+            # Apply logarithmic compression to the total raw vuln score
+            # This prevents 300 vulns from being 300x worse than 1
+            if vuln_score > 0:
+                # Use a smooth exponential approach to asymptotic cap (60)
+                # Formula: Cap * (1 - e^(-raw / sensitivity))
+                vuln_score = VULN_SCORE_CAP * (1 - math.exp(-vuln_score / 80.0))
+        else:
+            # Fallback to stats-only if individual vulns aren't available
+            for entry in vuln_stats:
+                severity = entry["_id"].lower()
+                count = entry["count"]
+                severity_counts[severity] = count
+                vuln_score += _log_vuln_score(severity, count)
+
+        # Ensure we stay within the allocated component cap
+        if vuln_score > VULN_SCORE_CAP:
+            vuln_score = float(VULN_SCORE_CAP)
+
+        vuln_score = round(vuln_score)
         base_score += vuln_score
 
-        # ─── Asset Exposure Scoring ──────────────────────
+        # ─── Asset Exposure Scoring (Graduated) ─────────
         subdomain_count = get_subdomain_count(target_id)
         port_count = get_port_count(target_id)
         http_asset_count = get_http_asset_count(target_id)
 
         exposure_score = 0
-        if subdomain_count > 50:
+
+        # Subdomains: 0-15 points (graduated)
+        if subdomain_count > 100:
+            exposure_score += 15
+        elif subdomain_count > 50:
             exposure_score += 10
-        if port_count > 100:
-            exposure_score += 10
-        if http_asset_count > 20:
+        elif subdomain_count > 20:
             exposure_score += 5
+        elif subdomain_count > 5:
+            exposure_score += 2
+
+        # Ports: 0-10 points (graduated)
+        if port_count > 200:
+            exposure_score += 10
+        elif port_count > 100:
+            exposure_score += 7
+        elif port_count > 50:
+            exposure_score += 4
+        elif port_count > 20:
+            exposure_score += 2
+
+        # HTTP Assets: 0-5 points
+        if http_asset_count > 50:
+            exposure_score += 5
+        elif http_asset_count > 20:
+            exposure_score += 3
+        elif http_asset_count > 5:
+            exposure_score += 1
+
+        # Cap exposure contribution at 25
+        if exposure_score > 25:
+            exposure_score = 25
 
         base_score += exposure_score
 
@@ -106,7 +183,6 @@ def calculate_risk_score(target_id):
         elif breached_count > 0:
             email_score += 5
 
-        # Extra penalty if high percentage are breached
         if total_emails > 0:
             breach_rate = breached_count / total_emails
             if breach_rate > 0.5:
@@ -114,17 +190,39 @@ def calculate_risk_score(target_id):
 
         base_score += email_score
 
-        # ─── Cap at 100 ─────────────────────────────────
+        # ─── WHOIS Risk Scoring ──────────────────────────
+        whois_risk_flags = get_whois_risk_flags(target_id)
+        whois_score = 0
+        for flag in whois_risk_flags:
+            severity = flag.get("severity", "info").lower()
+            whois_score += WHOIS_RISK_WEIGHTS.get(
+                severity, 0
+            )
+
+        if whois_score > 20:
+            whois_score = 20
+
+        base_score += whois_score
+
+        # ─── Cap final score at 100 ─────────────────────
         if base_score > 100:
             base_score = 100
 
         logger.info(
             "Risk score: %d/100 "
-            "(vulns: %d, exposure: %d, email: %d) "
-            "[%d subs, %d ports, %d/%d breached emails]",
-            base_score, vuln_score, exposure_score, email_score,
+            "(vulns: %d [C:%d H:%d M:%d L:%d], "
+            "exposure: %d, email: %d, whois: %d) "
+            "[%d subs, %d ports, %d/%d breached emails, "
+            "%d whois flags]",
+            base_score, vuln_score,
+            severity_counts.get("critical", 0),
+            severity_counts.get("high", 0),
+            severity_counts.get("medium", 0),
+            severity_counts.get("low", 0),
+            exposure_score, email_score, whois_score,
             subdomain_count, port_count,
-            breached_count, total_emails
+            breached_count, total_emails,
+            len(whois_risk_flags)
         )
 
         return base_score

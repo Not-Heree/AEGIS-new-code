@@ -3,10 +3,36 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-clock-history"></i> Changes</h2>
+    <h2> Attack Surface Changes</h2>
     <button class="btn btn-primary" onclick="loadChanges()">
         <i class="bi bi-arrow-clockwise"></i> Refresh
     </button>
+</div>
+
+<!-- Domain Filter -->
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <select id="filter-domain" class="form-select form-select-sm" onchange="loadChanges()">
+                    <option value="all">All Domains</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <select id="filter-type" class="form-select form-select-sm" onchange="filterTable()">
+                    <option value="all">All Change Types</option>
+                    <option value="new_subdomain">New Subdomains</option>
+                    <option value="new_port">New Ports</option>
+                    <option value="new_vulnerability">New Vulnerabilities</option>
+                    <option value="email_breached">Breached Emails</option>
+                    <option value="whois">WHOIS Changes</option>
+                </select>
+            </div>
+            <div class="col-md-4 text-end">
+                <small class="text-muted" id="change-count"></small>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -18,93 +44,146 @@
 
 {% block extra_js %}
 <script>
+    var allChanges = [];
+
+    async function loadDomains() {
+        try {
+            var data = await api.get('/api/targets/');
+            var select = document.getElementById('filter-domain');
+            (data.targets || []).forEach(function (t) {
+                var opt = document.createElement('option');
+                opt.value = t.root_domain || t.domain;
+                opt.textContent = t.root_domain || t.domain;
+                select.appendChild(opt);
+            });
+        } catch (e) { }
+    }
+
     async function loadChanges() {
         try {
-            const data = await api.get('/api/changes/');
-            const div = document.getElementById('changes-list');
-            const changes = data.changes || [];
-
-            if (changes.length === 0) {
-                div.innerHTML = '<p class="text-center text-muted">No changes detected yet.</p>';
-                return;
-            }
-
-            div.innerHTML = `
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Detail</th>
-                            <th>Severity</th>
-                            <th>Detected</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${changes.map(c => {
-                const icons = {
-                    'new_subdomain': '🟢',
-                    'subdomain_removed': '🔴',
-                    'new_port': '🟡',
-                    'port_closed': '⚪',
-                    'new_vulnerability': '🔴',
-                    'vulnerability_resolved': '✅',
-                    'new_email': '📧',
-                    'email_breached': '🔓'
-                };
-                const icon = icons[c.change_type] || '🔵';
-                const details = c.details || {};
-                const message = details.message || c.change_type || 'Unknown';
-                const severity = c.severity || 'info';
-                const sevClass = {
-                    'high': 'bg-danger',
-                    'medium': 'bg-warning text-dark',
-                    'low': 'bg-info',
-                    'info': 'bg-secondary'
-                }[severity] || 'bg-secondary';
-
-                const acked = c.acknowledged;
-                const changeId = c._id || '';
-                const detected = c.detected_at || c.timestamp || '';
-
-                return `
-                            <tr>
-                                <td>${icon} ${c.change_type || ''}</td>
-                                <td>${message}</td>
-                                <td><span class="badge ${sevClass}">${severity}</span></td>
-                                <td><small>${detected ? new Date(detected).toLocaleString() : '-'}</small></td>
-                                <td>
-                                    ${acked
-                        ? '<span class="badge bg-success">Acknowledged</span>'
-                        : `<span class="badge bg-warning text-dark">New</span>
-                                           <button class="btn btn-sm btn-outline-success ms-1"
-                                                   onclick="ackChange('${changeId}')">
-                                               <i class="bi bi-check"></i>
-                                           </button>`
-                    }
-                                </td>
-                            </tr>`;
-            }).join('')}
-                    </tbody>
-                </table>
-            </div>`;
-        } catch (error) {
-            console.error('Error:', error);
+            var domain = document.getElementById('filter-domain').value;
+            var url = domain === 'all' ? '/api/changes/' : '/api/dashboard/changes/' + domain;
+            var data = await api.get(url);
+            allChanges = data.changes || [];
+            filterTable();
+        } catch (e) {
             document.getElementById('changes-list').innerHTML =
                 '<p class="text-center text-danger">Error loading changes</p>';
         }
+    }
+
+    function filterTable() {
+        var typeFilter = document.getElementById('filter-type').value;
+        var filtered = allChanges;
+
+        if (typeFilter !== 'all') {
+            if (typeFilter === 'whois') {
+                filtered = allChanges.filter(function (c) {
+                    return (c.change_type || '').indexOf('whois') !== -1;
+                });
+            } else {
+                filtered = allChanges.filter(function (c) {
+                    return c.change_type === typeFilter;
+                });
+            }
+        }
+
+        document.getElementById('change-count').textContent =
+            'Showing ' + filtered.length + ' of ' + allChanges.length + ' changes';
+
+        var div = document.getElementById('changes-list');
+
+        if (filtered.length === 0) {
+            div.innerHTML = '<p class="text-center text-muted">No changes match the filter.</p>';
+            return;
+        }
+
+        var icons = {
+            'new_subdomain': '🟢', 'subdomain_removed': '🔴',
+            'new_port': '🟡', 'port_closed': '⚪',
+            'new_vulnerability': '🔴', 'vulnerability_resolved': '✅',
+            'email_breached': '🔓', 'new_email': '📧',
+            'whois_nameserver_change': '🔄', 'whois_registrar_change': '⚠️',
+            'whois_dnssec_removed': '🔓', 'whois_dnssec_added': '🔒'
+        };
+
+        div.innerHTML = '<div class="table-responsive"><table class="table table-hover"><thead><tr>' +
+            '<th>Type</th><th>Domain</th><th>Detail</th><th>Severity</th><th>Detected</th><th>Status</th>' +
+            '</tr></thead><tbody>' +
+            filtered.map(function (c) {
+                var icon = icons[c.change_type] || '🔵';
+                var details = c.details || {};
+                var severity = c.severity || 'info';
+                var sevClass = {
+                    critical: 'bg-danger', high: 'bg-danger',
+                    medium: 'bg-warning text-dark', low: 'bg-info', info: 'bg-secondary'
+                }[severity] || 'bg-secondary';
+                var acked = c.acknowledged;
+                var changeId = c._id || '';
+                var detected = c.detected_at || c.timestamp || '';
+                var targetDomain = c.target_domain || '-';
+
+                // ── Clean detail text ───────────────────
+                // Show just the specific value, not "New subdomain: value"
+                var detail = '';
+                var changeType = c.change_type || '';
+
+                if (changeType === 'new_subdomain' || changeType === 'subdomain_removed') {
+                    detail = details.subdomain || '';
+                } else if (changeType === 'new_port' || changeType === 'port_closed') {
+                    detail = details.host_port || '';
+                } else if (changeType === 'new_vulnerability' || changeType === 'vulnerability_resolved') {
+                    detail = (details.name || '') + (details.host ? ' on ' + details.host : '');
+                } else if (changeType === 'email_breached') {
+                    detail = details.email || '';
+                    if (details.breach_count) detail += ' (' + details.breach_count + ' breaches)';
+                    if (details.password_leaked) detail += ' — PASSWORD LEAKED';
+                } else if (changeType === 'new_email') {
+                    detail = details.email || '';
+                } else if (changeType === 'whois_nameserver_change') {
+                    var oldNs = (details.old_nameservers || []).join(', ');
+                    var newNs = (details.new_nameservers || []).join(', ');
+                    detail = oldNs + ' → ' + newNs;
+                } else if (changeType === 'whois_registrar_change') {
+                    detail = (details.old_registrar || '') + ' → ' + (details.new_registrar || '');
+                } else if (changeType === 'whois_dnssec_removed' || changeType === 'whois_dnssec_added') {
+                    detail = details.message || changeType.replace(/_/g, ' ');
+                } else {
+                    detail = details.message || changeType.replace(/_/g, ' ');
+                }
+
+                // Clean change type label
+                var typeLabel = changeType.replace(/_/g, ' ');
+
+                return '<tr>' +
+                    '<td>' + icon + ' <small>' + typeLabel + '</small></td>' +
+                    '<td><small>' + targetDomain + '</small></td>' +
+                    '<td><small><code>' + escapeHtml(detail) + '</code></small></td>' +
+                    '<td><span class="badge ' + sevClass + '">' + severity + '</span></td>' +
+                    '<td><small>' + (detected ? new Date(typeof detected === 'string' && !detected.endsWith('Z') ? detected + 'Z' : detected).toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }) : '-') + '</small></td>' +
+                    '<td>' + (acked
+                        ? '<span class="badge bg-success">Ack</span>'
+                        : '<button class="btn btn-sm btn-outline-success" onclick="ackChange(\'' +
+                        changeId + '\')"><i class="bi bi-check"></i></button>') +
+                    '</td></tr>';
+            }).join('') + '</tbody></table></div>';
     }
 
     async function ackChange(changeId) {
         try {
             await api.patch('/api/changes/acknowledge/' + changeId);
             loadChanges();
-        } catch (e) {
-            alert('Error acknowledging change');
-        }
+        } catch (e) { alert('Error acknowledging change'); }
     }
 
+    function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+
+    loadDomains();
     loadChanges();
 </script>
 {% endblock %}

@@ -1,4 +1,4 @@
-# database/passive_recon_db.py
+﻿# database/passive_recon_db.py
 """
 Passive Recon Database Layer
 =============================
@@ -368,6 +368,166 @@ def get_passive_summary(target_domain):
             }
         }
 
+# ─── WHOIS Data Storage & Queries ────────────────────────────────────────
+
+def save_whois_results(target_id, target_domain, whois_result):
+    """
+    Save complete WHOIS recon data.
+
+    Stores registration details, nameservers, DNSSEC status,
+    and computed risk flags. One record per domain, overwritten
+    on re-scan.
+
+    Args:
+        target_id: Target document ObjectId string
+        target_domain: Domain string
+        whois_result: Dict from run_whois_recon()
+
+    Returns:
+        True on success, False on error
+    """
+    try:
+        collection = get_collection(PASSIVE_COLLECTION)
+
+        doc = {
+            "target_id": ObjectId(target_id),
+            "target_domain": target_domain,
+            "source": "whois",
+            "collected_at": datetime.utcnow(),
+
+            # Registration data
+            "registrar": whois_result.get("registrar"),
+            "creation_date": whois_result.get("creation_date"),
+            "expiration_date": whois_result.get(
+                "expiration_date"
+            ),
+            "updated_date": whois_result.get("updated_date"),
+            "nameservers": whois_result.get("nameservers", []),
+            "status": whois_result.get("status", []),
+            "dnssec": whois_result.get("dnssec", False),
+
+            # Registrant info
+            "registrant_org": whois_result.get(
+                "registrant_org"
+            ),
+            "registrant_country": whois_result.get(
+                "registrant_country"
+            ),
+            "registrant_emails": whois_result.get(
+                "registrant_emails", []
+            ),
+            "privacy_enabled": whois_result.get(
+                "privacy_enabled", False
+            ),
+
+            # Computed fields
+            "days_until_expiry": whois_result.get(
+                "days_until_expiry"
+            ),
+            "domain_age_days": whois_result.get(
+                "domain_age_days"
+            ),
+            "risk_flags": whois_result.get("risk_flags", []),
+
+            # Empty arrays to match Shodan/Censys structure
+            "hosts": [],
+            "services": [],
+            "vulnerabilities": [],
+
+            "stats": whois_result.get("stats", {}),
+        }
+
+        collection.update_one(
+            {
+                "target_domain": target_domain,
+                "source": "whois"
+            },
+            {"$set": doc},
+            upsert=True
+        )
+
+        flag_count = len(doc["risk_flags"])
+        print(
+            f"[PASSIVE_DB] Saved WHOIS data for "
+            f"{target_domain}: "
+            f"registrar={doc['registrar']}, "
+            f"{len(doc['nameservers'])} nameservers, "
+            f"{flag_count} risk flags"
+        )
+        return True
+
+    except Exception as e:
+        print(f"[PASSIVE_DB] Error saving WHOIS data: {e}")
+        return False
+
+
+def get_whois_risk_flags(target_id):
+    """
+    Get WHOIS risk flags for risk scoring (Phase 6).
+
+    Called by risk_scorer.py to add WHOIS-based risk
+    to the overall score.
+
+    Args:
+        target_id: Target document ObjectId string
+
+    Returns:
+        List of risk flag dicts with severity and detail
+    """
+    try:
+        collection = get_collection(PASSIVE_COLLECTION)
+        doc = collection.find_one({
+            "target_id": ObjectId(target_id),
+            "source": "whois"
+        })
+
+        if not doc:
+            return []
+
+        return doc.get("risk_flags", [])
+
+    except Exception as e:
+        print(f"[PASSIVE_DB] Error getting WHOIS flags: {e}")
+        return []
+
+
+def get_whois_data(target_domain):
+    """
+    Get previous WHOIS snapshot for change detection.
+
+    Called by scanner.py before Phase 0 to capture the
+    previous state for comparison after the new lookup.
+
+    Args:
+        target_domain: Domain string
+
+    Returns:
+        Dict with WHOIS fields, or empty dict if none
+    """
+    try:
+        collection = get_collection(PASSIVE_COLLECTION)
+        doc = collection.find_one({
+            "target_domain": target_domain,
+            "source": "whois"
+        })
+
+        if not doc:
+            return {}
+
+        return {
+            "registrar": doc.get("registrar"),
+            "nameservers": doc.get("nameservers", []),
+            "dnssec": doc.get("dnssec", False),
+            "expiration_date": doc.get("expiration_date"),
+            "status": doc.get("status", []),
+            "registrant_org": doc.get("registrant_org"),
+        }
+
+    except Exception as e:
+        print(
+            f"[PASSIVE_DB] Error getting WHOIS data: {e}"
+        )
+        return {}
 
 def delete_passive_recon_by_domain(target_domain):
     """Delete all passive recon data for a domain."""

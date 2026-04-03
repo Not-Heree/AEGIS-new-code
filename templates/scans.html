@@ -19,10 +19,8 @@
                         <option>Loading...</option>
                     </select>
                 </div>
-                <!-- Removed dedicated scan types as per user request — only full scan allowed -->
-                <input type="hidden" id="scan-type" value="full">
                 <button class="btn btn-primary w-100" onclick="runScan()">
-                    <i class="bi bi-play-circle-fill"></i> Start Full Scan
+                    Start Full Scan
                 </button>
                 <div id="scan-status" class="mt-3"></div>
             </div>
@@ -51,7 +49,7 @@
             const targets = data.targets || [];
 
             if (targets.length === 0) {
-                select.innerHTML = '<option value="">No targets — add one first</option>';
+                select.innerHTML = '<option value="">Add a target first</option>';
                 return;
             }
 
@@ -60,7 +58,6 @@
                 return `<option value="${domain}">${domain}</option>`;
             }).join('');
 
-            // Load history for the first target automatically
             loadHistory();
 
         } catch (error) {
@@ -72,7 +69,6 @@
 
     async function runScan() {
         const domain = document.getElementById('scan-target').value;
-        const type = document.getElementById('scan-type').value;
 
         if (!domain) {
             alert('Select a target first');
@@ -81,22 +77,24 @@
 
         const statusDiv = document.getElementById('scan-status');
 
-        // Non-full scans are disabled in UI — keeping original logic commented for reference or removing if clean
-
-        // ═══ FULL SCAN — non-blocking with progress polling ═══
-
         statusDiv.innerHTML = `
-        <div class="alert alert-info">
-            <div class="d-flex align-items-center">
-                <div class="spinner-border spinner-border-sm me-2"></div>
-                <div class="flex-grow-1">
-                    <strong>Full scan started for ${domain}</strong>
-                    <div id="scan-phase" class="text-muted small">Initializing...</div>
-                    <div class="progress mt-2" style="height: 22px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                             id="scan-progress" role="progressbar"
-                             style="width: 0%">0%</div>
-                    </div>
+        <div class="card border-primary shadow-sm mb-3">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-primary fw-bold">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Scanning ${domain}...
+                    </h6>
+                    <span class="badge bg-primary text-uppercase" style="letter-spacing: 0.5px;">Running</span>
+                </div>
+                <div id="scan-phase" class="text-muted small mb-2 fw-medium">Initializing...</div>
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                         id="scan-progress" role="progressbar"
+                         style="width: 0%"></div>
+                </div>
+                <div class="text-end mt-1">
+                    <small id="scan-progress-text" class="text-muted fw-bold">0%</small>
                 </div>
             </div>
         </div>`;
@@ -122,69 +120,72 @@
         }
     }
 
-    /**
-     * Reusable scan tracking logic for both new and resumed scans
-     */
     async function trackScan(scanId, domain) {
         if (pollInterval) clearInterval(pollInterval);
         activeScanId = scanId;
 
         const statusDiv = document.getElementById('scan-status');
 
-        // Initial UI state (useful for resumed scans)
         statusDiv.innerHTML = `
-        <div class="alert alert-info">
-            <div class="d-flex align-items-center">
-                <div class="spinner-border spinner-border-sm me-2"></div>
-                <div class="flex-grow-1">
-                    <strong>Full scan in progress for ${domain}</strong>
-                    <div id="scan-phase" class="text-muted small">Loading status...</div>
-                    <div class="progress mt-2" style="height: 22px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                             id="scan-progress" role="progressbar"
-                             style="width: 0%">0%</div>
-                    </div>
+        <div class="card border-primary shadow-sm mb-3">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-primary fw-bold">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Scanning ${domain}...
+                    </h6>
+                    <span class="badge bg-primary text-uppercase" style="letter-spacing: 0.5px;">Running</span>
+                </div>
+                <div id="scan-phase" class="text-muted small mb-2 fw-medium">Loading status...</div>
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                         id="scan-progress" role="progressbar"
+                         style="width: 0%"></div>
+                </div>
+                <div class="text-end mt-1">
+                    <small id="scan-progress-text" class="text-muted fw-bold">0%</small>
                 </div>
             </div>
         </div>`;
 
-        // Poll every 3 seconds
         pollInterval = setInterval(async () => {
             try {
                 const status = await api.get(`/api/scans/status/${scanId}`);
                 const scan = status.scan || {};
 
-                // Update progress bar
                 const percent = scan.progress_percent || 0;
                 const bar = document.getElementById('scan-progress');
                 if (bar) {
                     bar.style.width = percent + '%';
-                    bar.textContent = percent + '%';
+                }
+                const pctText = document.getElementById('scan-progress-text');
+                if (pctText) {
+                    pctText.textContent = percent + '%';
                 }
 
-                // Update phase text
                 const phaseEl = document.getElementById('scan-phase');
                 if (phaseEl) {
                     phaseEl.textContent = scan.phase_detail || scan.current_phase || 'Processing...';
                 }
 
-                // Check completion
                 if (scan.status === 'completed') {
                     clearInterval(pollInterval);
                     pollInterval = null;
                     activeScanId = null;
                     const r = scan.results || {};
                     statusDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> <strong>Scan completed!</strong>
-                        <br>
-                        <small>
-                            Subdomains: ${r.subdomains_found || 0} |
-                            Ports: ${r.ports_found || 0} |
-                            HTTP: ${r.http_assets_found || 0} |
-                            Vulns: ${r.vulns_found || 0} |
-                            Risk: ${r.risk_score || 0}/100
-                        </small>
+                    <div class="card border-success shadow-sm mb-3">
+                        <div class="card-body p-3 text-center">
+                            <i class="bi bi-check-circle-fill text-success fs-2 mb-2 d-block"></i>
+                            <h6 class="fw-bold text-success mb-2">Scan Complete</h6>
+                            <div class="d-flex justify-content-center flex-wrap gap-2">
+                                <span class="badge bg-light text-dark border">Subs: ${r.subdomains_found || 0}</span>
+                                <span class="badge bg-light text-dark border">Ports: ${r.ports_found || 0}</span>
+                                <span class="badge bg-light text-dark border">HTTP: ${r.http_assets_found || 0}</span>
+                                <span class="badge bg-light text-dark border">Vulns: ${r.vulns_found || 0}</span>
+                                <span class="badge bg-danger">Risk: ${r.risk_score || 0}/100</span>
+                            </div>
+                        </div>
                     </div>`;
                     loadHistory();
                 } else if (scan.status === 'failed') {
@@ -192,13 +193,22 @@
                     pollInterval = null;
                     activeScanId = null;
                     statusDiv.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="bi bi-x-circle-fill"></i> Scan failed: ${scan.error_message || 'Unknown error'}
+                    <div class="card border-danger shadow-sm mb-3">
+                        <div class="card-body p-3 text-center">
+                            <i class="bi bi-x-circle-fill text-danger fs-2 mb-2 d-block"></i>
+                            <h6 class="fw-bold text-danger mb-1">Scan Failed</h6>
+                            <p class="mb-0 text-muted small">${scan.error_message || 'Unknown error'}</p>
+                        </div>
                     </div>`;
                     loadHistory();
                 }
             } catch (pollErr) {
-                console.error('Poll error:', pollErr);
+                console.error('Poll error - stopping tracker:', pollErr);
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    activeScanId = null;
+                }
             }
         }, 3000);
     }
@@ -221,7 +231,6 @@
                 return;
             }
 
-            // Auto-resume tracking if the latest scan is running
             const latest = history[0];
             if (latest.status === 'running' && latest._id !== activeScanId) {
                 trackScan(latest._id, domain);
@@ -230,20 +239,17 @@
             historyDiv.innerHTML = history.map(s => {
                 const statusBadge = {
                     'completed': '<span class="badge bg-success">Completed</span>',
-                    'running': '<span class="badge bg-info">Running</span>',
+                    'running': '<span class="badge bg-primary">Running</span>',
                     'failed': '<span class="badge bg-danger">Failed</span>',
                     'partial': '<span class="badge bg-warning text-dark">Partial</span>'
                 }[s.status] || `<span class="badge bg-secondary">${s.status || 'unknown'}</span>`;
 
-                const scanType = {
-                    'full': '🔍 Full Scan'
-                }[s.scan_type] || s.scan_type || 'Unknown';
-
                 const startedAt = s.started_at
-                    ? new Date(s.started_at).toLocaleString()
+                    ? new Date(typeof s.started_at === 'string' && !s.started_at.endsWith('Z')
+                        ? s.started_at + 'Z' : s.started_at)
+                        .toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' })
                     : 'Unknown';
 
-                // Show stats if available
                 let statsHtml = '';
                 if (s.stats) {
                     const stats = s.stats;
@@ -252,11 +258,7 @@
                     if (stats.ports_found) parts.push(`Ports: ${stats.ports_found}`);
                     if (stats.http_assets_found) parts.push(`HTTP: ${stats.http_assets_found}`);
                     if (stats.vulns_found) parts.push(`Vulns: ${stats.vulns_found}`);
-                    // Handle full scan nested results
-                    if (stats.subdomains && stats.subdomains.count) parts.push(`Subs: ${stats.subdomains.count}`);
-                    if (stats.ports && stats.ports.count) parts.push(`Ports: ${stats.ports.count}`);
-                    if (stats.http && stats.http.count) parts.push(`HTTP: ${stats.http.count}`);
-                    if (stats.vulns && stats.vulns.count) parts.push(`Vulns: ${stats.vulns.count}`);
+                    if (stats.risk_score !== undefined) parts.push(`Risk: ${stats.risk_score}/100`);
 
                     if (parts.length > 0) {
                         statsHtml = `<br><small class="text-muted">${parts.join(' | ')}</small>`;
@@ -266,7 +268,7 @@
                 return `
                     <div class="border-bottom py-2">
                         <div class="d-flex justify-content-between align-items-start">
-                            <strong>${scanType}</strong>
+                            <strong> Full Scan</strong>
                             ${statusBadge}
                         </div>
                         <small class="text-muted">${startedAt}</small>
@@ -281,10 +283,8 @@
         }
     }
 
-    // Reload history when target changes
     document.getElementById('scan-target').addEventListener('change', loadHistory);
 
-    // Initialize
     loadTargets();
 </script>
 {% endblock %}

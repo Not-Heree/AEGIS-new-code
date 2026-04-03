@@ -1,4 +1,4 @@
-# app.py
+
 
 from flask import (
     Flask, jsonify, render_template,
@@ -29,13 +29,13 @@ app.secret_key = Config.SECRET_KEY
 
 def initialize_app():
     """Initialize the EASM application and verify database connection."""
-    logger.info("=" * 50)                                         
-    logger.info("  EASM TOOL - External Attack Surface Management")
-    logger.info("=" * 50)                                         
+                                             
+    
+                                             
 
     if test_connection():
         init_db()
-        logger.info("Application initialized successfully")       
+        logger.info("Application initialized")       
     else:
         logger.error("Failed to connect to MongoDB")              
         logger.error(                                              
@@ -59,9 +59,9 @@ app.register_blueprint(remediation_bp)
 app.register_blueprint(emails_bp)
 app.register_blueprint(passive_bp)
 
-# =============================================================================
+
 # AUTHENTICATION
-# =============================================================================
+
 
 PUBLIC_ROUTES = {
     "login",
@@ -127,9 +127,7 @@ def logout():
     return redirect(url_for("login"))
 
 
-# =============================================================================
 # CORE API ROUTES
-# =============================================================================
 
 @app.route("/")
 def index():
@@ -178,7 +176,7 @@ def stats():
             }
         })
     except Exception as e:
-        logger.error("Stats endpoint error: %s", e)               # ◄ NEW
+        logger.error("Stats endpoint error: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
@@ -197,7 +195,7 @@ def list_routes():
     })
 
 
-# ─── Template Routes ──────────────────────────────────────────────────────
+# Template Routes
 
 @app.route("/dashboard")
 def dashboard_view():
@@ -219,8 +217,27 @@ def scans_view():
 
 @app.route("/assets")
 def assets_view():
-    return render_template("assets.html", active_page="assets")
-
+    return render_template(
+        "asset_breakdown.html",
+        active_page="assets",
+        domain=None
+    )
+@app.route("/api/passive-recon/<domain>")
+def passive_recon_data(domain):
+    from database.passive_recon_db import get_passive_recon
+    records = get_passive_recon(domain)
+    return jsonify({
+        "success": True,
+        "domain": domain,
+        "records": records
+    })
+@app.route("/targets/<domain>/assets")
+def target_assets_breakdown(domain):
+    return render_template(
+        "asset_breakdown.html",
+        active_page="assets",
+        domain=domain
+    )
 @app.route("/vulnerabilities")
 def vulnerabilities_view():
     return render_template("vulnerabilities.html", active_page="vulnerabilities")
@@ -238,13 +255,13 @@ def emails_view():
     return render_template("emails.html", active_page="emails")
 
 
-# ─── Entry Point ──────────────────────────────────────────────────────────
+# Entry Point
 
 if __name__ == "__main__":
     initialize_app()
-    logger.info(                                                  
-        "Starting EASM AEGIS on port %d (debug=%s)",              
-        Config.PORT, Config.DEBUG                                  
+    logger.info(
+        "Starting AEGIS on port %d (debug=%s)",
+        Config.PORT, Config.DEBUG
     )                                                             
     app.run(
         host="0.0.0.0",

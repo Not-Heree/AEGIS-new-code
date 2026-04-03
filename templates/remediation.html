@@ -339,7 +339,7 @@
 <!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h2><i class="bi bi-shield-plus"></i> Remediation Plan</h2>
+        <h2> Remediation Plan</h2>
         {% if domain %}
         <p class="text-muted mb-0">
             Prioritized fix guidance for <strong>{{ domain }}</strong>
@@ -374,14 +374,7 @@
                             <i class="bi bi-globe"></i>
                             {{ t.get('root_domain', t.get('domain', '')) }}
                         </h6>
-                        <div class="d-flex justify-content-between mt-2">
-                            <small class="text-muted">
-                                Vulns: {{ t.get('total_vulns', 0) }}
-                            </small>
-                            <small class="text-muted">
-                                Risk: {{ t.get('risk_score', 0) }}/100
-                            </small>
-                        </div>
+
                     </div>
                 </a>
             </div>
@@ -452,10 +445,10 @@
             <label class="form-label mb-0 small fw-bold">Status</label>
             <select class="form-select form-select-sm" id="filter-status" onchange="applyFilters()">
                 <option value="">All Statuses</option>
-                <option value="open">🔴 Open</option>
-                <option value="in_progress">🟡 In Progress</option>
-                <option value="resolved">✅ Resolved</option>
-                <option value="false_positive">⚪ False Positive</option>
+                <option value="open"> Open</option>
+                <option value="in_progress"> In Progress</option>
+                <option value="resolved"> Resolved</option>
+                <option value="false_positive"> False Positive</option>
             </select>
         </div>
         <div class="col-md-3">
@@ -713,7 +706,7 @@
                 const isPatch = item.patch_urls?.includes(url);
                 return `
                                     <li class="mb-1">
-                                        ${isPatch ? '🔧' : '📎'}
+                                        ${isPatch ? '' : ''}
                                         <a href="${escapeHtml(url)}" target="_blank"
                                            class="text-break small">
                                             ${escapeHtml(url)}
@@ -821,19 +814,19 @@
                         <span class="small text-muted me-2">Status:</span>
                         <button class="btn btn-sm ${status === 'open' ? 'btn-danger active-status' : 'btn-outline-danger'}"
                                 onclick="updateStatus('${vulnId}', 'open')">
-                            🔴 Open
+                             Open
                         </button>
                         <button class="btn btn-sm ${status === 'in_progress' ? 'btn-warning active-status' : 'btn-outline-warning'} ms-1"
                                 onclick="updateStatus('${vulnId}', 'in_progress')">
-                            🟡 In Progress
+                             In Progress
                         </button>
                         <button class="btn btn-sm ${status === 'resolved' ? 'btn-success active-status' : 'btn-outline-success'} ms-1"
                                 onclick="updateStatus('${vulnId}', 'resolved')">
-                            ✅ Resolved
+                             Resolved
                         </button>
                         <button class="btn btn-sm ${status === 'false_positive' ? 'btn-secondary active-status' : 'btn-outline-secondary'} ms-1"
                                 onclick="updateStatus('${vulnId}', 'false_positive')">
-                            ⚪ False Positive
+                             False Positive
                         </button>
                     </div>
                 </div>

@@ -80,7 +80,8 @@ function showAlert(message, type = 'info') {
 
 function formatDate(dateStr) {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString();
+    if (typeof dateStr === 'string' && !dateStr.endsWith('Z') && dateStr.includes('T')) dateStr += 'Z';
+    return new Date(dateStr).toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' });
 }
 
 function formatNumber(num) {

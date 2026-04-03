@@ -1,134 +1,322 @@
-<!-- 
-    Minimal base template — used for login page.
-    No sidebar, no navbar, just a clean centered layout.
--->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}EASM AEGIS{% endblock %}</title>
 
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
+        /* ═══════════════════════════════════════════
+           DESIGN TOKENS
+           ═══════════════════════════════════════════ */
+        :root {
+            --body-bg: #f0f1f3;
+            --card-bg: #ffffff;
+            --header-bg: #2b2d31;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --accent: #4f8cff;
+            --accent-hover: #3d7ae6;
+            --border-color: #e5e7eb;
+            --input-bg: #f9fafb;
+            --error-bg: #fef2f2;
+            --error-text: #b91c1c;
+            --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.06),
+                0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* ═══════════════════════════════════════════
+           GLOBAL RESET
+           ═══════════════════════════════════════════ */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
         body {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
+            background-color: var(--body-bg);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
+        /* ═══════════════════════════════════════════
+           LOGIN CARD
+           ═══════════════════════════════════════════ */
         .login-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: var(--shadow-soft);
             overflow: hidden;
-            max-width: 420px;
+            max-width: 440px;
             width: 100%;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            animation: cardFadeIn 0.5s ease-out;
         }
 
+        @keyframes cardFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+           CARD HEADER
+           ═══════════════════════════════════════════ */
         .login-header {
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            padding: 30px;
+            background: var(--header-bg);
+            padding: 40px 30px;
             text-align: center;
             color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle gradient overlay for depth */
+        .login-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg,
+                    rgba(79, 140, 255, 0.08) 0%,
+                    transparent 50%,
+                    rgba(79, 140, 255, 0.04) 100%);
+            pointer-events: none;
         }
 
         .login-header .icon {
-            font-size: 3rem;
-            margin-bottom: 10px;
+            font-size: 3.5rem;
+            margin-bottom: 15px;
+            color: var(--accent);
+            text-shadow: 0 2px 10px rgba(79, 140, 255, 0.3);
+            position: relative;
+            z-index: 1;
         }
 
         .login-header h3 {
             margin: 0;
-            font-weight: 700;
-            letter-spacing: 1px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            font-size: 1.8rem;
+            position: relative;
+            z-index: 1;
         }
 
         .login-header p {
-            margin: 5px 0 0;
-            opacity: 0.85;
-            font-size: 0.9rem;
+            margin: 8px 0 0;
+            opacity: 0.7;
+            font-size: 0.95rem;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
         }
 
+        /* ═══════════════════════════════════════════
+           FORM BODY
+           ═══════════════════════════════════════════ */
         .login-body {
-            padding: 35px;
-        }
-
-        .login-body .form-control {
-            border-radius: 8px;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            transition: border-color 0.3s;
-        }
-
-        .login-body .form-control:focus {
-            border-color: #3498db;
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+            padding: 40px;
         }
 
         .login-body .form-label {
             font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 6px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
         }
 
-        .btn-login {
-            background: linear-gradient(135deg, #3498db, #2980b9);
+        /* ═══════════════════════════════════════════
+           INPUT GROUPS
+           ═══════════════════════════════════════════ */
+        .login-body .input-group {
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid var(--border-color);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            background: var(--card-bg);
+        }
+
+        .login-body .input-group:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(79, 140, 255, 0.1);
+        }
+
+        .login-body .input-group-text {
+            background: var(--input-bg);
             border: none;
-            border-radius: 8px;
-            padding: 12px;
-            font-weight: 600;
+            color: var(--text-muted);
+            padding-left: 15px;
+            padding-right: 10px;
+            font-size: 1.1rem;
+        }
+
+        .login-body .form-control {
+            border: none;
+            padding: 12px 15px;
             font-size: 1rem;
+            box-shadow: none !important;
+            outline: none !important;
+            background: transparent;
+            color: var(--text-primary);
+        }
+
+        .login-body .form-control::placeholder {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .login-body .form-control:focus {
+            background: transparent;
+        }
+
+        /* ═══════════════════════════════════════════
+           SIGN IN BUTTON
+           ═══════════════════════════════════════════ */
+        .btn-login {
+            background: var(--accent);
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: white;
             letter-spacing: 0.5px;
-            transition: all 0.3s;
+            transition: background 0.2s ease,
+                transform 0.15s ease,
+                box-shadow 0.2s ease;
+            margin-top: 10px;
+            text-transform: uppercase;
         }
 
         .btn-login:hover {
-            background: linear-gradient(135deg, #2980b9, #2471a3);
+            background: var(--accent-hover);
             transform: translateY(-1px);
-            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+            box-shadow: 0 4px 15px rgba(79, 140, 255, 0.3);
+            color: white;
         }
 
-        .input-group-text {
-            background: #f8f9fa;
-            border: 2px solid #e0e0e0;
-            border-right: none;
-            border-radius: 8px 0 0 8px;
-            color: #7f8c8d;
+        .btn-login:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(79, 140, 255, 0.2);
         }
 
-        .input-group .form-control {
-            border-left: none;
-            border-radius: 0 8px 8px 0;
+        .btn-login:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
         }
 
-        .alert {
-            border-radius: 8px;
+        /* ═══════════════════════════════════════════
+           ERROR ALERT
+           ═══════════════════════════════════════════ */
+        .login-body .alert {
+            border-radius: 12px;
+            border: none;
+            background-color: var(--error-bg);
+            color: var(--error-text);
+            padding: 15px;
+            margin-bottom: 25px;
             font-size: 0.9rem;
+            font-weight: 500;
         }
 
+        .login-body .alert i {
+            font-size: 1.1rem;
+        }
+
+        /* ═══════════════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════════════ */
         .footer-text {
             text-align: center;
-            padding: 15px 35px 25px;
-            color: #95a5a6;
-            font-size: 0.8rem;
+            padding: 0 40px 30px;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            font-weight: 400;
+        }
+
+        .footer-text i {
+            margin-right: 5px;
+            opacity: 0.6;
+        }
+
+        /* ═══════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════ */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+                align-items: flex-start;
+                padding-top: 40px;
+            }
+
+            .login-card {
+                border-radius: 16px;
+            }
+
+            .login-header {
+                padding: 30px 20px;
+            }
+
+            .login-header .icon {
+                font-size: 2.8rem;
+            }
+
+            .login-header h3 {
+                font-size: 1.5rem;
+            }
+
+            .login-body {
+                padding: 30px 25px;
+            }
+
+            .footer-text {
+                padding: 0 25px 25px;
+            }
         }
     </style>
+
+    {% block extra_head %}{% endblock %}
 </head>
 
 <body>
     {% block content %}{% endblock %}
 
-    <!-- Bootstrap JS -->
+    <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% block extra_js %}{% endblock %}
 </body>
 
 </html>

@@ -111,21 +111,33 @@ def dashboard_home():
         total_ports = db[Config.PORTS_COLLECTION].count_documents({})
         total_http_assets = db[Config.HTTP_ASSETS_COLLECTION].count_documents({})
         total_vulns = db[Config.VULNS_COLLECTION].count_documents({})
+        total_emails = db[Config.EMAILS_COLLECTION].count_documents({})
 
-        # Passive recon counts (Shodan + Censys)
+        # Passive recon counts (Shodan + Censys + WHOIS)
+        shodan_subdomains = db[Config.SUBDOMAINS_COLLECTION].count_documents({"sources": "shodan"})
+        censys_subdomains = db[Config.SUBDOMAINS_COLLECTION].count_documents({"sources": "censys"})
+        shodan_ports = db[Config.PORTS_COLLECTION].count_documents({"sources": "shodan"})
+        censys_ports = db[Config.PORTS_COLLECTION].count_documents({"sources": "censys"})
+
+        # WHOIS Stats
+        whois_docs = list(db["passive_recon"].find({"source": "whois"}))
+        whois_domains = len(whois_docs)
+        whois_total_risks = 0
+        whois_critical_risks = 0
+        for w in whois_docs:
+            flags = w.get("risk_flags", [])
+            whois_total_risks += len(flags)
+            whois_critical_risks += sum(1 for f in flags if isinstance(f, dict) and f.get("severity") in ("critical", "high"))
+
         passive_recon = {
-            "shodan_subdomains": db[Config.SUBDOMAINS_COLLECTION].count_documents(
-                {"sources": "shodan"}
-            ),
-            "censys_subdomains": db[Config.SUBDOMAINS_COLLECTION].count_documents(
-                {"sources": "censys"}
-            ),
-            "shodan_ports": db[Config.PORTS_COLLECTION].count_documents(
-                {"sources": "shodan"}                              # ← Fixed
-            ),
-            "censys_ports": db[Config.PORTS_COLLECTION].count_documents(
-                {"sources": "censys"}                              # ← Fixed
-            ),
+            "shodan_subdomains": shodan_subdomains,
+            "censys_subdomains": censys_subdomains,
+            "shodan_ports": shodan_ports,
+            "censys_ports": censys_ports,
+            "whois_available": whois_domains > 0,
+            "whois_domains": whois_domains,
+            "whois_total_risks": whois_total_risks,
+            "whois_critical_risks": whois_critical_risks
         }
 
         return jsonify({
@@ -136,6 +148,7 @@ def dashboard_home():
             "total_ports": total_ports,
             "total_http_assets": total_http_assets,
             "total_vulns": total_vulns,
+            "emails": total_emails,
             "vuln_breakdown": {
                 "critical": critical_vulns,
                 "high": high_vulns,
@@ -201,11 +214,15 @@ def summary(domain):
 
         # Risk score
         risk_score = target.get("risk_score", 0) if target else 0
+        last_scan_at = target.get("last_scanned") if target else None
+        if last_scan_at and hasattr(last_scan_at, "isoformat"):
+            last_scan_at = last_scan_at.isoformat()
 
         return jsonify({
             "success": True,
             "domain": domain,
             "risk_score": risk_score,
+            "last_scan_at": last_scan_at,
             "summary": {
                 "subdomains": subdomain_count,
                 "ports": port_count,
