@@ -1,5 +1,3 @@
-
-
 from flask import (
     Flask, jsonify, render_template,
     request, session, redirect, url_for
@@ -7,7 +5,7 @@ from flask import (
 from functools import wraps
 from config import Config
 from database.connection import init_db, test_connection, get_db
-from utils.logger import logger                                    # ◄ NEW
+from utils.logger import logger
 import os
 
 # ─── Blueprint Imports ────────────────────────────────────────────────────
@@ -21,6 +19,7 @@ from routes.reports import reports_bp
 from routes.remediation import remediation_bp
 from routes.emails import emails_bp
 from routes.passive_recon import passive_bp
+from routes.api_keys import bp as api_keys_bp
 
 # ─── Create Flask App ─────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -29,10 +28,6 @@ app.secret_key = Config.SECRET_KEY
 
 def initialize_app():
     """Initialize the EASM application and verify database connection."""
-                                             
-    
-                                             
-
     if test_connection():
         init_db()
         logger.info("Application initialized")       
@@ -58,11 +53,10 @@ app.register_blueprint(reports_bp)
 app.register_blueprint(remediation_bp)
 app.register_blueprint(emails_bp)
 app.register_blueprint(passive_bp)
+app.register_blueprint(api_keys_bp)
 
 
-# AUTHENTICATION
-
-
+# ─── Authentication ───────────────────────────────────────────────────────
 PUBLIC_ROUTES = {
     "login",
     "static",

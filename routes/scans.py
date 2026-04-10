@@ -7,7 +7,11 @@ from database.connection import get_db
 from config import Config
 from datetime import datetime
 from utils.sanitize import sanitize_domain, sanitize_object_id
-from utils.logger import logger                                    # ◄ NEW
+from utils.logger import logger
+from database.scans_db import (
+    can_resume_scan, reset_scan_for_resume,
+    get_completed_phases
+)
 
 scans_bp = Blueprint("scans", __name__, url_prefix="/api/scans")
 
@@ -476,8 +480,17 @@ def vuln_scan(domain):
 
 @scans_bp.route("/full/<domain>", methods=["POST"])
 def full_scan(domain):
-    """Kicks off the full scan pipeline in a background thread."""
-    from database.scans_db import create_scan_with_domain
+    """Kicks off the full scan pipeline in a background thread.
+    
+    Auto-resumes failed scans with completed phases.
+    Creates new scan if no resumable scan found.
+    """
+    from database.scans_db import (
+        create_scan_with_domain, 
+        get_failed_scan_with_completed_phases,
+        reset_scan_for_resume
+    )
+    from core.scanner import run_full_scan
 
     try:
         domain = sanitize_domain(domain)
@@ -505,13 +518,50 @@ def full_scan(domain):
             "scan_id": str(running["_id"])
         }), 409
 
+    # ─── CHECK FOR AUTO-RESUME ─────────────────────────────────────
+    resumable = get_failed_scan_with_completed_phases(domain)
+    
+    if resumable:
+        # Auto-resume the failed scan
+        scan_id = resumable["scan_id"]
+        completed_phases = resumable["completed_phases"]
+        
+        logger.info("=" * 60)
+        logger.info("AUTO-RESUME: Scan %s for %s", scan_id, domain)
+        logger.info("  Previous attempt completed phases: %s", completed_phases)
+        logger.info("  Resuming from phase: %s", 
+                    completed_phases[-1] if completed_phases else "N/A")
+        logger.info("=" * 60)
+        
+        # Reset the scan to resumable state
+        reset_scan_for_resume(scan_id)
+        
+        # Start resume in background
+        thread = threading.Thread(
+            target=_run_scan_background,
+            args=(target_id, domain, scan_id),
+            name=f"scan-{domain}-resume",
+            daemon=True
+        )
+        thread.start()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Resuming failed scan for {domain}",
+            "scan_id": scan_id,
+            "resumed": True,
+            "completed_phases": completed_phases,
+            "status_url": f"/api/scans/status/{scan_id}"
+        }), 202
+    
+    # ─── CREATE NEW SCAN ───────────────────────────────────────────
     scan = create_scan_with_domain(target_id, domain, "full")
     scan_id = scan["scan_id"]
 
-    logger.info("=" * 50)                                          # ◄ CHANGED
-    logger.info("Full scan starting for: %s (scan_id: %s)",       # ◄ CHANGED
-                domain, scan_id)                                   # ◄ CHANGED
-    logger.info("=" * 50)                                          # ◄ CHANGED
+    logger.info("=" * 60)
+    logger.info("Full scan starting for: %s (scan_id: %s)",
+                domain, scan_id)
+    logger.info("=" * 60)
 
     thread = threading.Thread(
         target=_run_scan_background,
@@ -525,5 +575,6 @@ def full_scan(domain):
         "success": True,
         "message": f"Scan started for {domain}",
         "scan_id": scan_id,
+        "resumed": False,
         "status_url": f"/api/scans/status/{scan_id}"
     }), 202

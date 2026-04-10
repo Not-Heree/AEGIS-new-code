@@ -1,8 +1,22 @@
+"""
+HTTPX HTTP Probing Module
+==========================
+Invokes the httpx Go binary via subprocess to probe HTTP/HTTPS services
+on a list of hosts. Output is JSONL (one JSON object per line).
+
+HTTPX binary must be installed separately:
+  - Windows: tools/httpx.exe
+  - Linux: tools/httpx
+
+Path configured via Config.HTTPX_PATH.
+"""
+
 import subprocess
 import json
 import os
 import tempfile
 from config import Config
+from utils.logger import logger
 
 
 def parse_httpx_output(raw_output):
@@ -29,12 +43,17 @@ def parse_httpx_output(raw_output):
 
 def run_httpx(subdomains_list):
     """Run HTTPX to probe HTTP services on a list of subdomains."""
-    print(f"[HTTPX] Starting HTTP probing on {len(subdomains_list)} hosts")
+    logger.info(
+        "[HTTPX] Starting HTTP probing on %d hosts",
+        len(subdomains_list)
+    )
 
     temp_file = None
     try:
         # Write subdomains to a temp file (one per line) for -l flag
-        temp_fd, temp_file = tempfile.mkstemp(suffix=".txt", prefix="httpx_input_")
+        temp_fd, temp_file = tempfile.mkstemp(
+            suffix=".txt", prefix="httpx_input_"
+        )
         with os.fdopen(temp_fd, "w") as f:
             f.write("\n".join(subdomains_list))
 
@@ -47,7 +66,9 @@ def run_httpx(subdomains_list):
                 "-title",
                 "-web-server",
                 "-tech-detect",
-                "-status-code"
+                "-status-code",
+                "-threads", str(Config.HTTPX_THREADS),
+                "-timeout", str(Config.HTTPX_TIMEOUT)
             ],
             capture_output=True,
             text=True,
@@ -73,7 +94,7 @@ def run_httpx(subdomains_list):
             http_assets.append(asset)
 
         count = len(http_assets)
-        print(f"[HTTPX] Found {count} HTTP assets")
+        logger.info("[HTTPX] Found %d HTTP assets", count)
 
         return {
             "success": True,
@@ -82,7 +103,9 @@ def run_httpx(subdomains_list):
         }
 
     except subprocess.TimeoutExpired:
-        print(f"[HTTPX] Error: Timed out after {Config.SCAN_TIMEOUT}s")
+        logger.error(
+            "[HTTPX] Timed out after %ds", Config.SCAN_TIMEOUT
+        )
         return {
             "success": False,
             "error": "HTTPX timed out",
@@ -91,7 +114,7 @@ def run_httpx(subdomains_list):
 
     except FileNotFoundError:
         error = f"HTTPX not found at {Config.HTTPX_PATH}"
-        print(f"[HTTPX] Error: {error}")
+        logger.error("[HTTPX] %s", error)
         return {
             "success": False,
             "error": error,
@@ -99,7 +122,7 @@ def run_httpx(subdomains_list):
         }
 
     except Exception as e:
-        print(f"[HTTPX] Error: {e}")
+        logger.error("[HTTPX] Unexpected error: %s", e, exc_info=True)
         return {
             "success": False,
             "error": str(e),

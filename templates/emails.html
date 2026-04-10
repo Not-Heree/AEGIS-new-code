@@ -129,9 +129,9 @@
             <select class="form-select form-select-sm d-inline-block" style="width: auto;" id="filter-breach"
                 onchange="loadEmails()">
                 <option value="">All</option>
-                <option value="breached">🔴 Breached Only</option>
-                <option value="clean">🟢 Clean Only</option>
-                <option value="unknown">🟡 Unchecked</option>
+                <option value="breached"> Breached Only</option>
+                <option value="clean"> Clean Only</option>
+                <option value="unknown"> Unchecked</option>
             </select>
         </div>
     </div>
@@ -244,9 +244,13 @@
         tbody.innerHTML = emails.map(e => {
             // Status icon
             const status = e.breach_status || 'unknown';
+            const bSources = (e.breach_sources || []).map(
+                s => `<span class="badge bg-info text-dark ms-1" style="font-size: 0.6rem;">${s}</span>`
+            ).join('');
+
             const statusIcon = {
-                'breached': '<span class="badge bg-danger"> Breached</span>',
-                'clean': '<span class="badge bg-success"> Clean</span>',
+                'breached': `<span class="badge bg-danger"> Breached</span><br>${bSources}`,
+                'clean': `<span class="badge bg-success"> Clean</span><br>${bSources}`,
                 'unknown': '<span class="badge bg-warning text-dark"> Unchecked</span>'
             }[status] || '<span class="badge bg-secondary">Unknown</span>';
 
@@ -289,7 +293,7 @@
                 <td>${statusIcon}</td>
                 <td><strong>${e.email || '-'}</strong>
                     ${e.password_leaked
-                    ? '<br><small class="text-danger">⚠️ Password exposed</small>'
+                    ? '<br><small class="text-danger"> Password exposed</small>'
                     : ''}
                 </td>
                 <td>${nameHtml}</td>

@@ -197,3 +197,157 @@ def delete_scans_by_target(target_id):
         return result.deleted_count
     except Exception:
         return 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RESUMABILITY FUNCTIONS — Support for scan checkpoints and resumption
+# ═══════════════════════════════════════════════════════════════════════════
+
+def mark_phase_completed(scan_id, phase_name):
+    """
+    Mark a phase as successfully completed.
+    Allows scan to resume from this point if interrupted.
+    
+    Args:
+        scan_id: Scan ID (string)
+        phase_name: Phase name (e.g., "passive_recon", "port_scanning")
+    """
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        collection.update_one(
+            {"_id": ObjectId(scan_id)},
+            {
+                "$addToSet": {"phases_completed": phase_name},
+                "$set": {"last_checkpoint": datetime.utcnow()}
+            }
+        )
+        return True
+    except Exception as e:
+        print(f"[SCANS_DB] Error marking phase {phase_name} complete: {e}")
+        return False
+
+
+def get_completed_phases(scan_id):
+    """
+    Get list of already-completed phases for a scan.
+    Used during resume to skip completed work.
+    
+    Returns:
+        List of phase names (e.g., ["passive_recon", "subdomain_discovery"])
+    """
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        scan = collection.find_one(
+            {"_id": ObjectId(scan_id)},
+            {"phases_completed": 1}
+        )
+        if scan:
+            return scan.get("phases_completed", [])
+        return []
+    except Exception:
+        return []
+
+
+def can_resume_scan(scan_id):
+    """
+    Check if a scan can be resumed from a previous failure.
+    
+    Returns:
+        Dict with {resumes: bool, completed_phases: list, error: str}
+    """
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        scan = collection.find_one({"_id": ObjectId(scan_id)})
+        
+        if not scan:
+            return {"can_resume": False, "error": "Scan not found"}
+        
+        # Can resume if: status is failed/interrupted AND has completed phases
+        completed = scan.get("phases_completed", [])
+        status = scan.get("status", "")
+        
+        if status not in ["failed", "interrupted"]:
+            return {
+                "can_resume": False,
+                "error": f"Scan status is '{status}', not resumable"
+            }
+        
+        if not completed:
+            return {
+                "can_resume": False,
+                "error": "No completed phases to resume from"
+            }
+        
+        return {
+            "can_resume": True,
+            "completed_phases": completed,
+            "interrupted_at": scan.get("completed_at"),
+            "last_checkpoint": scan.get("last_checkpoint")
+        }
+    
+    except Exception as e:
+        return {"can_resume": False, "error": str(e)}
+
+
+def reset_scan_for_resume(scan_id):
+    """
+    Reset a scan record to resume from its last checkpoint.
+    Clears end time, error message, re-marks as running.
+    
+    Returns:
+        bool - success
+    """
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        collection.update_one(
+            {"_id": ObjectId(scan_id)},
+            {
+                "$set": {
+                    "status": "running",
+                    "completed_at": None,
+                    "error_message": "",
+                    "phase_detail": "Resuming scan from last checkpoint..."
+                }
+            }
+        )
+        return True
+    except Exception as e:
+        print(f"[SCANS_DB] Error resetting scan for resume: {e}")
+        return False
+
+
+def get_failed_scan_with_completed_phases(target_domain):
+    """
+    Find the most recent failed scan for a domain that has completed phases.
+    Used for auto-resume when user initiates a new scan.
+    
+    Args:
+        target_domain: Domain string (e.g., "example.com")
+    
+    Returns:
+        Dict with scan_id, completed_phases, or None if no resumable scan found
+    """
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        
+        # Find most recent failed scan with completed phases
+        scan = collection.find_one(
+            {
+                "target_domain": target_domain,
+                "status": "failed",
+                "phases_completed": {"$exists": True, "$ne": []}
+            },
+            sort=[("completed_at", -1)]
+        )
+        
+        if scan:
+            return {
+                "scan_id": str(scan["_id"]),
+                "completed_phases": scan.get("phases_completed", []),
+                "last_checkpoint": scan.get("last_checkpoint"),
+                "error_message": scan.get("error_message", "")
+            }
+        return None
+    except Exception as e:
+        print(f"[SCANS_DB] Error finding failed scan: {e}")
+        return None

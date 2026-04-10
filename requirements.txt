@@ -1,20 +1,41 @@
-# Core web & configuration
+# ============================================================================
+# EASM AEGIS - Requirements
+# ============================================================================
+
+# ── Core Web Framework & Configuration ────────────────────────────────────
 Flask==3.0.0
 python-dotenv==1.0.0
+Werkzeug==3.0.1
 
-# Database
+# ── Database ──────────────────────────────────────────────────────────────
 pymongo==4.6.1
 
-# Network & External APIs
+# ── Network & External APIs ───────────────────────────────────────────────
 requests==2.31.0
-shodan==1.31.0
-censys==2.2.19
+shodan==1.31.0          # Shodan passive recon (used via shodan Python API)
+dnspython==2.8.0        # DNS resolution & queries
 
-# Document Generation & Utilities
-PyYAML==6.0.2
-fpdf2==2.8.7
+# ── Document Generation & Report Output ───────────────────────────────────
+PyYAML==6.0.2           # Nuclei template parsing
+fpdf2==2.8.7            # PDF report generation
 
-# Specific scanning logic extras
-tldextract==5.3.1
-dnspython==2.8.0
-theHarvester==0.0.1
+# ── Data Parsing & Extraction ─────────────────────────────────────────────
+tldextract==5.3.1       # TLD extraction from domains
+
+# ── Reconnaissance ────────────────────────────────────────────────────────
+python-whois==0.8.0     # WHOIS passive recon (Phase 0c in pipeline)
+
+# ── Security & Encryption ─────────────────────────────────────────────────
+cryptography>=41.0.0    # API key encryption in api_key_manager.py
+
+# ── Logging & Utilities ───────────────────────────────────────────────────
+colorama==0.4.6         # Colored terminal output (Windows-safe logging)
+
+# ============================================================================
+# Notes:
+# - External tools (nuclei, naabu, subfinder, httpx) must be installed
+#   separately via Go package manager or pre-built binaries.
+# - The Censys API is called directly via 'requests' (no censys Python lib).
+# - The httpx/nuclei/naabu/subfinder binaries are invoked via subprocess.
+# - Requires Python 3.9+
+# ============================================================================

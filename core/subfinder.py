@@ -1,357 +1,361 @@
-# scanners/subdomain_scanner.py
+"""
+Subdomain discovery helpers.
 
-import subprocess
+This module intentionally stays lightweight and self-contained so the
+pipeline orchestrator can import it without creating circular imports.
+"""
+
 import json
-import requests
+import os
+import subprocess
 from datetime import datetime
+from typing import Any
+
+import requests
+
 from config import Config
 from database.connection import get_db
+from utils.logger import logger
 
 
-# ─── Subfinder ───────────────────────────────────────────────────────────
+def _project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-def parse_subfinder_output(raw_output):
-    """Parse JSONL output from Subfinder."""
-    if not raw_output:
-        return []
 
-    subdomains = []
-    for line in raw_output.strip().split("\n"):
-        line = line.strip()
+def _resolve_tool_path(tool_path: str) -> str:
+    if os.path.isabs(tool_path):
+        return tool_path
+    return os.path.abspath(os.path.join(_project_root(), tool_path))
+
+
+def _normalize_subdomain(value: str, domain: str) -> str:
+    subdomain = (value or "").strip().lower().rstrip(".")
+    root = domain.strip().lower().rstrip(".")
+
+    if not subdomain:
+        return ""
+
+    wildcard_prefixes = ("*.", ".")
+    for prefix in wildcard_prefixes:
+        if subdomain.startswith(prefix):
+            subdomain = subdomain[len(prefix):]
+
+    if subdomain == root or subdomain.endswith(f".{root}"):
+        return subdomain
+
+    return ""
+
+
+def _parse_subfinder_output(stdout: str, domain: str) -> tuple[list[str], list[dict[str, Any]]]:
+    subdomains = set()
+    certificates: list[dict[str, Any]] = []
+
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
         if not line:
             continue
-        try:
-            data = json.loads(line)
-            if "host" in data:
-                subdomains.append(data["host"].lower())
-        except json.JSONDecodeError:
-            if line and not line.startswith("{"):
-                subdomains.append(line.lower())
 
-    return subdomains
+        if line.startswith("{"):
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                item = None
 
+            if isinstance(item, dict):
+                host = (
+                    item.get("host")
+                    or item.get("input")
+                    or item.get("domain")
+                    or item.get("name")
+                    or ""
+                )
+                normalized = _normalize_subdomain(host, domain)
+                if normalized:
+                    subdomains.add(normalized)
+                continue
 
-def run_subfinder(domain):
-    """Run Subfinder to enumerate subdomains for a given domain."""
-    print(f"  [subfinder] Scanning {domain}...")
+        normalized = _normalize_subdomain(line, domain)
+        if normalized:
+            subdomains.add(normalized)
 
-    try:
-        result = subprocess.run(
-            [Config.SUBFINDER_PATH, "-d", domain, "-silent", "-oJ"],
-            capture_output=True,
-            text=True,
-            timeout=Config.SCAN_TIMEOUT
-        )
-
-        subdomains = parse_subfinder_output(result.stdout)
-        subdomains = list(set(subdomains))
-        subdomains.sort()
-
-        print(f"  [subfinder] Found {len(subdomains)} subdomains")
-        return subdomains
-
-    except subprocess.TimeoutExpired:
-        print(f"  [subfinder] Timeout after {Config.SCAN_TIMEOUT}s")
-        return []
-    except FileNotFoundError:
-        print(f"  [subfinder] Not found at {Config.SUBFINDER_PATH}")
-        return []
-    except Exception as e:
-        print(f"  [subfinder] Error: {e}")
-        return []
+    return sorted(subdomains), certificates
 
 
-# ─── crt.sh (Certificate Transparency) ───────────────────────────────────
-
-def _extract_issuer_org(issuer_name):
-    """
-    Extract organization from issuer DN string.
-    e.g. "C=US, O=Let's Encrypt, CN=R3" → "Let's Encrypt"
-    """
+def _extract_issuer_org(issuer_name: str) -> str:
     if not issuer_name:
         return "Unknown"
+
     try:
         if "O=" in issuer_name:
-            org = issuer_name.split("O=")[1].split(",")[0].strip()
-            return org if org else "Unknown"
-    except (IndexError, AttributeError):
+            organization = issuer_name.split("O=", 1)[1].split(",", 1)[0].strip()
+            if organization:
+                return organization
+    except (AttributeError, IndexError):
         pass
+
     return "Unknown"
 
 
-def run_crtsh(domain):
-    """
-    Query crt.sh certificate transparency logs.
+def _parse_crtsh_entry(entry: dict[str, Any], domain: str) -> tuple[set[str], dict[str, Any] | None]:
+    subdomains = set()
+    name_value = entry.get("name_value", "") or ""
+    raw_names = []
 
-    Returns:
-        tuple: (subdomains_list, certificates_list)
+    for line in name_value.splitlines():
+        candidate = (line or "").strip().lower().rstrip(".")
+        if not candidate:
+            continue
+        raw_names.append(candidate)
+        normalized = _normalize_subdomain(candidate, domain)
+        if normalized:
+            subdomains.add(normalized)
 
-    Captures full certificate metadata for intelligence:
-    - Issuer organization (CA mapping)
-    - Validity dates (expiration monitoring)
-    - Common name + SANs (attack surface mapping)
-    - Wildcard detection
-    """
-    print(f"  [crt.sh] Querying {domain}...")
+    common_name_raw = (entry.get("common_name", "") or "").strip().lower().rstrip(".")
+    common_name = _normalize_subdomain(common_name_raw, domain)
+    serial_number = entry.get("serial_number", "") or ""
+
+    if not serial_number:
+        return subdomains, None
+
+    certificate = {
+        "serial_number": serial_number,
+        "common_name": common_name,
+        "san_domains": sorted(subdomains),
+        "issuer_name": entry.get("issuer_name", "") or "",
+        "issuer_org": _extract_issuer_org(entry.get("issuer_name", "") or ""),
+        "not_before": entry.get("not_before"),
+        "not_after": entry.get("not_after"),
+        "crtsh_id": entry.get("id"),
+        "issuer_ca_id": entry.get("issuer_ca_id"),
+        "target_domain": domain,
+        "is_wildcard": common_name_raw.startswith("*.") or any(name.startswith("*.") for name in raw_names),
+    }
+    return subdomains, certificate
+
+
+def _run_crtsh(domain: str) -> tuple[list[str], list[dict[str, Any]]]:
+    logger.info("[CRT.SH] Querying certificate transparency logs for %s", domain)
 
     try:
-        url = f"https://crt.sh/?q=%.{domain}&output=json"
-        response = requests.get(url, timeout=30)
-
-        if response.status_code != 200:
-            print(f"  [crt.sh] HTTP {response.status_code}")
-            return [], []
-
-        data = response.json()
-        subdomains = set()
-        certificates = []
-        seen_serials = set()
-
-        for entry in data:
-            name = entry.get("name_value", "")
-
-            # ── Extract subdomains (existing logic) ──
-            for line in name.splitlines():
-                line = line.strip().lower()
-                if line.startswith("*"):
-                    continue
-                if line.endswith(domain.lower()):
-                    subdomains.add(line)
-
-            # ── Extract certificate data (NEW) ──
-            serial = entry.get("serial_number", "")
-            if not serial or serial in seen_serials:
-                continue
-            seen_serials.add(serial)
-
-            common_name = (entry.get("common_name", "") or "").lower()
-
-            # Parse SAN domains from name_value
-            san_list = []
-            for line in name.splitlines():
-                line = line.strip().lower()
-                if line and line.endswith(domain.lower()):
-                    san_list.append(line)
-            san_list = sorted(set(san_list))
-
-            # Extract issuer organization
-            issuer_name = entry.get("issuer_name", "")
-            issuer_org = _extract_issuer_org(issuer_name)
-
-            certificates.append({
-                "serial_number": serial,
-                "common_name": common_name,
-                "san_domains": san_list,
-                "issuer_name": issuer_name,
-                "issuer_org": issuer_org,
-                "not_before": entry.get("not_before"),
-                "not_after": entry.get("not_after"),
-                "crtsh_id": entry.get("id"),
-                "issuer_ca_id": entry.get("issuer_ca_id"),
-                "target_domain": domain,
-                "is_wildcard": common_name.startswith("*."),
-            })
-
-        # Sort by issued date descending, keep most recent 500
-        certificates.sort(
-            key=lambda c: c.get("not_before") or "",
-            reverse=True
+        response = requests.get(
+            f"https://crt.sh/?q=%.{domain}&output=json",
+            timeout=30,
         )
-        certificates = certificates[:500]
-
-        print(
-            f"  [crt.sh] Found {len(subdomains)} subdomains, "
-            f"{len(certificates)} unique certificates"
-        )
-        return list(subdomains), certificates
-
+        response.raise_for_status()
+        payload = response.json()
     except requests.Timeout:
-        print("  [crt.sh] Timeout")
+        logger.warning("[CRT.SH] Request timed out for %s", domain)
         return [], []
-    except requests.RequestException as e:
-        print(f"  [crt.sh] Request error: {e}")
+    except requests.RequestException as exc:
+        logger.warning("[CRT.SH] Request failed for %s: %s", domain, exc)
         return [], []
     except json.JSONDecodeError:
-        print("  [crt.sh] Invalid JSON response")
-        return [], []
-    except Exception as e:
-        print(f"  [crt.sh] Error: {e}")
+        logger.warning("[CRT.SH] Invalid JSON response for %s", domain)
         return [], []
 
+    subdomains = set()
+    certificates = []
+    seen_serials = set()
 
-# ─── Main Scanner Function ───────────────────────────────────────────────
+    for entry in payload if isinstance(payload, list) else []:
+        if not isinstance(entry, dict):
+            continue
 
-def scan_subdomains(domain):
+        entry_subdomains, certificate = _parse_crtsh_entry(entry, domain)
+        subdomains.update(entry_subdomains)
+
+        if not certificate:
+            continue
+
+        serial_number = certificate["serial_number"]
+        if serial_number in seen_serials:
+            continue
+
+        seen_serials.add(serial_number)
+        certificates.append(certificate)
+
+    certificates.sort(
+        key=lambda item: item.get("not_before") or "",
+        reverse=True,
+    )
+    certificates = certificates[:500]
+
+    logger.info(
+        "[CRT.SH] Found %d subdomains and %d unique certificates for %s",
+        len(subdomains),
+        len(certificates),
+        domain,
+    )
+    return sorted(subdomains), certificates
+
+
+def scan_subdomains(domain: str) -> dict[str, Any]:
     """
-    Run all subdomain enumeration sources and return merged results.
-
-    Sources:
-    - Subfinder (local tool)
-    - crt.sh (certificate transparency)
+    Run subfinder and return discovered subdomains.
 
     Returns:
-    {
-        "success": True/False,
-        "domain": "example.com",
-        "subdomains": ["sub1.example.com", ...],
-        "count": 45,
-        "certificates": [...],
-        "sources": {"subfinder": 30, "crtsh": 20}
-    }
+        {
+            "success": bool,
+            "subdomains": [...],
+            "count": int,
+            "certificates": [...],
+            "error": "...",  # optional
+        }
     """
-    print(f"\n[*] Starting subdomain enumeration for: {domain}")
-    domain = domain.lower().strip()
+    normalized_domain = domain.strip().lower().rstrip(".")
+    subfinder_path = _resolve_tool_path(Config.SUBFINDER_PATH)
 
-    # Run all sources
-    subfinder_results = run_subfinder(domain)
-    crtsh_results, certificates = run_crtsh(domain)
+    if not os.path.exists(subfinder_path):
+        message = f"Subfinder binary not found at {subfinder_path}"
+        logger.error(message)
+        return {
+            "success": False,
+            "subdomains": [],
+            "count": 0,
+            "certificates": [],
+            "error": message,
+        }
 
-    # Merge and deduplicate
-    all_subdomains = set()
-    all_subdomains.update(subfinder_results)
-    all_subdomains.update(crtsh_results)
+    cmd = [subfinder_path, "-d", normalized_domain, "-silent", "-oJ"]
+    logger.info("[SUBFINDER] Running: %s", " ".join(cmd))
 
-    # Filter: must end with domain, no wildcards
-    filtered = []
-    for sub in all_subdomains:
-        sub = sub.strip().lower()
-        if not sub:
-            continue
-        if sub.startswith("*"):
-            continue
-        if not sub.endswith(domain):
-            continue
-        filtered.append(sub)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=Config.SCAN_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        message = f"Subfinder timed out after {Config.SCAN_TIMEOUT}s"
+        logger.error("[SUBFINDER] %s", message)
+        return {
+            "success": False,
+            "subdomains": [],
+            "count": 0,
+            "certificates": [],
+            "error": message,
+        }
+    except Exception as exc:
+        logger.error("[SUBFINDER] Execution failed: %s", exc, exc_info=True)
+        return {
+            "success": False,
+            "subdomains": [],
+            "count": 0,
+            "certificates": [],
+            "error": str(exc),
+        }
 
-    filtered = sorted(set(filtered))
+    stderr = (result.stderr or "").strip()
+    if result.returncode != 0:
+        message = stderr or f"Subfinder exited with code {result.returncode}"
+        logger.error("[SUBFINDER] %s", message)
+        return {
+            "success": False,
+            "subdomains": [],
+            "count": 0,
+            "certificates": [],
+            "error": message,
+        }
 
-    print(f"[*] Total unique subdomains: {len(filtered)}")
-    print(f"[*] Total unique certificates: {len(certificates)}")
+    subfinder_subdomains, subfinder_certificates = _parse_subfinder_output(
+        result.stdout or "",
+        normalized_domain,
+    )
+    crtsh_subdomains, crtsh_certificates = _run_crtsh(normalized_domain)
+    merged_subdomains = sorted(
+        set(subfinder_subdomains) | set(crtsh_subdomains)
+    )
+    certificates = crtsh_certificates or subfinder_certificates
+    logger.info(
+        "[SUBFINDER] Found %d subdomains for %s",
+        len(merged_subdomains),
+        normalized_domain,
+    )
 
     return {
         "success": True,
-        "domain": domain,
-        "subdomains": filtered,
-        "count": len(filtered),
+        "domain": normalized_domain,
+        "subdomains": merged_subdomains,
+        "count": len(merged_subdomains),
         "certificates": certificates,
+        "stderr": stderr,
         "sources": {
-            "subfinder": len(subfinder_results),
-            "crtsh": len(crtsh_results)
-        }
+            "subfinder": len(subfinder_subdomains),
+            "crtsh": len(crtsh_subdomains),
+        },
     }
 
 
-# ─── Save Subdomains to Database ─────────────────────────────────────────
-
-def save_subdomains(domain, subdomains):
-    """Upsert subdomains into MongoDB."""
-    if not subdomains:
-        print("[*] No subdomains to save")
-        return 0
-
-    db = get_db()
-    saved = 0
-    new_count = 0
-
-    for sub in subdomains:
-        try:
-            result = db[Config.SUBDOMAINS_COLLECTION].update_one(
-                {"subdomain": sub},
-                {
-                    "$set": {
-                        "subdomain": sub,
-                        "target_domain": domain,
-                        "status": "active",
-                        "last_seen": datetime.utcnow()
-                    },
-                    "$setOnInsert": {
-                        "first_seen": datetime.utcnow()
-                    }
-                },
-                upsert=True
-            )
-            saved += 1
-            if result.upserted_id:
-                new_count += 1
-        except Exception as e:
-            print(f"  [save] Error saving {sub}: {e}")
-
-    print(f"[*] Saved {saved} subdomains ({new_count} new)")
-    return saved
-
-
-# ─── Save Certificates to Database ───────────────────────────────────────
-
-def save_certificates(domain, certificates):
+def save_certificates(domain: str, certificates: list[dict[str, Any]]) -> dict[str, int]:
     """
-    Upsert certificate transparency data into MongoDB.
+    Persist certificate transparency records if any are provided.
 
-    Deduplicates by serial_number + target_domain.
-    Stores full cert metadata for intelligence display.
+    The current subfinder integration does not extract certificate details,
+    but the scanner calls this helper defensively, so we keep it available
+    and schema-compatible for future enrichment.
     """
     if not certificates:
-        print("[*] No certificates to save")
-        return 0
+        return {"saved": 0, "updated": 0}
 
     db = get_db()
+    collection = db["certificates"]
+    target_domain = domain.strip().lower().rstrip(".")
     saved = 0
-    new_count = 0
+    updated = 0
 
     for cert in certificates:
-        try:
-            result = db["certificates"].update_one(
-                {
-                    "serial_number": cert["serial_number"],
-                    "target_domain": domain
-                },
-                {
-                    "$set": {
-                        **cert,
-                        "last_seen": datetime.utcnow()
-                    },
-                    "$setOnInsert": {
-                        "first_seen": datetime.utcnow()
-                    }
-                },
-                upsert=True
-            )
+        if not isinstance(cert, dict):
+            continue
+
+        san_domains = []
+        for san in cert.get("san_domains", []) or []:
+            normalized = _normalize_subdomain(str(san), target_domain)
+            if normalized:
+                san_domains.append(normalized)
+
+        san_domains = sorted(set(san_domains))
+        common_name = _normalize_subdomain(
+            str(cert.get("common_name", "")),
+            target_domain,
+        )
+
+        doc = {
+            "target_domain": target_domain,
+            "common_name": common_name,
+            "san_domains": san_domains,
+            "issuer_org": cert.get("issuer_org", ""),
+            "issuer_name": cert.get("issuer_name", ""),
+            "not_before": cert.get("not_before"),
+            "not_after": cert.get("not_after"),
+            "serial_number": cert.get("serial_number", ""),
+            "is_wildcard": bool(
+                cert.get("is_wildcard")
+                or common_name.startswith("*.")
+                or any(s.startswith("*.") for s in cert.get("san_domains", []) or [])
+            ),
+            "crtsh_id": cert.get("crtsh_id"),
+            "collected_at": cert.get("collected_at") or datetime.utcnow(),
+        }
+
+        identity = {
+            "target_domain": target_domain,
+            "common_name": doc["common_name"],
+            "serial_number": doc["serial_number"],
+        }
+
+        existing = collection.find_one(identity, {"_id": 1})
+        collection.update_one(identity, {"$set": doc}, upsert=True)
+        if existing:
+            updated += 1
+        else:
             saved += 1
-            if result.upserted_id:
-                new_count += 1
-        except Exception as e:
-            print(f"  [save] Error saving cert {cert.get('serial_number', '?')}: {e}")
 
-    print(f"[*] Saved {saved} certificates ({new_count} new)")
-    return saved
-
-
-# ─── Full Scan + Save ────────────────────────────────────────────────────
-
-def run_subdomain_scan(domain, save=True):
-    """
-    Complete subdomain scan workflow:
-    1. Run all enumeration sources
-    2. Merge and deduplicate
-    3. Save subdomains to database
-    4. Save certificates to database
-
-    Returns scan result dict.
-    """
-    result = scan_subdomains(domain)
-
-    if save and result["success"]:
-        # Save subdomains
-        if result["subdomains"]:
-            saved_count = save_subdomains(domain, result["subdomains"])
-            result["saved"] = saved_count
-
-        # Save certificates
-        if result.get("certificates"):
-            cert_count = save_certificates(domain, result["certificates"])
-            result["certificates_saved"] = cert_count
-            print(
-                f"[*] Certificate summary: {cert_count} saved, "
-                f"{sum(1 for c in result['certificates'] if c.get('is_wildcard'))} wildcard"
-            )
-
-    return result
+    logger.info(
+        "[SUBFINDER] Saved %d new and %d updated certificates for %s",
+        saved,
+        updated,
+        target_domain,
+    )
+    return {"saved": saved, "updated": updated}

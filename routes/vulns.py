@@ -1,15 +1,23 @@
 # routes/vulns.py
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, render_template
 from bson import ObjectId
 from database.connection import get_db
 from config import Config
+from core.cve_enricher import enrich_vulnerability, initialize as init_enricher
+from utils.logger import logger
 from utils.sanitize import (                              # ◄ NEW
     sanitize_domain, sanitize_object_id,                  # ◄ NEW
     sanitize_status, sanitize_severity                    # ◄ NEW
 )                                                         # ◄ NEW
 
 vulns_bp = Blueprint("vulns", __name__, url_prefix="/api/vulns")
+
+# Initialize enricher on blueprint load
+try:
+    init_enricher()
+except Exception as e:
+    logger.warning(f"Enricher initialization skipped: {e}")
 
 
 def _serialize(doc):
@@ -289,6 +297,61 @@ def get_vuln_detail(vuln_id):
             return jsonify({"success": False, "error": "Not found"}), 404
 
         return jsonify({"success": True, "vulnerability": _serialize(vuln)})
+    
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# HTML ROUTES (for rendering templates)
+# =============================================================================
+
+@vulns_bp.route("/<vuln_id>/show", methods=["GET"])
+def show_vuln_detail(vuln_id):
+    """
+    Show detailed view of a single vulnerability with enrichment.
+    
+    ✅ Enrichment happens HERE, on-demand, not during storage
+    
+    GET /vulns/<vuln_id>/show
+    """
+    try:
+        try:
+            vuln_id = sanitize_object_id(vuln_id, "vuln_id")
+        except ValueError as e:
+            return f"Invalid vuln_id: {e}", 400
+
+        db = get_db()
+        vuln = db[Config.VULNS_COLLECTION].find_one({"_id": ObjectId(vuln_id)})
+        
+        if not vuln:
+            return "Vulnerability not found", 404
+        
+        # ── ENRICHMENT: Compute on retrieval ────────────────
+        logger.info(f"[VULN] Enriching {vuln.get('template_id')} for display...")
+        
+        try:
+            enrichment = enrich_vulnerability(vuln)
+            vuln['enrichment'] = enrichment
+            logger.info(f"[VULN] Enrichment complete: Priority={enrichment.get('priority_label')}")
+        except Exception as e:
+            logger.error(f"[VULN] Enrichment failed: {e}", exc_info=True)
+            # Continue without enrichment - don't break the page
+            vuln['enrichment'] = None
+        
+        # Get target info
+        if vuln.get('target_id'):
+            try:
+                target = db[Config.TARGETS_COLLECTION].find_one({'_id': ObjectId(vuln['target_id'])})
+                vuln['target'] = target
+            except Exception:
+                vuln['target'] = None
+        
+        return render_template('vulnerability_detail.html', vuln=vuln)
+    
+    except Exception as e:
+        logger.error(f"[VULN] Error loading vulnerability {vuln_id}: {e}", exc_info=True)
+        return f"Error loading vulnerability: {e}", 500
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

@@ -134,37 +134,4 @@ def get_multiplier(hostname):
     """
     tier = classify_host(hostname)
     return TIER_MULTIPLIERS.get(tier, 1.0)
-
-
-def classify_bulk(hostnames):
-    """
-    Classify a list of hostnames and return a summary.
-
-    Useful for dashboard display and reporting.
-
-    Args:
-        hostnames: List of hostname strings
-
-    Returns:
-        Dict with tier counts and classified hosts
-    """
-    result = {
-        "critical": [],
-        "high": [],
-        "standard": [],
-        "low": [],
-        "summary": {
-            "critical": 0,
-            "high": 0,
-            "standard": 0,
-            "low": 0,
-            "total": len(hostnames)
-        }
-    }
-
-    for host in hostnames:
-        tier = classify_host(host)
-        result[tier].append(host)
-        result["summary"][tier] += 1
-
-    return result
+

@@ -139,7 +139,8 @@ def deduplicate_emails():
 
 def add_email(target_id, target_domain, email, sources=None,
               first_name="", last_name="", position="",
-              linkedin="", confidence=0, breach_data=None):
+              linkedin="", confidence=0, breach_data=None,
+              breach_sources=None):
     """
     Add or update an email exposure record.
     Deduplicates by target_domain + email  (NOT target_id).
@@ -154,6 +155,7 @@ def add_email(target_id, target_domain, email, sources=None,
         email = email.lower().strip()
         target_domain = target_domain.lower().strip()
         sources = sources or []
+        breach_sources = breach_sources or []
         breach_data = breach_data or {}
 
         # ── Filter: domain + email (matches the unique index) ──
@@ -212,7 +214,8 @@ def add_email(target_id, target_domain, email, sources=None,
                 "$setOnInsert": set_on_insert,
                 "$set": update_set,
                 "$addToSet": {
-                    "sources": {"$each": sources}
+                    "sources": {"$each": sources},
+                    "breach_sources": {"$each": breach_sources}
                 }
             },
             upsert=True
@@ -271,7 +274,8 @@ def add_emails_bulk(target_id, target_domain, combined_emails):
             position=email_data.get("position", ""),
             linkedin=email_data.get("linkedin", ""),
             confidence=email_data.get("confidence", 0),
-            breach_data=breach_info
+            breach_data=breach_info,
+            breach_sources=email_data.get("breach_sources", [])
         )
 
         if result.get("success"):

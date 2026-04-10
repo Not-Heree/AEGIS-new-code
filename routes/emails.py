@@ -17,11 +17,6 @@ _harvest_locks = {}
 _locks_lock = threading.Lock()
 
 
-def _is_harvesting(domain):
-    """Check if a harvest is already running for this domain."""
-    with _locks_lock:
-        return domain in _harvest_locks
-
 
 def _start_harvest(domain):
     """Mark domain as being harvested. Returns False if already running."""

@@ -42,10 +42,14 @@ CWE_KB_PATH = os.path.join(
     "data", "cwe_remediation.json"
 )
 
+# NVD CWE API endpoint
+NVD_CWE_API_URL = "https://cwe.mitre.org/data/json/cweDetailedByID.json"
+
 # Cache settings
 NVD_RATE_LIMIT_DELAY = 0.7  # NVD allows ~10 requests/minute without API key
 CACHE_MAX_SIZE = 500
 KEV_REFRESH_HOURS = 24  # Re-download KEV catalog daily
+CWE_CACHE_HOURS = 24  # Cache NVD CWE lookups for 24 hours
 
 
 # =============================================================================
@@ -144,7 +148,9 @@ def get_kev_details(cve_id: str) -> Optional[Dict[str, Any]]:
 
 _cwe_cache = {
     "data": {},
-    "loaded": False
+    "loaded": False,
+    "nvd_fallback": {},  # Cached NVD results for unknown CWEs
+    "nvd_cache_time": {}  # Timestamp for each NVD entry
 }
 
 
@@ -167,16 +173,130 @@ def _load_cwe_kb() -> None:
         _cwe_cache["loaded"] = True
 
 
+@lru_cache(maxsize=CACHE_MAX_SIZE)
+def _fetch_cwe_from_nvd(cwe_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch CWE details from NVD/MITRE CWE JSON for unknown CWEs.
+    
+    Fallback for CWEs not in static database.
+    Returns generic remediation guidance structure.
+    
+    Args:
+        cwe_id: CWE ID (e.g., "CWE-1234")
+    
+    Returns:
+        Dict with name, category, impact, fix_steps (generic), references
+        or None on failure
+    """
+    global _cwe_cache
+    
+    # Check if already cached from previous NVD lookup
+    if cwe_id in _cwe_cache["nvd_fallback"]:
+        cached_time = _cwe_cache["nvd_cache_time"].get(cwe_id)
+        if cached_time:
+            age = datetime.utcnow() - cached_time
+            if age < timedelta(hours=CWE_CACHE_HOURS):
+                return _cwe_cache["nvd_fallback"][cwe_id]
+    
+    try:
+        import re
+        cwe_num = re.search(r'\d+', cwe_id)
+        if not cwe_num:
+            return None
+        
+        cwe_num = cwe_num.group()
+        
+        # Attempt CWE lookup via MITRE API (lightweight JSON)
+        # Note: MITRE CWE JSON is static/offline-first
+        try:
+            resp = requests.get(
+                f"https://cwe.mitre.org/data/json/cwe_by_id_cwe-{cwe_num}.json",
+                timeout=5
+            )
+            if resp.status_code == 200:
+                cwe_data = resp.json()
+                
+                # Extract and normalize response
+                name = cwe_data.get("Name", "Unknown CWE")
+                description = cwe_data.get("Description", "")
+                
+                # Generate generic remediation structure
+                remediation = {
+                    "name": name,
+                    "category": "generic",
+                    "impact": description[:200] if description else "Vulnerability of type " + cwe_id,
+                    "business_impact": "Potential security impact - refer to NVD for details",
+                    "fix_steps": [
+                        "Identify vulnerable code patterns related to " + cwe_id,
+                        "Review NVD documentation at nvd.nist.gov",
+                        "Implement recommended mitigations from security advisories",
+                        "Test fixes thoroughly in staging environment",
+                        "Deploy and monitor in production"
+                    ],
+                    "code_examples": {"reference": "See NVD and MITRE documentation"},
+                    "references": [f"https://cwe.mitre.org/data/definitions/{cwe_num}.html",
+                                  f"https://nvd.nist.gov/vuln/search/results?query={cwe_id}"],
+                    "timeline": "14 days",
+                    "source": "nvd_fallback"
+                }
+                
+                # Cache result
+                _cwe_cache["nvd_fallback"][cwe_id] = remediation
+                _cwe_cache["nvd_cache_time"][cwe_id] = datetime.utcnow()
+                
+                print(f"[CWE] Fetched {cwe_id} from NVD API fallback")
+                return remediation
+        except:
+            pass
+        
+        # If NVD API fails, return generic template
+        generic = {
+            "name": f"{cwe_id} - Unknown CWE",
+            "category": "generic",
+            "impact": "Security vulnerability",
+            "business_impact": "Potential security risk",
+            "fix_steps": [
+                "Review CVE details for specific vulnerability context",
+                "Check NVD database for remediation guidance",
+                "Consult security advisory from vendor",
+                "Implement vendor's recommended patches/mitigations",
+                "Validate fix and test thoroughly"
+            ],
+            "code_examples": {"reference": "Vendor advisory"},
+            "references": [f"https://nvd.nist.gov/vuln/search/results?query={cwe_id}"],
+            "timeline": "7-14 days",
+            "source": "generic_fallback"
+        }
+        
+        _cwe_cache["nvd_fallback"][cwe_id] = generic
+        _cwe_cache["nvd_cache_time"][cwe_id] = datetime.utcnow()
+        return generic
+        
+    except Exception as e:
+        print(f"[CWE] NVD fallback failed for {cwe_id}: {e}")
+        return None
+
+
 def get_cwe_remediation(cwe_id: str) -> Optional[Dict[str, Any]]:
     """
-    Look up CWE remediation details from local knowledge base.
+    Look up CWE remediation details using HYBRID approach.
+    
+    Strategy:
+    1. Check static database (110+ top CWEs - FAST)
+    2. If not found, fetch from NVD API as fallback (SLOWER, cached 24h)
+    3. If NVD fails, return generic remediation template
+    
+    This ensures:
+    - Fast response for common CWEs (static DB)
+    - Coverage for 1000+ CWE types (NVD fallback)
+    - Graceful degradation on API failure (generic template)
 
     Args:
         cwe_id: CWE identifier (e.g., "CWE-79" or "79" or ["CWE-79"])
 
     Returns:
         Dict with name, impact, fix_steps, code_examples, references
-        or None if not found
+        or None if all methods fail
     """
     if not _cwe_cache["loaded"]:
         _load_cwe_kb()
@@ -196,7 +316,23 @@ def get_cwe_remediation(cwe_id: str) -> Optional[Dict[str, Any]]:
     else:
         cwe_id = cwe_id.upper()
 
-    return _cwe_cache["data"].get(cwe_id)
+    # =========================================================================
+    # STEP 1: Try static database (110+ top CWEs)
+    # =========================================================================
+    static_result = _cwe_cache["data"].get(cwe_id)
+    if static_result:
+        # Mark as from static database for transparency
+        static_result_copy = dict(static_result)
+        static_result_copy["source"] = "static_database"
+        return static_result_copy
+    
+    # =========================================================================
+    # STEP 2: Try NVD API fallback (for unknown CWEs)
+    # =========================================================================
+    print(f"[CWE] {cwe_id} not in static DB, attempting NVD fallback...")
+    nvd_result = _fetch_cwe_from_nvd(cwe_id)
+    
+    return nvd_result
 
 
 # =============================================================================
@@ -510,6 +646,8 @@ def enrich_cve(cve_id: str) -> Dict[str, Any]:
 def enrich_vulnerability(vuln: Dict[str, Any]) -> Dict[str, Any]:
     """
     Enrich a vulnerability document with all available intelligence.
+    
+    ENHANCED: Now includes detailed remediation.
 
     Works with or without CVE ID — falls back to CWE knowledge base.
 
@@ -525,7 +663,8 @@ def enrich_vulnerability(vuln: Dict[str, Any]) -> Dict[str, Any]:
         "priority_score": 0,
         "priority_label": "informational",
         "recommended_timeline": "90 days",
-        "threat_indicators": []
+        "threat_indicators": [],
+        "detailed_remediation": None  # NEW
     }
 
     # ── CVE Enrichment ────────────────────────────────────────
@@ -559,6 +698,11 @@ def enrich_vulnerability(vuln: Dict[str, Any]) -> Dict[str, Any]:
     )
     enrichment["recommended_timeline"] = _score_to_timeline(
         enrichment["priority_score"]
+    )
+
+    # ── NEW: Detailed Remediation ─────────────────────────────
+    enrichment["detailed_remediation"] = generate_detailed_remediation(
+        vuln, enrichment
     )
 
     return enrichment
@@ -759,6 +903,368 @@ def initialize():
     _load_kev_catalog()
     _load_cwe_kb()
     print("[ENRICHER] Ready")
+
+
+# =============================================================================
+# DETAILED REMEDIATION GENERATION (NEW)
+# =============================================================================
+
+def _is_more_urgent(timeline1: str, timeline2: str) -> bool:
+    """Compare two timeline strings to determine which is more urgent."""
+    urgency_map = {
+        "24 hours": 1,
+        "48 hours": 2,
+        "7 days": 7,
+        "14 days": 14,
+        "30 days": 30,
+        "90 days": 90,
+        "As resources allow": 365
+    }
+    
+    days1 = urgency_map.get(timeline1, 30)
+    days2 = urgency_map.get(timeline2, 30)
+    
+    return days1 < days2
+
+
+def _get_template_specific_steps(template_id: str, vuln: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Generate specific remediation steps based on Nuclei template ID."""
+    steps = []
+    template_lower = template_id.lower()
+    
+    # SSL/TLS specific
+    if "ssl" in template_lower or "tls" in template_lower:
+        if "weak-cipher" in template_lower or "cipher" in template_lower:
+            steps.append({
+                "step": "Update SSL/TLS Configuration",
+                "description": "Disable weak cipher suites. Use only TLS 1.2+ with strong ciphers (ECDHE-RSA-AES256-GCM-SHA384, ECDHE-RSA-AES128-GCM-SHA256)",
+                "source": "template-analysis"
+            })
+            steps.append({
+                "step": "Test Configuration",
+                "description": "Use SSL Labs (ssllabs.com/ssltest) to verify cipher configuration",
+                "source": "template-analysis"
+            })
+        
+        if "certificate" in template_lower or "cert" in template_lower or "expired" in template_lower:
+            steps.append({
+                "step": "Renew SSL Certificate",
+                "description": "Obtain and install a valid SSL certificate from a trusted Certificate Authority",
+                "source": "template-analysis"
+            })
+    
+    # Exposed panels/consoles
+    if any(x in template_lower for x in ["exposed", "panel", "console", "admin", "dashboard"]):
+        steps.append({
+            "step": "Restrict Access",
+            "description": "Move admin panel to internal network or VPN. If internet-facing is required, implement IP allowlist.",
+            "source": "template-analysis"
+        })
+        steps.append({
+            "step": "Enable Authentication",
+            "description": "Ensure strong authentication is required. Implement multi-factor authentication (MFA).",
+            "source": "template-analysis"
+        })
+    
+    # Default credentials
+    if "default" in template_lower and ("login" in template_lower or "cred" in template_lower or "password" in template_lower):
+        steps.append({
+            "step": "Change Default Credentials",
+            "description": "Change all default usernames and passwords immediately. Use strong, unique passwords.",
+            "source": "template-analysis"
+        })
+        steps.append({
+            "step": "Audit All Accounts",
+            "description": "Review all user accounts and remove unnecessary default accounts.",
+            "source": "template-analysis"
+        })
+    
+    # Information disclosure
+    if "disclosure" in template_lower or "exposure" in template_lower or "leak" in template_lower:
+        matched_at = vuln.get("matched_at", "")
+        if matched_at:
+            steps.append({
+                "step": "Remove Exposed Endpoint",
+                "description": f"Remove or restrict access to: {matched_at}",
+                "source": "template-analysis"
+            })
+    
+    # Misconfigurations
+    if "misconfig" in template_lower:
+        steps.append({
+            "step": "Review Configuration",
+            "description": "Review and harden configuration according to vendor security best practices and CIS benchmarks.",
+            "source": "template-analysis"
+        })
+    
+    # CVE-specific
+    if "cve-" in template_lower:
+        steps.append({
+            "step": "Apply Security Patch",
+            "description": "Install the vendor security patch for this CVE. Check patch URLs in the References section below.",
+            "source": "template-analysis"
+        })
+        steps.append({
+            "step": "Verify Patch",
+            "description": "After patching, re-run the vulnerability scan to confirm remediation.",
+            "source": "template-analysis"
+        })
+    
+    # Directory listing
+    if "directory" in template_lower and "listing" in template_lower:
+        steps.append({
+            "step": "Disable Directory Listing",
+            "description": "Configure web server to disable directory indexes (Options -Indexes in Apache, autoindex off in Nginx).",
+            "source": "template-analysis"
+        })
+    
+    # Open redirect
+    if "redirect" in template_lower and "open" in template_lower:
+        steps.append({
+            "step": "Validate Redirect URLs",
+            "description": "Implement allowlist for permitted redirect destinations. Validate all URLs before redirecting.",
+            "source": "template-analysis"
+        })
+    
+    # CORS misconfiguration
+    if "cors" in template_lower:
+        steps.append({
+            "step": "Fix CORS Policy",
+            "description": "Set Access-Control-Allow-Origin to specific trusted domains. Never use '*' with credentials.",
+            "source": "template-analysis"
+        })
+    
+    return steps
+
+
+def _build_verification_steps(vuln: Dict[str, Any], remediation: Dict[str, Any]) -> List[str]:
+    """Build verification steps for the vulnerability."""
+    steps = [
+        "Re-run the Nuclei scan with the same template to verify the issue is resolved",
+        "Verify the fix doesn't break application functionality",
+        "Document the remediation in your change log"
+    ]
+    
+    # Add specific verification based on vulnerability type
+    template_id = vuln.get("template_id", "").lower()
+    
+    if "ssl" in template_id or "tls" in template_id:
+        steps.insert(1, "Test SSL configuration with SSL Labs (https://www.ssllabs.com/ssltest/)")
+    
+    if "exposed" in template_id or "panel" in template_id:
+        steps.insert(1, "Verify the endpoint is no longer accessible from unauthorized networks")
+    
+    if "default" in template_id and "cred" in template_id:
+        steps.insert(1, "Test that default credentials no longer work")
+    
+    if "cve-" in template_id and remediation.get("cve_patches"):
+        steps.insert(1, "Verify the software version number has been updated")
+    
+    if "directory" in template_id and "listing" in template_id:
+        steps.insert(1, "Attempt to access the directory URL - should return 403 Forbidden")
+    
+    return steps
+
+
+def _generate_remediation_summary(vuln: Dict[str, Any], remediation: Dict[str, Any]) -> str:
+    """Generate a concise remediation summary."""
+    severity = remediation["severity"].upper()
+    priority = remediation["priority"]
+    timeline = remediation["timeline"]
+    vuln_name = vuln.get("name", "Unknown Vulnerability")
+    
+    summary_parts = [
+        f"[{severity}] {vuln_name}"
+    ]
+    
+    # Add KEV warning
+    if remediation.get("kev_status", {}).get("actively_exploited"):
+        summary_parts.append("⚠️ ACTIVELY EXPLOITED IN THE WILD (CISA KEV)")
+    
+    # Add EPSS warning
+    epss = remediation.get("epss")
+    if epss and epss.get("score", 0) >= 0.5:
+        summary_parts.append(f"High exploitation probability ({epss['percentage']}%)")
+    
+    # Add CWE context
+    if remediation.get("cwe_guidance"):
+        cwe_name = remediation["cwe_guidance"]["name"]
+        summary_parts.append(f"Vulnerability Type: {cwe_name}")
+    
+    # Add priority and timeline
+    summary_parts.append(f"Priority: {priority} | Timeline: {timeline}")
+    
+    return " | ".join(summary_parts)
+
+
+def generate_detailed_remediation(vuln: Dict[str, Any], enrichment: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Generate detailed, actionable remediation guidance.
+    
+    Combines:
+      - CWE-specific remediation from knowledge base
+      - CVE-specific patches from NVD
+      - Template-based remediation from Nuclei
+      - Priority and timeline from enrichment
+    
+    Args:
+        vuln: Vulnerability dict from Nuclei scan
+        enrichment: CVE enrichment data (optional)
+    
+    Returns:
+        Detailed remediation dict with multiple sections
+    """
+    remediation = {
+        "summary": "",
+        "priority": "medium",
+        "timeline": "30 days",
+        "severity": vuln.get("severity", "info").lower(),
+        "steps": [],
+        "technical_details": {},
+        "verification": [],
+        "references": [],
+        "cwe_guidance": None,
+        "cve_patches": [],
+        "business_impact": ""
+    }
+    
+    # ── Extract base info ────────────────────────────────
+    template_id = vuln.get("template_id", "")
+    cve_id = vuln.get("cve_id")
+    cwe_ids = vuln.get("cwe_id", [])
+    
+    # ── Priority from enrichment ─────────────────────────
+    if enrichment:
+        remediation["priority"] = enrichment.get("priority_label", "medium")
+        remediation["timeline"] = enrichment.get("recommended_timeline", "30 days")
+        
+        # Threat indicators
+        if enrichment.get("threat_indicators"):
+            remediation["threat_indicators"] = enrichment["threat_indicators"]
+    
+    # ── CWE-Specific Guidance ────────────────────────────
+    if cwe_ids:
+        cwe_data = get_cwe_remediation(cwe_ids)
+        if cwe_data:
+            remediation["cwe_guidance"] = {
+                "name": cwe_data["name"],
+                "category": cwe_data["category"],
+                "impact": cwe_data["impact"],
+                "business_impact": cwe_data["business_impact"],
+                "fix_steps": cwe_data["fix_steps"],
+                "code_examples": cwe_data.get("code_examples", {}),
+                "timeline": cwe_data.get("timeline", "30 days")
+            }
+            
+            # Use CWE timeline if more urgent than enrichment timeline
+            cwe_timeline = cwe_data.get("timeline", "30 days")
+            if _is_more_urgent(cwe_timeline, remediation["timeline"]):
+                remediation["timeline"] = cwe_timeline
+            
+            # Use CWE impact as business impact
+            remediation["business_impact"] = cwe_data["business_impact"]
+            
+            # Add CWE references
+            remediation["references"].extend(cwe_data.get("references", []))
+    
+    # ── CVE-Specific Patches ─────────────────────────────
+    if enrichment and enrichment.get("cve_enrichment"):
+        cve_enrich = enrichment["cve_enrichment"]
+        
+        nvd_data = cve_enrich.get("nvd")
+        if nvd_data:
+            # Extract patch URLs
+            patch_urls = nvd_data.get("patch_urls", [])
+            remediation["cve_patches"] = patch_urls
+            
+            # Add NVD description
+            remediation["technical_details"]["nvd_description"] = nvd_data.get("description", "")
+            
+            # Add affected products
+            affected = nvd_data.get("affected_products", [])
+            if affected:
+                remediation["technical_details"]["affected_products"] = affected
+            
+            # Add CVSS details
+            cvss = nvd_data.get("cvss", {})
+            if cvss:
+                remediation["technical_details"]["cvss"] = {
+                    "score": cvss.get("score"),
+                    "severity": cvss.get("severity"),
+                    "vector": cvss.get("vector"),
+                    "attack_vector": cvss.get("attack_vector"),
+                    "attack_complexity": cvss.get("attack_complexity")
+                }
+            
+            # Add NVD references
+            for ref in nvd_data.get("references", []):
+                remediation["references"].append({
+                    "url": ref.get("url", ""),
+                    "source": ref.get("source", "NVD"),
+                    "tags": ref.get("tags", [])
+                })
+        
+        # KEV guidance
+        kev = cve_enrich.get("kev", {})
+        if kev.get("is_known_exploited"):
+            kev_details = kev.get("details", {})
+            remediation["kev_status"] = {
+                "actively_exploited": True,
+                "due_date": kev_details.get("due_date", ""),
+                "required_action": kev_details.get("required_action", ""),
+                "ransomware_use": kev_details.get("known_ransomware_use", "Unknown")
+            }
+            remediation["timeline"] = "48 hours"
+            remediation["priority"] = "FIX IMMEDIATELY"
+        
+        # EPSS guidance
+        epss = cve_enrich.get("epss")
+        if epss:
+            remediation["epss"] = {
+                "score": epss.get("score"),
+                "percentage": epss.get("percentage"),
+                "explanation": epss.get("explanation"),
+                "urgency": epss.get("urgency")
+            }
+    
+    # ── Nuclei Template Remediation ──────────────────────
+    nuclei_remediation = vuln.get("remediation", {})
+    if nuclei_remediation and isinstance(nuclei_remediation, dict):
+        template_remedy = nuclei_remediation.get("description", "")
+        if template_remedy and template_remedy not in ["", "Plan remediation within 90 days as part of regular maintenance."]:
+            remediation["steps"].insert(0, {
+                "step": "Template-Specific Action",
+                "description": template_remedy,
+                "source": "nuclei-template"
+            })
+    
+    # ── Build Fix Steps from CWE ─────────────────────────
+    if remediation["cwe_guidance"]:
+        for i, step in enumerate(remediation["cwe_guidance"]["fix_steps"], 1):
+            remediation["steps"].append({
+                "step": f"CWE Fix Step {i}",
+                "description": step,
+                "source": "cwe-knowledge-base"
+            })
+    
+    # ── Add Template-Based Steps ─────────────────────────
+    template_steps = _get_template_specific_steps(template_id, vuln)
+    remediation["steps"].extend(template_steps)
+    
+    # ── Build Verification Steps ─────────────────────────
+    remediation["verification"] = _build_verification_steps(vuln, remediation)
+    
+    # ── Generate Summary ─────────────────────────────────
+    remediation["summary"] = _generate_remediation_summary(vuln, remediation)
+    
+    # ── Add template references ──────────────────────────
+    template_refs = vuln.get("reference", [])
+    if template_refs:
+        for ref in template_refs:
+            if isinstance(ref, str):
+                remediation["references"].append({"url": ref, "source": "nuclei-template", "tags": []})
+    
+    return remediation
 
 
 # =============================================================================

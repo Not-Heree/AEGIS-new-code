@@ -11,6 +11,7 @@ Endpoints:
     DELETE /api/targets/<domain> Delete target + ALL related data
 """
 
+import os
 import threading
 from flask import Blueprint, jsonify, request
 from bson import ObjectId
@@ -46,6 +47,43 @@ def _find_target(domain):
             {"domain": domain}
         )
     return target
+
+
+def _delete_target_reports(domain):
+    """
+    Delete generated report files that belong to a single target.
+
+    Matches the same report output pattern used by reports/pdf_generator.py.
+    """
+    reports_dir = getattr(Config, "REPORTS_DIR", "generated_reports")
+    safe_domain = domain.replace(".", "_")
+    deleted_files = []
+
+    if not os.path.isdir(reports_dir):
+        return {
+            "count": 0,
+            "files": deleted_files
+        }
+
+    try:
+        for filename in os.listdir(reports_dir):
+            filepath = os.path.join(reports_dir, filename)
+            if not os.path.isfile(filepath):
+                continue
+
+            if filename.startswith(f"report_{safe_domain}") and filename.endswith(".pdf"):
+                os.remove(filepath)
+                deleted_files.append(filename)
+    except Exception as e:
+        logger.warning(
+            "Could not fully clean report files for %s: %s",
+            domain, e
+        )
+
+    return {
+        "count": len(deleted_files),
+        "files": deleted_files
+    }
 
 
 # =============================================================================
@@ -425,6 +463,9 @@ def delete_target(domain):
             ("passive_recon", [
                 {"target_domain": domain}, {"target_id": target_id}
             ]),
+            ("certificates", [
+                {"target_domain": domain}
+            ]),
         ]
 
         for coll_name, queries in collections_to_clean:
@@ -433,7 +474,11 @@ def delete_target(domain):
                 count += db[coll_name].delete_many(query).deleted_count
             deleted[coll_name] = count
 
-        db[Config.TARGETS_COLLECTION].delete_one({"_id": target_id})
+        deleted["reports"] = _delete_target_reports(domain)["count"]
+        deleted["targets"] = db[Config.TARGETS_COLLECTION].delete_one(
+            {"_id": target_id}
+        ).deleted_count
+        deleted["total_items"] = sum(deleted.values())
 
         logger.info("Deleted target: %s", domain)
         logger.debug("Cascade cleanup: %s", deleted)

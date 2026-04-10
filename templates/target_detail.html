@@ -719,34 +719,39 @@
     async function pollScanProgress(scanId) {
         try {
             var data = await api.get('/api/scans/status/' + scanId);
+            if (!data.success || !data.scan) return;
+            
+            var scan = data.scan;
             var bar = document.getElementById('scan-progress-bar');
             var detail = document.getElementById('scan-phase-detail');
             var progressCard = document.getElementById('scan-progress-card');
 
-            var pct = data.progress_percent || 0;
+            var pct = scan.progress_percent || 0;
             bar.style.width = pct + '%';
             bar.textContent = pct + '%';
-            detail.textContent = data.phase_detail || data.current_phase || 'Working...';
+            detail.textContent = (scan.phase_detail || scan.current_phase || 'Working...') + 
+                (pct > 0 ? ` (${pct}%)` : '');
 
-            if (data.status === 'completed' || data.status === 'partial' ||
-                data.status === 'failed' || pct >= 100) {
+            if (scan.status === 'completed' || scan.status === 'partial' ||
+                scan.status === 'failed' || pct >= 100) {
                 clearInterval(scanPollInterval);
                 scanPollInterval = null;
 
                 setTimeout(function () {
                     progressCard.classList.add('d-none');
                     var statusEl = document.getElementById('action-status');
-                    if (data.status === 'failed') {
+                    if (scan.status === 'failed') {
                         statusEl.innerHTML = '<div class="alert alert-danger">Scan failed: ' +
-                            escHtml(data.error || 'Unknown error') + '</div>';
+                            escHtml(scan.error_message || 'Unknown error') + '</div>';
                     } else {
-                        statusEl.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed!</div>';
+                        statusEl.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed! New data loaded below.</div>';
                     }
                     loadDetails();
                 }, 1000);
             }
         } catch (e) {
-            // Polling error — keep trying
+            console.error('Polling error:', e);
+            // Continue polling even if one request fails
         }
     }
 

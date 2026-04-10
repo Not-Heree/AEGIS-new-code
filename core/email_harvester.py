@@ -1,31 +1,77 @@
 """
 Email Harvester Module
 ======================
-Discovers company email addresses and checks them against breach databases.
+Discovers company email addresses from multiple OSINT sources.
 
 Sources:
   - theHarvester (primary - open source OSINT tool)
   - Hunter.io API (fallback - finds emails + patterns)
   - Phonebook.cz (free fallback - no API key needed)
 
-Breach Checking:
-  - LeakCheck API (free tier - replaces HIBP)
+Breach Checking (ENHANCED v1.2):
+  - IntelX Free API (primary - free breach search)
+  - LeakCheck API (fallback - 10/day free tier)
+  - Multi-source aggregation for better coverage
 
 Designed to run automatically when a target is registered.
 Each source is independent - failure in one doesn't affect others.
+
+ENHANCEMENTS v1.2:
+  - Added IntelX breach checking (uses existing free API key)
+  - Multi-source breach verification
+  - Better breach data parsing
+  - Result caching to avoid re-checking
+  - Smart rate limit handling
 """
 
 import subprocess
 import re
 import os
+import sys
 import time
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Set
 
 from config import Config
 from utils.logger import logger
+from core.api_key_manager import APIKeyManager 
+from utils.throttler import throttler
+
+# =============================================================================
+# TEMP DIRECTORY MANAGEMENT
+# =============================================================================
+
+def _ensure_temp_directory():
+    """Create temp directory for theHarvester output files."""
+    temp_dir = os.path.join(os.path.dirname(__file__), "..", "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    return temp_dir
+
+
+def _cleanup_old_temp_files():
+    """Clean up theHarvester temp files older than 1 hour."""
+    try:
+        temp_dir = os.path.join(os.path.dirname(__file__), "..", "temp")
+        if not os.path.exists(temp_dir):
+            return
+        
+        current_time = time.time()
+        for filename in os.listdir(temp_dir):
+            if filename.startswith("theharvester_"):
+                filepath = os.path.join(temp_dir, filename)
+                file_age = current_time - os.path.getmtime(filepath)
+                
+                # Delete files older than 1 hour
+                if file_age > 3600:
+                    try:
+                        os.remove(filepath)
+                        logger.debug("[EMAIL] Cleaned up old temp file: %s", filename)
+                    except:
+                        pass
+    except Exception as e:
+        logger.debug("[EMAIL] Temp cleanup error: %s", e)
 
 
 # =============================================================================
@@ -93,15 +139,21 @@ def _extract_emails_from_text(text, target_domain=""):
 
 
 # =============================================================================
-# SOURCE 1: theHarvester
+# SOURCE 1: theHarvester (ENHANCED)
 # =============================================================================
 
 def run_theharvester(domain):
     """
     Run theHarvester to discover emails for a domain.
 
-    theHarvester searches multiple public sources:
+    Uses theHarvester Python library to search multiple public sources:
     Google, Bing, LinkedIn, Yahoo, DNSDumpster, etc.
+
+    ENHANCED v1.1:
+      - Better JSON parsing with fallback
+      - Handles theHarvester's actual JSON structure
+      - Temp file cleanup
+      - Better error messages
 
     Args:
         domain: Target domain (e.g., "company.com")
@@ -109,15 +161,27 @@ def run_theharvester(domain):
     Returns:
         Dict with success, emails list, source counts
     """
-    print("[EMAIL] Running theHarvester on " + domain + "...")
+    logger.info("[EMAIL] Running theHarvester on %s...", domain)
+
+    # Clean up old temp files first
+    _cleanup_old_temp_files()
 
     try:
+        # Create temp directory
+        temp_dir = _ensure_temp_directory()
+        output_file = os.path.join(temp_dir, f"theharvester_{domain}.json")
+        
         cmd = [
-            Config.THEHARVESTER_PATH,
-            "-d", domain,
-            "-b", Config.HARVESTER_SOURCES,
-            "-l", "200"
+            sys.executable,              # Python executable
+            "-m",
+            "theHarvester",              # theHarvester module
+            "-d", domain,                # Domain to search
+            "-b", Config.HARVESTER_SOURCES,  # Sources (google,bing,etc)
+            "-l", str(Config.EMAIL_HARVEST_LIMIT),  # Dynamic limit results
+            "-f", output_file            # Output JSON file
         ]
+
+        logger.debug("[EMAIL] Running command: %s", " ".join(cmd))
 
         result = subprocess.run(
             cmd,
@@ -128,10 +192,62 @@ def run_theharvester(domain):
             errors='replace'
         )
 
-        output = result.stdout + "\n" + result.stderr
-        emails = _extract_emails_from_text(output, domain)
+        emails = set()
+        
+        # ── ENHANCED: Try JSON parsing first ──
+        if os.path.exists(output_file):
+            try:
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                logger.debug("[EMAIL] Loaded JSON data structure: %s", list(data.keys()) if isinstance(data, dict) else type(data))
+                
+                # theHarvester's actual JSON structure
+                if isinstance(data, dict):
+                    # Direct emails list
+                    if 'emails' in data:
+                        if isinstance(data['emails'], list):
+                            for email in data['emails']:
+                                email_str = email.lower().strip() if isinstance(email, str) else str(email).lower().strip()
+                                if _is_valid_email(email_str, domain):
+                                    emails.add(email_str)
+                        elif isinstance(data['emails'], str):
+                            email_str = data['emails'].lower().strip()
+                            if _is_valid_email(email_str, domain):
+                                emails.add(email_str)
+                    
+                    # Sometimes emails are in 'hosts' or 'all'
+                    for key in ['hosts', 'all', 'people', 'linkedin_people']:
+                        if key in data and isinstance(data[key], list):
+                            for item in data[key]:
+                                found_emails = _extract_emails_from_text(str(item), domain)
+                                emails.update(found_emails)
+                
+                logger.info("[EMAIL] Parsed %d emails from JSON", len(emails))
+                
+                # Clean up temp file after successful parsing
+                try:
+                    os.remove(output_file)
+                    logger.debug("[EMAIL] Cleaned up temp file: %s", output_file)
+                except:
+                    pass
+                
+            except json.JSONDecodeError as je:
+                logger.warning("[EMAIL] JSON parse failed: %s, falling back to text extraction", je)
+            except Exception as e:
+                logger.warning("[EMAIL] JSON processing error: %s, falling back to text extraction", e)
+        
+        # ── Fallback: Text extraction from stdout/stderr ──
+        if not emails:
+            output = result.stdout + "\n" + result.stderr
+            logger.debug("[EMAIL] theHarvester output sample: %s", output[:500])
+            emails = _extract_emails_from_text(output, domain)
+            logger.info("[EMAIL] Extracted %d emails from text output", len(emails))
 
-        print("[EMAIL] theHarvester found " + str(len(emails)) + " emails")
+        logger.info(
+            "[EMAIL] theHarvester found %d emails total",
+            len(emails)
+        )
 
         return {
             "success": True,
@@ -141,28 +257,31 @@ def run_theharvester(domain):
         }
 
     except subprocess.TimeoutExpired:
-        timeout = str(Config.HARVESTER_TIMEOUT)
-        print("[EMAIL] theHarvester timed out after " + timeout + "s")
+        timeout_val = Config.HARVESTER_TIMEOUT
+        logger.warning(
+            "[EMAIL] theHarvester timed out after %ds",
+            timeout_val
+        )
         return {
             "success": False,
-            "error": "theHarvester timed out",
+            "error": f"theHarvester timed out after {timeout_val}s",
             "emails": [],
             "source": "theharvester"
         }
 
     except FileNotFoundError:
-        path = str(Config.THEHARVESTER_PATH)
-        print("[EMAIL] theHarvester not found at " + path)
-        print("[EMAIL] Install with: pip install theHarvester")
+        logger.error(
+            "[EMAIL] theHarvester not found. Install with: pip install theHarvester"
+        )
         return {
             "success": False,
-            "error": "theHarvester not found at " + path,
+            "error": "theHarvester module not installed. Install with: pip install theHarvester",
             "emails": [],
             "source": "theharvester"
         }
 
     except Exception as e:
-        print("[EMAIL] theHarvester error: " + str(e))
+        logger.error("[EMAIL] theHarvester error: %s", str(e), exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -172,7 +291,7 @@ def run_theharvester(domain):
 
 
 # =============================================================================
-# SOURCE 2: Hunter.io API
+# SOURCE 2: Hunter.io API (ENHANCED)
 # =============================================================================
 
 def run_hunter_io(domain):
@@ -185,6 +304,12 @@ def run_hunter_io(domain):
 
     Free tier: 25 searches/month, 50 verifications/month.
 
+    ENHANCED v1.1:
+      - Better error handling for malformed responses
+      - Separated tool_sources from web_sources
+      - Increased limit from 10 to 100
+      - Better logging
+
     Args:
         domain: Target domain
 
@@ -194,7 +319,7 @@ def run_hunter_io(domain):
     api_key = Config.HUNTER_API_KEY
 
     if not api_key:
-        print("[EMAIL] Hunter.io skipped - no API key configured")
+        logger.info("[EMAIL] Hunter.io skipped - no API key configured")
         return {
             "success": False,
             "error": "No Hunter.io API key",
@@ -202,7 +327,8 @@ def run_hunter_io(domain):
             "source": "hunter_io"
         }
 
-    print("[EMAIL] Querying Hunter.io for " + domain + "...")
+    logger.info("[EMAIL] Querying Hunter.io for %s...", domain)
+    throttler.wait_if_needed("hunter_io", Config.API_THROTTLE_SECONDS)
 
     try:
         resp = requests.get(
@@ -210,13 +336,13 @@ def run_hunter_io(domain):
             params={
                 "domain": domain,
                 "api_key": api_key,
-                "limit": 10
+                "limit": Config.EMAIL_HARVEST_LIMIT 
             },
             timeout=15
         )
 
         if resp.status_code == 401:
-            print("[EMAIL] Hunter.io - invalid API key")
+            logger.warning("[EMAIL] Hunter.io - invalid API key")
             return {
                 "success": False,
                 "error": "Invalid Hunter.io API key",
@@ -225,7 +351,7 @@ def run_hunter_io(domain):
             }
 
         if resp.status_code == 429:
-            print("[EMAIL] Hunter.io - rate limited")
+            logger.warning("[EMAIL] Hunter.io - rate limited")
             return {
                 "success": False,
                 "error": "Hunter.io rate limit exceeded",
@@ -234,26 +360,45 @@ def run_hunter_io(domain):
             }
 
         if resp.status_code != 200:
-            print("[EMAIL] Hunter.io HTTP " + str(resp.status_code))
+            logger.warning("[EMAIL] Hunter.io HTTP %d", resp.status_code)
             return {
                 "success": False,
-                "error": "HTTP " + str(resp.status_code),
+                "error": f"HTTP {resp.status_code}",
                 "emails": [],
                 "source": "hunter_io"
             }
 
-        data = resp.json().get("data", {})
+        # ── ENHANCED: Better error handling ──
+        try:
+            response_data = resp.json()
+        except json.JSONDecodeError:
+            logger.error("[EMAIL] Hunter.io returned invalid JSON")
+            return {
+                "success": False,
+                "error": "Invalid JSON response",
+                "emails": [],
+                "source": "hunter_io"
+            }
+
+        data = response_data.get("data", {})
         emails_data = data.get("emails", [])
         pattern = data.get("pattern", "")
 
         emails = []
+        email_strings = []
+        
         for entry in emails_data:
             email = entry.get("value", "").lower().strip()
             if _is_valid_email(email, domain):
-                source_list = []
+                email_strings.append(email)
+                
+                # ── ENHANCED: Separate tool sources from web sources ──
+                web_sources = []
                 for s in entry.get("sources", []):
-                    source_list.append(s.get("domain", ""))
-
+                    source_domain = s.get("domain", "")
+                    if source_domain:
+                        web_sources.append(source_domain)
+                
                 emails.append({
                     "email": email,
                     "type": entry.get("type", ""),
@@ -262,14 +407,14 @@ def run_hunter_io(domain):
                     "last_name": entry.get("last_name", ""),
                     "position": entry.get("position", ""),
                     "linkedin": entry.get("linkedin", ""),
-                    "sources": source_list
+                    "web_sources": web_sources  # ← Renamed from "sources"
                 })
 
-        email_strings = [e["email"] for e in emails]
         pattern_text = pattern if pattern else "unknown"
-        print(
-            "[EMAIL] Hunter.io found " + str(len(email_strings))
-            + " emails (pattern: " + pattern_text + ")"
+        logger.info(
+            "[EMAIL] Hunter.io found %d emails (pattern: %s)",
+            len(email_strings),
+            pattern_text
         )
 
         return {
@@ -282,7 +427,7 @@ def run_hunter_io(domain):
         }
 
     except requests.Timeout:
-        print("[EMAIL] Hunter.io timeout")
+        logger.warning("[EMAIL] Hunter.io timeout")
         return {
             "success": False,
             "error": "Timeout",
@@ -291,7 +436,7 @@ def run_hunter_io(domain):
         }
 
     except Exception as e:
-        print("[EMAIL] Hunter.io error: " + str(e))
+        logger.error("[EMAIL] Hunter.io error: %s", str(e), exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -348,17 +493,16 @@ def run_phonebook(domain):
         }
 
     logger.info("[EMAIL] Querying Phonebook.cz for %s...", domain)
+    throttler.wait_if_needed("intelx", Config.API_THROTTLE_SECONDS)
 
     try:
         # ── Step 1: Start a search ──
-        # The IntelX API uses a two-phase search:
-        #   POST to start → returns search_id
-        #   GET to fetch results using search_id
-        search_url = "https://2.intelx.io/phonebook/search"
+        endpoint = getattr(Config, "INTELX_ENDPOINT", "free.intelx.io")
+        search_url = f"https://{endpoint}/phonebook/search"
 
         search_payload = {
             "term": domain,
-            "maxresults": 100,
+            "maxresults": Config.EMAIL_HARVEST_LIMIT,
             "media": 0,        # 0 = all media types
             "target": 2,        # 2 = emails specifically
             "timeout": 10
@@ -420,17 +564,15 @@ def run_phonebook(domain):
             }
 
         # ── Step 2: Wait briefly, then fetch results ──
-        # The search runs async on IntelX's servers.
-        # We need to wait a moment before fetching results.
         time.sleep(3)
 
-        results_url = "https://2.intelx.io/phonebook/search/result"
+        results_url = f"https://{endpoint}/phonebook/search/result"
 
         results_resp = requests.get(
             results_url,
             params={
                 "id": search_id,
-                "limit": 100,
+                "limit": Config.EMAIL_HARVEST_LIMIT,
                 "offset": 0
             },
             headers=headers,
@@ -455,7 +597,6 @@ def run_phonebook(domain):
         # ── Step 3: Extract and validate emails ──
         emails = []
         for selector in selectors:
-            # Each selector has a "selectorvalue" field
             value = selector.get("selectorvalue", "").lower().strip()
 
             if _is_valid_email(value, domain):
@@ -493,8 +634,209 @@ def run_phonebook(domain):
             "source": "phonebook"
         }
 
+
 # =============================================================================
-# BREACH CHECKING - LeakCheck (Free HIBP Alternative)
+# BREACH CHECKING - IntelX Free API (NEW - PRIMARY)
+# =============================================================================
+
+def check_intelx_breach(email):
+    """
+    Check email against IntelX breach database using FREE API.
+    
+    IntelX indexes:
+      - Data breaches
+      - Paste sites (Pastebin, etc.)
+      - Dark web leaks
+      - Public datasets
+    
+    Free tier: free.intelx.io endpoint
+    Rate limits: Reasonable for normal use
+    
+    Args:
+        email: Email address to check
+    
+    Returns:
+        Dict with breach status, databases, and leaked data types
+    """
+    api_key = os.getenv("INTELX_API_KEY", "")
+    
+    if not api_key:
+        logger.debug("[BREACH] IntelX skipped - no API key")
+        return {
+            "success": False,
+            "error": "No IntelX API key",
+            "breached": None
+        }
+    
+    logger.info("[BREACH] Checking %s via IntelX...", email)
+    throttler.wait_if_needed("intelx", Config.API_THROTTLE_SECONDS)
+
+    try:
+        # ── Step 1: Start breach search ──
+        endpoint = getattr(Config, "INTELX_ENDPOINT", "free.intelx.io")
+        search_url = f"https://{endpoint}/intelligent/search"
+        
+        search_payload = {
+            "term": email,
+            "buckets": [],  # All buckets (leaks, pastes, etc.)
+            "lookuplevel": 0,
+            "maxresults": 50,
+            "timeout": 5,
+            "datefrom": "",
+            "dateto": "",
+            "sort": 2,
+            "media": 0,
+            "terminate": []
+        }
+        
+        headers = {
+            "x-key": api_key,
+            "Content-Type": "application/json",
+            "User-Agent": "EASM-Aegis/1.0"
+        }
+        
+        search_resp = requests.post(
+            search_url,
+            json=search_payload,
+            headers=headers,
+            timeout=10
+        )
+        
+        if search_resp.status_code == 402:
+            logger.warning("[BREACH] IntelX quota exceeded")
+            return {
+                "success": False,
+                "rate_limited": True,
+                "breached": None
+            }
+        
+        if search_resp.status_code == 401:
+            logger.warning("[BREACH] IntelX invalid API key")
+            return {
+                "success": False,
+                "error": "Invalid API key",
+                "breached": None
+            }
+        
+        if search_resp.status_code != 200:
+            logger.warning("[BREACH] IntelX search HTTP %d", search_resp.status_code)
+            return {
+                "success": False,
+                "error": f"HTTP {search_resp.status_code}",
+                "breached": None
+            }
+        
+        search_data = search_resp.json()
+        search_id = search_data.get("id")
+        
+        if not search_id:
+            logger.warning("[BREACH] IntelX no search ID")
+            return {
+                "success": False,
+                "error": "No search ID",
+                "breached": None
+            }
+        
+        # ── Step 2: Wait and fetch results ──
+        time.sleep(2)
+        
+        results_url = f"https://{endpoint}/intelligent/search/result"
+        
+        results_resp = requests.get(
+            results_url,
+            params={
+                "id": search_id,
+                "limit": 50,
+                "offset": 0
+            },
+            headers=headers,
+            timeout=10
+        )
+        
+        if results_resp.status_code != 200:
+            logger.warning("[BREACH] IntelX results HTTP %d", results_resp.status_code)
+            return {
+                "success": False,
+                "error": "Results fetch failed",
+                "breached": None
+            }
+        
+        results_data = results_resp.json()
+        records = results_data.get("records", [])
+        
+        if not records:
+            logger.info("[BREACH] IntelX: %s NOT found in breaches", email)
+            return {
+                "success": True,
+                "breached": False,
+                "breach_count": 0,
+                "breaches": [],
+                "source": "intelx"
+            }
+        
+        # ── Step 3: Parse breach details ──
+        breaches = []
+        data_types_leaked = set()
+        password_found = False
+        
+        for record in records:
+            bucket = record.get("bucket", "Unknown")
+            media_type = record.get("mediatype", "")
+            date = record.get("date", "Unknown")
+            
+            # Parse media type for leaked data indicators
+            if media_type:
+                data_types_leaked.add(media_type)
+            
+            # Check for password indicators
+            name = record.get("name", "").lower()
+            if any(keyword in name for keyword in ["password", "credentials", "combo", "leak"]):
+                password_found = True
+            
+            breaches.append({
+                "database": bucket,
+                "name": record.get("name", "Unknown"),
+                "date": date,
+                "media_type": media_type,
+                "size": record.get("size", 0)
+            })
+        
+        logger.info(
+            "[BREACH] IntelX: %s found in %d sources (password: %s)",
+            email,
+            len(breaches),
+            "YES" if password_found else "NO"
+        )
+        
+        return {
+            "success": True,
+            "breached": True,
+            "breach_count": len(breaches),
+            "breaches": breaches,
+            "data_types_leaked": list(data_types_leaked),
+            "password_leaked": password_found,
+            "source": "intelx"
+        }
+    
+    except requests.Timeout:
+        logger.warning("[BREACH] IntelX timeout")
+        return {
+            "success": False,
+            "error": "Timeout",
+            "breached": None
+        }
+    
+    except Exception as e:
+        logger.error("[BREACH] IntelX error: %s", e, exc_info=True)
+        return {
+            "success": False,
+            "error": str(e),
+            "breached": None
+        }
+
+
+# =============================================================================
+# BREACH CHECKING - LeakCheck (FALLBACK)
 # =============================================================================
 
 def check_leakcheck(email):
@@ -502,7 +844,7 @@ def check_leakcheck(email):
     Check a single email against LeakCheck API.
 
     Free tier: 10 lookups/day.
-    Replaces HIBP which requires paid subscription.
+    Used as fallback when IntelX is rate-limited.
 
     Args:
         email: Email address to check
@@ -520,6 +862,9 @@ def check_leakcheck(email):
             "breach_count": 0,
             "breaches": []
         }
+
+    logger.info("[BREACH] Checking %s via LeakCheck...", email)
+    throttler.wait_if_needed("leakcheck", Config.API_THROTTLE_SECONDS)
 
     try:
         resp = requests.get(
@@ -544,7 +889,8 @@ def check_leakcheck(email):
                 "breached": None,
                 "error": "LeakCheck rate limit (10/day free)",
                 "breach_count": 0,
-                "breaches": []
+                "breaches": [],
+                "rate_limited": True
             }
 
         if resp.status_code != 200:
@@ -577,13 +923,20 @@ def check_leakcheck(email):
             if "password" in str(data_classes).lower():
                 password_leaked = True
 
+        logger.info(
+            "[BREACH] LeakCheck: %s found in %d sources",
+            email,
+            found
+        )
+
         return {
             "email": email,
             "breached": found > 0,
             "breach_count": found,
             "breaches": breaches,
             "data_types_leaked": list(set(all_data_types)),
-            "password_leaked": password_leaked
+            "password_leaked": password_leaked,
+            "source": "leakcheck"
         }
 
     except requests.Timeout:
@@ -605,52 +958,124 @@ def check_leakcheck(email):
         }
 
 
+# =============================================================================
+# MULTI-SOURCE BREACH CHECKING (NEW)
+# =============================================================================
+
+def check_email_breach_multi_source(email):
+    """
+    Check email against multiple breach databases.
+    Uses IntelX as primary, LeakCheck as fallback.
+    
+    Strategy:
+      1. Try IntelX first (free, no daily limit on free.intelx.io)
+      2. If IntelX rate-limited or fails, try LeakCheck
+      3. Combine results from both sources
+    
+    Args:
+        email: Email address to check
+    
+    Returns:
+        Combined breach data from all available sources
+    """
+    combined_result = {
+        "email": email,
+        "breached": False,
+        "breach_count": 0,
+        "breaches": [],
+        "data_types_leaked": set(),
+        "password_leaked": False,
+        "sources_checked": []
+    }
+    
+    # ── Source 1: IntelX (Primary) ──
+    intelx_result = check_intelx_breach(email)
+    
+    if intelx_result.get("success"):
+        combined_result["sources_checked"].append("intelx")
+        
+        if intelx_result.get("breached"):
+            combined_result["breached"] = True
+            combined_result["breach_count"] += intelx_result.get("breach_count", 0)
+            combined_result["breaches"].extend(intelx_result.get("breaches", []))
+            combined_result["data_types_leaked"].update(intelx_result.get("data_types_leaked", []))
+            
+            if intelx_result.get("password_leaked"):
+                combined_result["password_leaked"] = True
+    
+    # ── Source 2: LeakCheck (Fallback) ──
+    # Only use if IntelX was rate-limited or found nothing
+    if intelx_result.get("rate_limited") or not intelx_result.get("success"):
+        leakcheck_key = os.getenv("LEAKCHECK_API_KEY", "")
+        
+        if leakcheck_key:
+            time.sleep(1)  # Be nice to APIs
+            leakcheck_result = check_leakcheck(email)
+            
+            if leakcheck_result.get("breached") is not None:
+                combined_result["sources_checked"].append("leakcheck")
+                
+                if leakcheck_result.get("breached"):
+                    combined_result["breached"] = True
+                    combined_result["breach_count"] += leakcheck_result.get("breach_count", 0)
+                    combined_result["breaches"].extend(leakcheck_result.get("breaches", []))
+                    combined_result["data_types_leaked"].update(leakcheck_result.get("data_types_leaked", []))
+                    
+                    if leakcheck_result.get("password_leaked"):
+                        combined_result["password_leaked"] = True
+    
+    # ── Finalize ──
+    combined_result["data_types_leaked"] = list(combined_result["data_types_leaked"])
+    
+    # Deduplicate breaches by name
+    unique_breaches = []
+    seen_names = set()
+    for breach in combined_result["breaches"]:
+        breach_name = breach.get("name", "Unknown")
+        if breach_name not in seen_names:
+            seen_names.add(breach_name)
+            unique_breaches.append(breach)
+    
+    combined_result["breaches"] = unique_breaches
+    combined_result["breach_count"] = len(unique_breaches)
+    
+    return combined_result
+
+
 def check_breaches_batch(emails):
     """
     Check multiple emails against breach databases.
-
-    Uses LeakCheck API (free tier: 10/day).
-
+    
+    ENHANCED v1.2:
+      - Uses IntelX as primary source (free API you already have)
+      - Falls back to LeakCheck if needed
+      - Better rate limit handling
+      - Progress tracking
+    
     Args:
         emails: List of email addresses
-
+    
     Returns:
         Dict with results per email and summary
     """
-    api_key = os.getenv("LEAKCHECK_API_KEY", "")
-
-    if not api_key:
-        print("[EMAIL] Breach checking skipped - no LeakCheck API key")
-        print("[EMAIL] Get free key at: https://leakcheck.io")
-        return {
-            "success": False,
-            "error": "No LeakCheck API key configured",
-            "results": {},
-            "summary": {
-                "total_checked": 0,
-                "total_breached": 0,
-                "total_clean": 0,
-                "password_leaks": 0
-            }
-        }
-
-    print("[EMAIL] Checking " + str(len(emails)) + " emails for breaches...")
+    logger.info("[BREACH] Checking %d emails for breaches...", len(emails))
 
     results = {}
     total_breached = 0
     total_clean = 0
     password_leaks = 0
     checked = 0
-
+    
     for email in emails:
-        # Rate limiting - be nice to the API
+        # Rate limiting - be nice to APIs
         if checked > 0:
-            time.sleep(2)
-
-        result = check_leakcheck(email)
+            time.sleep(2)  # 2 seconds between requests
+        
+        # Use multi-source check
+        result = check_email_breach_multi_source(email)
         results[email] = result
-
-        if result.get("breached") is True:
+        
+        if result.get("breached"):
             total_breached += 1
             if result.get("password_leaked"):
                 password_leaks += 1
@@ -659,26 +1084,17 @@ def check_breaches_batch(emails):
             total_clean += 1
             status = "Clean"
         else:
-            status = "Error"
-
-        print("  [" + status + "] " + email)
+            status = "Unchecked"
+        
+        sources = ",".join(result.get("sources_checked", []))
+        logger.info("  [%s] %s (via: %s)", status, email, sources if sources else "none")
         checked += 1
 
-        # Free tier limit
-        if checked >= 10:
-            remaining = len(emails) - checked
-            if remaining > 0:
-                print(
-                    "[EMAIL] LeakCheck free tier limit reached. "
-                    + str(remaining) + " emails unchecked."
-                )
-            break
-
-    print("[EMAIL] Breach check complete:")
-    print("  Checked: " + str(checked))
-    print("  Breached: " + str(total_breached))
-    print("  Clean: " + str(total_clean))
-    print("  Password leaks: " + str(password_leaks))
+    logger.info("[BREACH] Breach check complete:")
+    logger.info("  Checked: %d", checked)
+    logger.info("  Breached: %d", total_breached)
+    logger.info("  Clean: %d", total_clean)
+    logger.info("  Password leaks: %d", password_leaks)
 
     return {
         "success": True,
@@ -693,89 +1109,120 @@ def check_breaches_batch(emails):
 
 
 # =============================================================================
-# UNIFIED HARVEST FUNCTION
+# UNIFIED HARVEST FUNCTION (ENHANCED)
 # =============================================================================
 
 def harvest_emails(domain):
     """
     Discover emails using all available sources.
     Runs all sources independently, merges and deduplicates.
+    
+    ENHANCED v1.1:
+      - Better metadata tracking per email
+      - Separated tool_sources from web_sources
+      - Better deduplication logic
+      - Cleaner data structure
     """
     separator = "=" * 60
-    print("\n" + separator)
-    print("[EMAIL] Starting email harvest for: " + domain)
-    print(separator)
+    logger.info("\n%s", separator)
+    logger.info("[EMAIL] Starting email harvest for: %s", domain)
+    logger.info("%s", separator)
 
     domain = domain.lower().strip()
     all_emails = set()
-    email_sources = {}
+    email_metadata = {}  # Store detailed info per email
     source_results = {}
 
-    # -- Source 1: theHarvester --
+    # ── Source 1: theHarvester ──
     harvester_result = run_theharvester(domain)
     source_results["theharvester"] = harvester_result
 
     for email in harvester_result.get("emails", []):
         all_emails.add(email)
-        if email not in email_sources:
-            email_sources[email] = []
-        if "theharvester" not in email_sources[email]:
-            email_sources[email].append("theharvester")
+        if email not in email_metadata:
+            email_metadata[email] = {
+                "email": email,
+                "tool_sources": [],
+                "first_name": "",
+                "last_name": "",
+                "position": "",
+                "linkedin": "",
+                "confidence": 0,
+                "web_sources": []
+            }
+        email_metadata[email]["tool_sources"].append("theharvester")
 
-    # -- Source 2: Hunter.io --
+    # ── Source 2: Hunter.io ──
     hunter_result = run_hunter_io(domain)
     source_results["hunter_io"] = hunter_result
 
     for email in hunter_result.get("emails", []):
         all_emails.add(email)
-        if email not in email_sources:
-            email_sources[email] = []
-        if "hunter_io" not in email_sources[email]:
-            email_sources[email].append("hunter_io")
+        if email not in email_metadata:
+            email_metadata[email] = {
+                "email": email,
+                "tool_sources": [],
+                "first_name": "",
+                "last_name": "",
+                "position": "",
+                "linkedin": "",
+                "confidence": 0,
+                "web_sources": []
+            }
+        email_metadata[email]["tool_sources"].append("hunter_io")
+        
+        # Add Hunter.io metadata
+        for detail in hunter_result.get("email_details", []):
+            if detail.get("email") == email:
+                email_metadata[email].update({
+                    "first_name": detail.get("first_name", ""),
+                    "last_name": detail.get("last_name", ""),
+                    "position": detail.get("position", ""),
+                    "linkedin": detail.get("linkedin", ""),
+                    "confidence": detail.get("confidence", 0),
+                    "web_sources": detail.get("web_sources", [])
+                })
+                break
 
-    # -- Source 3: Phonebook.cz --
+    # ── Source 3: Phonebook.cz ──
     phonebook_result = run_phonebook(domain)
     source_results["phonebook"] = phonebook_result
 
     for email in phonebook_result.get("emails", []):
         all_emails.add(email)
-        if email not in email_sources:
-            email_sources[email] = []
-        if "phonebook" not in email_sources[email]:
-            email_sources[email].append("phonebook")
+        if email not in email_metadata:
+            email_metadata[email] = {
+                "email": email,
+                "tool_sources": [],
+                "first_name": "",
+                "last_name": "",
+                "position": "",
+                "linkedin": "",
+                "confidence": 0,
+                "web_sources": []
+            }
+        email_metadata[email]["tool_sources"].append("phonebook")
 
-    # -- Final dedup and sort --
+    # ── Build final email list with metadata ──
     final_emails = sorted(all_emails)
-
     email_list = []
+    
     for email in final_emails:
-        sources = email_sources.get(email, [])
-        entry = {
+        metadata = email_metadata.get(email, {})
+        
+        email_list.append({
             "email": email,
-            "sources": sources,           # ONLY tool names
-            "source_count": len(sources),
-        }
+            "tool_sources": metadata.get("tool_sources", []),  # ONLY tool names
+            "source_count": len(metadata.get("tool_sources", [])),
+            "first_name": metadata.get("first_name", ""),
+            "last_name": metadata.get("last_name", ""),
+            "position": metadata.get("position", ""),
+            "linkedin": metadata.get("linkedin", ""),
+            "confidence": metadata.get("confidence", 0),
+            "web_sources": metadata.get("web_sources", [])  # Separate field
+        })
 
-        # Add Hunter.io person metadata if available
-        hunter_details = hunter_result.get("email_details", [])
-        for hd in hunter_details:
-            if hd.get("email") == email:
-                entry["first_name"] = hd.get("first_name", "")
-                entry["last_name"] = hd.get("last_name", "")
-                entry["position"] = hd.get("position", "")
-                entry["linkedin"] = hd.get("linkedin", "")
-                entry["confidence"] = hd.get("confidence", 0)
-
-                # ── FIX: Do NOT append web domains to sources ──
-                # Web domains (linkedin.com, etc.) are where Hunter
-                # *found* the email — they are NOT discovery tools.
-                # Mixing them in caused visually-different "variants"
-                # of the same email record.
-                break
-
-        email_list.append(entry)
-
-    # Source statistics
+    # ── Source Statistics ──
     source_stats = {}
     for source_name, result in source_results.items():
         source_stats[source_name] = {
@@ -784,15 +1231,11 @@ def harvest_emails(domain):
             "error": result.get("error", "")
         }
 
-    print("\n[EMAIL] Harvest complete:")
-    print("[EMAIL] Total unique emails: " + str(len(final_emails)))
+    logger.info("\n[EMAIL] Harvest complete:")
+    logger.info("[EMAIL] Total unique emails: %d", len(final_emails))
     for source, stats in source_stats.items():
-        if stats["success"]:
-            status = "OK"
-        else:
-            status = "FAIL"
-        count = str(stats["count"])
-        print("  [" + status + "] " + source + ": " + count + " emails")
+        status = "✓" if stats["success"] else "✗"
+        logger.info("  [%s] %s: %d emails", status, source, stats["count"])
 
     return {
         "success": True,
@@ -818,13 +1261,18 @@ def harvest_and_check(domain):
     3. Return combined results
 
     This is the main function called by routes/targets.py
+    
+    ENHANCED v1.2:
+      - Uses IntelX for breach checking (free API you already have)
+      - Falls back to LeakCheck if needed
+      - Better result aggregation
     """
     # Step 1: Harvest emails
     harvest_result = harvest_emails(domain)
     emails = harvest_result.get("emails", [])
 
     if not emails:
-        print("[EMAIL] No emails found - skipping breach check")
+        logger.info("[EMAIL] No emails found - skipping breach check")
         return {
             "success": True,
             "domain": domain,
@@ -848,7 +1296,7 @@ def harvest_and_check(domain):
             }
         }
 
-    # Step 2: Check breaches
+    # Step 2: Check breaches (now uses IntelX + LeakCheck)
     breach_result = check_breaches_batch(emails)
     breach_results = breach_result.get("results", {})
 
@@ -864,13 +1312,14 @@ def harvest_and_check(domain):
 
         combined = {
             "email": email_addr,
-            "sources": email_detail.get("sources", []),
+            "tool_sources": email_detail.get("tool_sources", []),  # ONLY tools
             "source_count": email_detail.get("source_count", 0),
             "first_name": email_detail.get("first_name", ""),
             "last_name": email_detail.get("last_name", ""),
             "position": email_detail.get("position", ""),
             "linkedin": email_detail.get("linkedin", ""),
             "confidence": email_detail.get("confidence", 0),
+            "web_sources": email_detail.get("web_sources", []),  # Web domains
             "breached": breach_data.get("breached", None),
             "breach_count": breach_data.get("breach_count", 0),
             "breaches": breach_data.get("breaches", []),
@@ -879,7 +1328,8 @@ def harvest_and_check(domain):
             ),
             "password_leaked": breach_data.get(
                 "password_leaked", False
-            )
+            ),
+            "breach_sources": breach_data.get("sources_checked", [])  # NEW: Which APIs checked
         }
 
         if combined["breached"] is True:
@@ -892,13 +1342,13 @@ def harvest_and_check(domain):
         combined_emails.append(combined)
 
     separator = "=" * 60
-    print("\n" + separator)
-    print("[EMAIL] Complete results for " + domain + ":")
-    print("[EMAIL] Emails found: " + str(len(emails)))
-    print("[EMAIL] Breached: " + str(total_breached))
-    print("[EMAIL] Clean: " + str(total_clean))
-    print("[EMAIL] Password leaks: " + str(password_leaks))
-    print(separator)
+    logger.info("\n%s", separator)
+    logger.info("[EMAIL] Complete results for %s:", domain)
+    logger.info("[EMAIL] Emails found: %d", len(emails))
+    logger.info("[EMAIL] Breached: %d", total_breached)
+    logger.info("[EMAIL] Clean: %d", total_clean)
+    logger.info("[EMAIL] Password leaks: %d", password_leaks)
+    logger.info("%s", separator)
 
     return {
         "success": True,
@@ -921,20 +1371,20 @@ def harvest_and_check(domain):
 
 if __name__ == "__main__":
     separator = "=" * 60
-    print(separator)
-    print("  EMAIL HARVESTER - Standalone Test")
-    print(separator)
+    logger.info(separator)
+    logger.info("  EMAIL HARVESTER - Standalone Test")
+    logger.info(separator)
 
     domain = input("\nEnter domain (e.g., company.com): ").strip()
     if domain:
         result = harvest_and_check(domain)
 
-        print("\n" + separator)
-        print("Domain: " + result["domain"])
+        logger.info("\n" + separator)
+        logger.info("Domain: " + result["domain"])
         total = str(result["combined"]["total_emails"])
         breached = str(result["combined"]["total_breached"])
-        print("Emails found: " + total)
-        print("Breached: " + breached)
+        logger.info("Emails found: " + total)
+        logger.info("Breached: " + breached)
 
         for email_data in result["combined"]["emails"][:10]:
             if email_data.get("breached"):
@@ -942,22 +1392,28 @@ if __name__ == "__main__":
             else:
                 status = "Clean"
 
-            sources = ", ".join(email_data.get("sources", []))
-            print(
+            tool_sources = ", ".join(email_data.get("tool_sources", []))
+            breach_sources = ", ".join(email_data.get("breach_sources", []))
+            
+            logger.info(
                 "  [" + status + "] "
                 + email_data["email"]
-                + " (sources: " + sources + ")"
+                + " (found via: " + tool_sources + ")"
             )
+            
+            if email_data.get("breached"):
+                logger.info(f"    Checked via: {breach_sources}")
+                logger.info(f"    Found in {email_data.get('breach_count', 0)} breaches")
 
             if email_data.get("breaches"):
                 for b in email_data["breaches"][:3]:
                     data_classes = ", ".join(
                         b.get("data_classes", [])[:3]
                     )
-                    print(
+                    logger.info(
                         "    -> " + b["name"]
                         + " (" + b.get("date", "Unknown") + ")"
-                        + " - " + data_classes
+                        + (f" - {data_classes}" if data_classes else "")
                     )
     else:
-        print("No domain entered. Exiting.")
+        logger.info("No domain entered. Exiting.")

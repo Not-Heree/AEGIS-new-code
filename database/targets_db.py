@@ -180,12 +180,4 @@ def delete_target(target_id):
         return {"success": True, "message": "Target deleted"}
     except Exception as e:
         return {"success": False, "message": str(e)}
-
-
-def get_target_count():
-    """Return the total number of targets."""
-    try:
-        collection = get_collection(Config.TARGETS_COLLECTION)
-        return collection.count_documents({})
-    except Exception:
-        return 0
+

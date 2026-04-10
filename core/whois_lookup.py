@@ -26,6 +26,7 @@ Install: pip install python-whois
 """
 
 from datetime import datetime, timezone
+from utils.logger import logger
 from typing import Dict, Any, List
 
 try:
@@ -33,10 +34,7 @@ try:
     WHOIS_AVAILABLE = True
 except ImportError:
     WHOIS_AVAILABLE = False
-    print(
-        "[WHOIS] WARNING: python-whois library not installed. "
-        "Run: pip install python-whois"
-    )
+    logger.warning("[WHOIS] python-whois not installed. Run: pip install python-whois")
 
 
 # =============================================================================
@@ -119,7 +117,7 @@ def lookup_domain(domain: str) -> Dict[str, Any]:
             "source": "whois"
         }
 
-    print(f"[WHOIS] Looking up registration data for {domain}...")
+    logger.info("[WHOIS] Looking up registration data for %s...", domain)
 
     result = {
         "success": False,
@@ -144,7 +142,7 @@ def lookup_domain(domain: str) -> Dict[str, Any]:
         w = whois.whois(domain)
 
         if not w or not w.domain_name:
-            print(f"[WHOIS] No data returned for {domain}")
+            logger.warning("[WHOIS] No data returned for %s", domain)
             result["error"] = "No WHOIS data returned"
             return result
 
@@ -255,7 +253,7 @@ def lookup_domain(domain: str) -> Dict[str, Any]:
         return result
 
     except Exception as e:
-        print(f"[WHOIS] Lookup error for {domain}: {e}")
+        logger.error("[WHOIS] Lookup error for %s: %s", domain, e, exc_info=True)
         result["error"] = str(e)
         return result
 
@@ -391,12 +389,12 @@ def run_whois_recon(domain: str) -> Dict[str, Any]:
         Dict with all WHOIS intelligence and risk flags
     """
     print(f"\n{'='*60}")
-    print(f"[WHOIS] Starting WHOIS recon for: {domain}")
+    logger.info("[WHOIS] Starting recon for: %s", domain)
     print(f"{'='*60}")
 
     if not is_available():
         print("[WHOIS] Not available — python-whois not installed")
-        print("[WHOIS] Run: pip install python-whois")
+        logger.warning("[WHOIS] Run: pip install python-whois")
         return {
             "success": False,
             "error": "python-whois library not installed",
@@ -462,7 +460,7 @@ def run_whois_recon(domain: str) -> Dict[str, Any]:
     whois_data["recon_at"] = datetime.utcnow().isoformat()
 
     # ── Print summary ─────────────────────────────────
-    print(f"\n[WHOIS] WHOIS recon complete:")
+    logger.info("[WHOIS] Recon complete")
     print(
         f"[WHOIS]   Registrar: "
         f"{whois_data.get('registrar', 'Unknown')}"

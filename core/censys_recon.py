@@ -1,839 +1,503 @@
 """
 Censys Passive Reconnaissance Module
 =====================================
-Queries Censys database for intelligence about a target domain.
-Zero traffic sent to the target — completely passive.
+Uses Censys Search API v2 with PAT (Personal Access Token).
 
-Provides:
-  - Subdomain discovery via SSL certificate analysis
-  - Host and service enumeration
-  - Port and protocol data
-  - TLS/SSL certificate details
-  - Software and version detection
+Authentication:
+  - Primary:  CENSYS_PAT  (Personal Access Token - single token)
+  - Fallback: CENSYS_API_ID + CENSYS_API_SECRET (old method)
 
-Censys excels at:
-  - Finding subdomains hidden in SSL certificates
-  - High-quality service fingerprinting
-  - Discovering assets not in DNS records
+Get your PAT from: https://search.censys.io/account
+  → Click "API" tab
+  → Copy your Personal Access Token
 
-Free tier: 250 queries/month.
-Get credentials at: https://search.censys.io/account/api
+API Docs: https://search.censys.io/api
+Free tier: 250 queries/month
 """
 
-import time
+import requests
+import base64
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Set
-
-# Safe imports — handle SDK version differences
-try:
-    from censys.search import CensysHosts
-    CENSYS_HOSTS_AVAILABLE = True
-except ImportError:
-    CENSYS_HOSTS_AVAILABLE = False
-
-try:
-    from censys.search import CensysCerts
-    CENSYS_CERTS_AVAILABLE = True
-except ImportError:
-    CENSYS_CERTS_AVAILABLE = False
-
-try:
-    from censys.common.exceptions import (
-        CensysUnauthorizedException,
-        CensysRateLimitExceededException,
-        CensysException
-    )
-except ImportError:
-    # Fallback exception classes if SDK not installed
-    CensysUnauthorizedException = Exception
-    CensysRateLimitExceededException = Exception
-    CensysException = Exception
-
-CENSYS_AVAILABLE = CENSYS_HOSTS_AVAILABLE or CENSYS_CERTS_AVAILABLE
-
-if not CENSYS_AVAILABLE:
-    print(
-        "[CENSYS] WARNING: censys library not installed. "
-        "Run: pip install censys"
-    )
-
 from config import Config
+from utils.logger import logger
 
 
-# =============================================================================
-# INITIALIZATION
-# =============================================================================
-
-_hosts_api = None
-_certs_api = None
+# ── Censys API v2 Base URL ────────────────────────────────────────────────
+CENSYS_API_BASE = "https://search.censys.io/api/v2"
 
 
-def _get_hosts_api():
-    """Get or create Censys Hosts API client."""
-    global _hosts_api
-
-    if not CENSYS_HOSTS_AVAILABLE:
-        return None
-
-    api_id = Config.CENSYS_API_ID
-    api_secret = Config.CENSYS_API_SECRET
-
-    if not api_id or not api_secret:
-        return None
-
-    if _hosts_api is None:
-        try:
-            _hosts_api = CensysHosts(
-                api_id=api_id,
-                api_secret=api_secret
-            )
-            print("[CENSYS] Hosts API connected")
-        except CensysUnauthorizedException:
-            print("[CENSYS] Invalid API credentials")
-            _hosts_api = None
-            return None
-        except Exception as e:
-            print(f"[CENSYS] Hosts API connection error: {e}")
-            _hosts_api = None
-            return None
-
-    return _hosts_api
-
-
-def _get_certs_api():
-    """Get or create Censys Certificates API client."""
-    global _certs_api
-
-    if not CENSYS_CERTS_AVAILABLE:
-        return None
-
-    api_id = Config.CENSYS_API_ID
-    api_secret = Config.CENSYS_API_SECRET
-
-    if not api_id or not api_secret:
-        return None
-
-    if _certs_api is None:
-        try:
-            _certs_api = CensysCerts(
-                api_id=api_id,
-                api_secret=api_secret
-            )
-            print("[CENSYS] Certs API connected")
-        except CensysUnauthorizedException:
-            print("[CENSYS] Invalid API credentials")
-            _certs_api = None
-            return None
-        except Exception as e:
-            print(f"[CENSYS] Certs API connection error: {e}")
-            _certs_api = None
-            return None
-
-    return _certs_api
-
-
-def is_available() -> bool:
-    """Check if Censys API is configured and accessible."""
-    return _get_hosts_api() is not None
-
-
-# =============================================================================
-# SUBDOMAIN DISCOVERY VIA CERTIFICATES
-# =============================================================================
-
-def discover_subdomains_via_certs(
-    domain: str, max_results: int = 100
-) -> Dict[str, Any]:
+def is_available():
     """
-    Discover subdomains by searching SSL/TLS certificates.
+    Check if Censys credentials are configured.
+    Used by the scanner to decide whether to run this phase.
+    """
+    return bool(Config.CENSYS_PAT) or (bool(Config.CENSYS_API_ID) and bool(Config.CENSYS_API_SECRET))
 
-    Censys indexes every certificate it finds during internet-wide scans.
-    By searching for certificates that mention our domain, we find
-    subdomains that might not be in DNS records.
 
-    This is one of the most powerful subdomain discovery techniques
-    because:
-    - Certificates are public (Certificate Transparency logs)
-    - They often include internal/staging subdomains
-    - Wildcard certs reveal domain patterns
+# =============================================================================
+# AUTHENTICATION HELPER
+# =============================================================================
 
-    Args:
-        domain: Root domain (e.g., "example.com")
-        max_results: Maximum certificates to analyze
+def _get_auth_headers():
+    """
+    Build authentication headers for Censys API.
+
+    Priority:
+      1. PAT token (Bearer auth) — recommended
+      2. API ID + Secret (Basic auth) — legacy fallback
 
     Returns:
-        Dict with discovered subdomains
+        dict: Headers with Authorization, or None if no credentials
     """
-    if not CENSYS_CERTS_AVAILABLE:
-        print(
-            "[CENSYS] CensysCerts not available in "
-            "installed SDK version"
-        )
+    # ── Option 1: PAT Token (Recommended) ────────────────
+    pat = Config.CENSYS_PAT
+
+    if pat:
+        logger.debug("[CENSYS] Using PAT authentication")
         return {
-            "success": False,
-            "error": (
-                "CensysCerts not available — "
-                "SDK version may not support certificate search"
-            ),
-            "subdomains": [],
-            "certificates_analyzed": 0,
-            "source": "censys_certs"
+            "Authorization": f"Bearer {pat}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "AEGIS-EASM/1.0"
         }
 
-    certs_api = _get_certs_api()
-    if not certs_api:
+    # ── Option 2: API ID + Secret Fallback ───────────────
+    api_id = Config.CENSYS_API_ID
+    api_secret = Config.CENSYS_API_SECRET
+
+    if api_id and api_secret:
+        logger.debug("[CENSYS] Using API ID + Secret authentication")
+        # Censys Basic Auth = base64(api_id:api_secret)
+        credentials = base64.b64encode(
+            f"{api_id}:{api_secret}".encode()
+        ).decode()
         return {
-            "success": False,
-            "error": "Censys Certs API not available",
-            "subdomains": [],
-            "certificates_analyzed": 0,
-            "source": "censys_certs"
+            "Authorization": f"Basic {credentials}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "AEGIS-EASM/1.0"
         }
 
-    print(f"[CENSYS] Searching certificates for {domain}...")
-
-    try:
-        subdomains = set()
-        cert_count = 0
-
-        query = f"names: {domain}"
-
-        for cert in certs_api.search(
-            query,
-            per_page=50,
-            pages=max(1, max_results // 50)
-        ):
-            cert_count += 1
-
-            names = cert.get("names", [])
-            for name in names:
-                name = name.lower().strip()
-
-                # Skip wildcards but note the base domain
-                if name.startswith("*."):
-                    base = name[2:]
-                    if base.endswith(domain):
-                        subdomains.add(base)
-                    continue
-
-                # Must belong to target domain
-                if name.endswith(domain):
-                    subdomains.add(name)
-
-            if cert_count >= max_results:
-                break
-
-        final_subs = sorted(subdomains)
-        print(
-            f"[CENSYS] Analyzed {cert_count} certificates, "
-            f"found {len(final_subs)} subdomains"
-        )
-
-        return {
-            "success": True,
-            "subdomains": final_subs,
-            "count": len(final_subs),
-            "certificates_analyzed": cert_count,
-            "source": "censys_certs"
-        }
-
-    except CensysRateLimitExceededException:
-        print("[CENSYS] Rate limit exceeded — try again later")
-        return {
-            "success": False,
-            "error": "Rate limit exceeded",
-            "subdomains": [],
-            "certificates_analyzed": 0,
-            "source": "censys_certs"
-        }
-
-    except CensysUnauthorizedException:
-        print("[CENSYS] Authentication failed")
-        return {
-            "success": False,
-            "error": "Authentication failed",
-            "subdomains": [],
-            "certificates_analyzed": 0,
-            "source": "censys_certs"
-        }
-
-    except CensysException as e:
-        print(f"[CENSYS] Cert search error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "subdomains": [],
-            "certificates_analyzed": 0,
-            "source": "censys_certs"
-        }
-
-    except Exception as e:
-        print(f"[CENSYS] Cert search error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "subdomains": [],
-            "certificates_analyzed": 0,
-            "source": "censys_certs"
-        }
+    # ── No credentials ────────────────────────────────────
+    logger.warning("[CENSYS] No credentials found")
+    logger.warning(
+        "[CENSYS] Set CENSYS_PAT in .env"
+        " (get from https://search.censys.io/account)"
+    )
+    return None
 
 
 # =============================================================================
 # HOST SEARCH
 # =============================================================================
 
-def search_hosts(
-    domain: str, max_results: int = 100
-) -> Dict[str, Any]:
+def _search_hosts(domain, headers):
     """
     Search Censys for hosts associated with a domain.
 
-    Returns detailed host information including:
-    - IP addresses and hostnames
-    - Open ports and protocols
-    - Service fingerprints (software, versions)
-    - TLS certificate details
-    - Operating system detection
+    Uses Censys v2 /hosts/search endpoint.
+    Query finds all IPs that have the domain in their
+    certificate Subject Alternative Names (SANs).
+
+    Args:
+        domain: Target domain (e.g., "company.com")
+        headers: Auth headers from _get_auth_headers()
+
+    Returns:
+        list of host dicts from Censys
+    """
+    try:
+        query = f"parsed.names: {domain}"
+
+        resp = requests.get(
+            f"{CENSYS_API_BASE}/hosts/search",
+            headers=headers,
+            params={
+                "q": query,
+                "per_page": 50,        # max per page
+                "virtual_hosts": "INCLUDE"
+            },
+            timeout=20
+        )
+
+        # ── Handle auth errors ────────────────────────────
+        if resp.status_code == 401:
+            logger.error(
+                "[CENSYS] Authentication failed — "
+                "check your CENSYS_PAT token"
+            )
+            return []
+
+        if resp.status_code == 403:
+            logger.error(
+                "[CENSYS] Access forbidden — "
+                "token may lack search permissions"
+            )
+            return []
+
+        if resp.status_code == 429:
+            logger.warning(
+                "[CENSYS] Rate limited — "
+                "free tier: 250 queries/month"
+            )
+            return []
+
+        if resp.status_code == 422:
+            logger.warning(
+                "[CENSYS] Invalid query: %s", query
+            )
+            return []
+
+        if resp.status_code != 200:
+            logger.warning(
+                "[CENSYS] Host search HTTP %d: %s",
+                resp.status_code,
+                resp.text[:200]
+            )
+            return []
+
+        data = resp.json()
+        hits = data.get("result", {}).get("hits", [])
+        total = data.get("result", {}).get("total", 0)
+
+        logger.info(
+            "[CENSYS] Host search found %d results (total: %d)",
+            len(hits), total
+        )
+        return hits
+
+    except requests.Timeout:
+        logger.warning("[CENSYS] Host search timed out")
+        return []
+
+    except Exception as e:
+        logger.error("[CENSYS] Host search error: %s", e)
+        return []
+
+
+# =============================================================================
+# HOST DETAILS
+# =============================================================================
+
+def _get_host_details(ip, headers):
+    """
+    Get detailed info for a specific IP from Censys.
+
+    Args:
+        ip: IP address string
+        headers: Auth headers
+
+    Returns:
+        dict with host details, or {}
+    """
+    try:
+        resp = requests.get(
+            f"{CENSYS_API_BASE}/hosts/{ip}",
+            headers=headers,
+            timeout=15
+        )
+
+        if resp.status_code == 404:
+            return {}
+
+        if resp.status_code != 200:
+            return {}
+
+        return resp.json().get("result", {})
+
+    except Exception as e:
+        logger.debug("[CENSYS] Host detail error for %s: %s", ip, e)
+        return {}
+
+
+# =============================================================================
+# CERTIFICATE SEARCH
+# =============================================================================
+
+def _search_certificates(domain, headers):
+    """
+    Search Censys certificate transparency logs for a domain.
+
+    Finds subdomains exposed in SSL certificates.
+    This is free intel — no active scanning.
 
     Args:
         domain: Target domain
-        max_results: Maximum hosts to return
+        headers: Auth headers
 
     Returns:
-        Dict with hosts, ports, services
+        set of discovered subdomains
     """
-    hosts_api = _get_hosts_api()
-    if not hosts_api:
-        return {
-            "success": False,
-            "error": "Censys Hosts API not available",
-            "hosts": [],
-            "ports_by_host": {},
-            "services": [],
-            "stats": {},
-            "source": "censys_hosts"
-        }
-
-    print(f"[CENSYS] Searching hosts for {domain}...")
+    subdomains = set()
 
     try:
-        hosts = {}
-        ports_by_host = {}
-        all_services = []
-        host_count = 0
-
-        query = (
-            f"services.tls.certificates.leaf.names: {domain}"
-        )
-
-        for host_data in hosts_api.search(
-            query,
-            per_page=50,
-            pages=max(1, max_results // 50)
-        ):
-            host_count += 1
-            ip = host_data.get("ip", "")
-
-            if not ip:
-                continue
-
-            # ── Extract basic host info ───────────────
-            host_info = {
-                "ip": ip,
-                "hostnames": [],
-                "os": "",
-                "ports": [],
-                "services": [],
-                "location": {},
-                "autonomous_system": {},
-                "last_updated": host_data.get(
-                    "last_updated_at", ""
-                ),
-                "source": "censys"
-            }
-
-            # ── Extract services (ports) ──────────────
-            services = host_data.get("services", [])
-            for svc in services:
-                port = svc.get("port", 0)
-                transport = svc.get(
-                    "transport_protocol", "TCP"
-                ).lower()
-                service_name = svc.get("service_name", "")
-                extended_service = svc.get(
-                    "extended_service_name", ""
-                )
-
-                service_info = {
-                    "port": port,
-                    "transport": transport,
-                    "service_name": service_name,
-                    "extended_service": extended_service,
-                    "software": [],
-                    "hostname": "",
-                    "certificate": {}
-                }
-
-                # Extract software info
-                sw = svc.get("software", [])
-                if sw:
-                    for s in sw:
-                        product = s.get("product", "")
-                        version = s.get("version", "")
-                        if product:
-                            sw_str = product
-                            if version:
-                                sw_str += f" {version}"
-                            service_info["software"].append(
-                                sw_str
-                            )
-
-                # Extract TLS/certificate info
-                tls = svc.get("tls", {})
-                if tls:
-                    cert = tls.get("certificates", {})
-                    leaf = cert.get("leaf", {})
-
-                    if leaf:
-                        names = leaf.get("names", [])
-                        issuer = leaf.get("issuer", {})
-                        subject = leaf.get("subject", {})
-                        validity = leaf.get("validity", {})
-
-                        # Handle issuer org
-                        issuer_org_raw = issuer.get(
-                            "organization", ""
-                        )
-                        if isinstance(issuer_org_raw, list):
-                            issuer_org = (
-                                issuer_org_raw[0]
-                                if issuer_org_raw else ""
-                            )
-                        else:
-                            issuer_org = issuer_org_raw
-
-                        # Handle subject CN
-                        subject_cn_raw = subject.get(
-                            "common_name", ""
-                        )
-                        if isinstance(subject_cn_raw, list):
-                            subject_cn = (
-                                subject_cn_raw[0]
-                                if subject_cn_raw else ""
-                            )
-                        else:
-                            subject_cn = subject_cn_raw
-
-                        service_info["certificate"] = {
-                            "names": names,
-                            "issuer_org": issuer_org,
-                            "subject_cn": subject_cn,
-                            "not_after": validity.get(
-                                "end", ""
-                            ),
-                            "not_before": validity.get(
-                                "start", ""
-                            )
-                        }
-
-                        # Extract hostnames from cert
-                        for name in names:
-                            name = name.lower().strip()
-                            if (not name.startswith("*.") and
-                                    name.endswith(domain)):
-                                if name not in host_info[
-                                    "hostnames"
-                                ]:
-                                    host_info[
-                                        "hostnames"
-                                    ].append(name)
-                                service_info[
-                                    "hostname"
-                                ] = name
-
-                # Extract HTTP info
-                http = svc.get("http", {})
-                if http:
-                    response = http.get("response", {})
-                    service_info["http_status"] = response.get(
-                        "status_code", 0
-                    )
-                    service_info["http_title"] = response.get(
-                        "html_title", ""
-                    )
-                    headers = response.get("headers", {})
-                    if headers:
-                        server = headers.get("server", [])
-                        if isinstance(server, list) and server:
-                            service_info[
-                                "http_server"
-                            ] = server[0]
-                        elif isinstance(server, str):
-                            service_info[
-                                "http_server"
-                            ] = server
-
-                if port not in host_info["ports"]:
-                    host_info["ports"].append(port)
-
-                host_info["services"].append(service_info)
-                all_services.append(service_info)
-
-            # Sort ports
-            host_info["ports"].sort()
-
-            # Extract location
-            location = host_data.get("location", {})
-            if location:
-                host_info["location"] = {
-                    "country": location.get("country", ""),
-                    "city": location.get("city", ""),
-                    "province": location.get("province", "")
-                }
-
-            # Extract AS info
-            as_info = host_data.get(
-                "autonomous_system", {}
-            )
-            if as_info:
-                host_info["autonomous_system"] = {
-                    "asn": as_info.get("asn", 0),
-                    "name": as_info.get("name", ""),
-                    "bgp_prefix": as_info.get(
-                        "bgp_prefix", ""
-                    )
-                }
-
-            # Extract OS
-            os_info = host_data.get("operating_system", {})
-            if os_info:
-                product = os_info.get("product", "")
-                version = os_info.get("version", "")
-                host_info["os"] = (
-                    f"{product} {version}".strip()
-                )
-
-            hosts[ip] = host_info
-
-            # Build ports_by_host mapping
-            for hostname in host_info["hostnames"]:
-                if hostname not in ports_by_host:
-                    ports_by_host[hostname] = []
-                for port in host_info["ports"]:
-                    if port not in ports_by_host[hostname]:
-                        ports_by_host[hostname].append(port)
-
-            # Also map IP to ports
-            if ip not in ports_by_host:
-                ports_by_host[ip] = []
-            for port in host_info["ports"]:
-                if port not in ports_by_host[ip]:
-                    ports_by_host[ip].append(port)
-
-            if host_count >= max_results:
-                break
-
-        # Sort all port lists
-        for host in ports_by_host:
-            ports_by_host[host].sort()
-
-        # Stats
-        unique_ips = len(hosts)
-        unique_ports = len(set(
-            s["port"] for s in all_services
-        ))
-        unique_hostnames = set()
-        for h in hosts.values():
-            unique_hostnames.update(h.get("hostnames", []))
-
-        print(
-            f"[CENSYS] Found {unique_ips} hosts, "
-            f"{unique_ports} unique ports, "
-            f"{len(unique_hostnames)} hostnames"
-        )
-
-        return {
-            "success": True,
-            "domain": domain,
-            "hosts": list(hosts.values()),
-            "ports_by_host": ports_by_host,
-            "services": all_services,
-            "stats": {
-                "unique_ips": unique_ips,
-                "unique_ports": unique_ports,
-                "unique_hostnames": len(unique_hostnames),
-                "total_services": len(all_services),
-                "hosts_analyzed": host_count
+        resp = requests.get(
+            f"{CENSYS_API_BASE}/certificates/search",
+            headers=headers,
+            params={
+                "q": f"parsed.names: {domain}",
+                "per_page": 100,
+                "fields": "parsed.names"
             },
-            "source": "censys_hosts"
-        }
+            timeout=20
+        )
 
-    except CensysRateLimitExceededException:
-        print("[CENSYS] Rate limit exceeded")
-        return {
-            "success": False,
-            "error": (
-                "Rate limit exceeded — try again later"
-            ),
-            "hosts": [],
-            "ports_by_host": {},
-            "services": [],
-            "stats": {},
-            "source": "censys_hosts"
-        }
+        if resp.status_code != 200:
+            logger.debug(
+                "[CENSYS] Cert search HTTP %d",
+                resp.status_code
+            )
+            return subdomains
 
-    except CensysUnauthorizedException:
-        print("[CENSYS] Authentication failed")
-        return {
-            "success": False,
-            "error": (
-                "Authentication failed — "
-                "check API credentials"
-            ),
-            "hosts": [],
-            "ports_by_host": {},
-            "services": [],
-            "stats": {},
-            "source": "censys_hosts"
-        }
+        data = resp.json()
+        hits = data.get("result", {}).get("hits", [])
 
-    except CensysException as e:
-        print(f"[CENSYS] Host search error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "hosts": [],
-            "ports_by_host": {},
-            "services": [],
-            "stats": {},
-            "source": "censys_hosts"
-        }
+        for hit in hits:
+            names = hit.get("parsed", {}).get("names", [])
+            for name in names:
+                name = name.lower().strip()
+                # Filter wildcards and root-only entries
+                if (
+                    name.endswith(f".{domain}")
+                    and "*" not in name
+                    and name != domain
+                ):
+                    subdomains.add(name)
+
+        logger.info(
+            "[CENSYS] Cert search found %d subdomains",
+            len(subdomains)
+        )
+
+    except requests.Timeout:
+        logger.warning("[CENSYS] Cert search timed out")
 
     except Exception as e:
-        print(f"[CENSYS] Host search error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "hosts": [],
-            "ports_by_host": {},
-            "services": [],
-            "stats": {},
-            "source": "censys_hosts"
-        }
+        logger.error("[CENSYS] Cert search error: %s", e)
+
+    return subdomains
 
 
 # =============================================================================
-# SINGLE HOST LOOKUP
+# PARSE HOST DATA
 # =============================================================================
 
-def lookup_host(ip: str) -> Optional[Dict[str, Any]]:
+def _parse_host(hit):
     """
-    Get detailed information about a specific IP from Censys.
+    Extract useful fields from a Censys host search result.
 
     Args:
-        ip: IP address to look up
+        hit: Single host dict from Censys search results
 
     Returns:
-        Dict with host details or None on failure
+        dict with normalized host data
     """
-    hosts_api = _get_hosts_api()
-    if not hosts_api:
-        return None
+    ip = hit.get("ip", "")
+    services = hit.get("services", [])
 
-    try:
-        host = hosts_api.view(ip)
+    # Extract open ports and service info
+    open_ports = []
+    service_list = []
+    for svc in services:
+        port = svc.get("port")
+        transport = svc.get("transport_protocol", "TCP")
+        service_name = svc.get("service_name", "unknown")
+        banner = svc.get("banner", "")
 
-        ports = []
-        services = []
-        hostnames = set()
-
-        for svc in host.get("services", []):
-            port = svc.get("port", 0)
-            if port not in ports:
-                ports.append(port)
-
-            service_name = svc.get("service_name", "")
-            software = svc.get("software", [])
-            sw_str = ""
-            if software:
-                product = software[0].get("product", "")
-                version = software[0].get("version", "")
-                sw_str = f"{product} {version}".strip()
-
-            services.append({
+        if port:
+            open_ports.append(port)
+            service_list.append({
                 "port": port,
+                "protocol": transport,
                 "service": service_name,
-                "software": sw_str,
-                "transport": svc.get(
-                    "transport_protocol", "TCP"
-                ).lower()
+                "banner": banner[:200] if banner else ""
             })
 
-            # Extract hostnames from TLS
-            tls = svc.get("tls", {})
-            if tls:
-                cert = tls.get(
-                    "certificates", {}
-                ).get("leaf", {})
-                for name in cert.get("names", []):
-                    if not name.startswith("*."):
-                        hostnames.add(name.lower())
+    # Extract labels/tags Censys assigned
+    labels = hit.get("labels", [])
 
-        location = host.get("location", {})
-        as_info = host.get("autonomous_system", {})
+    # Extract autonomous system info
+    as_info = hit.get("autonomous_system", {})
 
-        return {
-            "ip": ip,
-            "hostnames": sorted(hostnames),
-            "ports": sorted(ports),
-            "services": services,
-            "os": host.get(
-                "operating_system", {}
-            ).get("product", ""),
-            "country": location.get("country", ""),
-            "city": location.get("city", ""),
-            "asn": as_info.get("asn", 0),
-            "as_name": as_info.get("name", ""),
-            "last_updated": host.get("last_updated_at", ""),
-            "source": "censys"
-        }
+    # Extract location
+    location = hit.get("location", {})
 
-    except CensysException as e:
-        print(f"[CENSYS] Host lookup error for {ip}: {e}")
-        return None
-
-    except Exception as e:
-        print(f"[CENSYS] Host lookup error for {ip}: {e}")
-        return None
-
-
-# =============================================================================
-# UNIFIED PASSIVE RECON
-# =============================================================================
-
-def run_passive_recon(domain: str) -> Dict[str, Any]:
-    """
-    Run complete passive reconnaissance using Censys.
-
-    Combines certificate-based subdomain discovery with
-    host search for ports and services.
-
-    This is called by scanner.py Phase 0 alongside Shodan.
-
-    Args:
-        domain: Target domain (e.g., "example.com")
-
-    Returns:
-        Dict with all passive recon data
-    """
-    print(f"\n{'='*60}")
-    print(f"[CENSYS] Starting passive recon for: {domain}")
-    print(f"{'='*60}")
-
-    if not is_available():
-        print("[CENSYS] Not available — skipping")
-        print(
-            "[CENSYS] Set CENSYS_API_ID and "
-            "CENSYS_API_SECRET in .env"
-        )
-        return {
-            "success": False,
-            "error": "Censys API not configured",
-            "subdomains": [],
-            "ports_by_host": {},
-            "hosts": [],
-            "services": [],
-            "stats": {
-                "subdomains_from_certs": 0,
-                "subdomains_from_hosts": 0,
-                "total_subdomains": 0,
-                "unique_ips": 0,
-                "unique_ports": 0,
-                "total_services": 0,
-                "certificates_analyzed": 0,
-                "hosts_analyzed": 0
-            },
-            "source": "censys"
-        }
-
-    all_subdomains = set()
-
-    # ── Step 1: Certificate-based subdomain discovery ─
-    cert_result = discover_subdomains_via_certs(domain)
-    cert_subs = set()
-    if cert_result.get("success"):
-        cert_subs = set(cert_result.get("subdomains", []))
-        all_subdomains.update(cert_subs)
-
-    # Small delay between API calls
-    time.sleep(1)
-
-    # ── Step 2: Host search ───────────────────────────
-    host_result = search_hosts(domain)
-    host_subs = set()
-    if host_result.get("success"):
-        # Extract hostnames from host data
-        for host in host_result.get("hosts", []):
-            for hostname in host.get("hostnames", []):
-                if hostname.endswith(domain):
-                    host_subs.add(hostname.lower())
-                    all_subdomains.add(hostname.lower())
-
-        # Extract from service certificates
-        for service in host_result.get("services", []):
-            cert = service.get("certificate", {})
-            for name in cert.get("names", []):
-                name = name.lower().strip()
-                if (not name.startswith("*.") and
-                        name.endswith(domain)):
-                    all_subdomains.add(name)
-
-    final_subdomains = sorted(all_subdomains)
-
-    # ── Build combined stats ──────────────────────────
-    host_stats = host_result.get("stats", {})
-    stats = {
-        "subdomains_from_certs": len(cert_subs),
-        "subdomains_from_hosts": len(host_subs),
-        "total_subdomains": len(final_subdomains),
-        "unique_ips": host_stats.get("unique_ips", 0),
-        "unique_ports": host_stats.get("unique_ports", 0),
-        "total_services": host_stats.get(
-            "total_services", 0
-        ),
-        "certificates_analyzed": cert_result.get(
-            "certificates_analyzed", 0
-        ),
-        "hosts_analyzed": host_stats.get(
-            "hosts_analyzed", 0
-        )
-    }
-
-    print(f"\n[CENSYS] Passive recon complete:")
-    print(
-        f"[CENSYS]   Subdomains: {len(final_subdomains)} "
-        f"({len(cert_subs)} from certs, "
-        f"{len(host_subs)} from hosts)"
-    )
-    print(f"[CENSYS]   IPs: {stats['unique_ips']}")
-    print(f"[CENSYS]   Ports: {stats['unique_ports']}")
-    print(
-        f"[CENSYS]   Services: {stats['total_services']}"
-    )
+    # Extract names from matched services (subdomains/hostnames)
+    matched_services = hit.get("matched_services", [])
+    hostnames = []
+    for ms in matched_services:
+        tls = ms.get("tls", {})
+        cert = tls.get("certificates", {})
+        leaf = cert.get("leaf_data", {})
+        names = leaf.get("names", [])
+        hostnames.extend(names)
 
     return {
+        "ip": ip,
+        "open_ports": sorted(open_ports),
+        "services": service_list,
+        "labels": labels,
+        "asn": as_info.get("asn", ""),
+        "as_name": as_info.get("name", ""),
+        "country": location.get("country", ""),
+        "country_code": location.get("country_code", ""),
+        "city": location.get("city", ""),
+        "hostnames": list(set(hostnames)),
+        "last_updated": hit.get("last_updated_at", "")
+    }
+
+
+# =============================================================================
+# MAIN RECON FUNCTION
+# =============================================================================
+
+def run_passive_recon(domain):
+    """
+    Run full Censys passive reconnaissance on a domain.
+
+    Collects:
+      - IPs hosting domain-related services
+      - Open ports and service banners
+      - Subdomains from certificate transparency
+      - ASN and geolocation data
+      - CVEs Censys has detected on hosts
+
+    Args:
+        domain: Target domain (e.g., "company.com")
+
+    Returns:
+        dict with all collected intelligence
+    """
+    logger.info("[CENSYS] Starting passive recon for: %s", domain)
+
+    # ── Check credentials first ───────────────────────────
+    headers = _get_auth_headers()
+
+    if not headers:
+        return {
+            "success": False,
+            "error": (
+                "No Censys credentials. "
+                "Set CENSYS_PAT in .env file. "
+                "Get token from: https://search.censys.io/account"
+            ),
+            "domain": domain,
+            "hosts": [],
+            "ips": [],
+            "open_ports": [],
+            "subdomains": [],
+            "technologies": [],
+            "cves": []
+        }
+
+    # ── Phase 1: Host Search ──────────────────────────────
+    logger.info("[CENSYS] Phase 1: Searching hosts...")
+    hits = _search_hosts(domain, headers)
+
+    # ── Phase 2: Parse Host Data ──────────────────────────
+    hosts = []
+    all_ips = []
+    all_ports = set()
+    all_technologies = set()
+    all_cves = []
+    all_hostnames = set()
+
+    for hit in hits:
+        parsed = _parse_host(hit)
+        hosts.append(parsed)
+        all_ips.append(parsed["ip"])
+        all_ports.update(parsed["open_ports"])
+
+        # Collect labels as "technologies"
+        for label in parsed.get("labels", []):
+            all_technologies.add(label)
+
+        # Collect hostnames for subdomain intel
+        for hostname in parsed.get("hostnames", []):
+            if (
+                hostname.endswith(f".{domain}")
+                and hostname != domain
+            ):
+                all_hostnames.add(hostname)
+
+    # ── Phase 3: Certificate Search ───────────────────────
+    logger.info("[CENSYS] Phase 3: Searching certificates...")
+    cert_subdomains = _search_certificates(domain, headers)
+    all_hostnames.update(cert_subdomains)
+
+    # ── Phase 4: Get CVEs for top hosts ───────────────────
+    logger.info("[CENSYS] Phase 4: Fetching CVE data...")
+    cve_limit = 5  # only check top 5 IPs (save API quota)
+
+    for ip in all_ips[:cve_limit]:
+        try:
+            details = _get_host_details(ip, headers)
+            services = details.get("services", [])
+
+            for svc in services:
+                vulns = svc.get("vulnerabilities", [])
+                for vuln in vulns:
+                    cve_id = vuln.get("cve_id", "")
+                    if cve_id:
+                        all_cves.append({
+                            "ip": ip,
+                            "cve_id": cve_id,
+                            "severity": vuln.get(
+                                "severity", "unknown"
+                            ),
+                            "cvss": vuln.get("cvss", 0),
+                            "description": vuln.get(
+                                "description", ""
+                            )[:300]
+                        })
+        except Exception as e:
+            logger.debug(
+                "[CENSYS] CVE fetch error for %s: %s", ip, e
+            )
+            continue
+
+    # ── Build Final Result ────────────────────────────────
+    result = {
         "success": True,
         "domain": domain,
-        "subdomains": final_subdomains,
-        "ports_by_host": host_result.get(
-            "ports_by_host", {}
-        ),
-        "hosts": host_result.get("hosts", []),
-        "services": host_result.get("services", []),
-        "stats": stats,
-        "source": "censys",
-        "recon_at": datetime.utcnow().isoformat()
+
+        # Host intelligence
+        "hosts": hosts,
+        "host_count": len(hosts),
+
+        # IP list (flat, for other modules)
+        "ips": all_ips,
+        "ip_count": len(all_ips),
+
+        # Port intelligence
+        "open_ports": sorted(list(all_ports)),
+        "port_count": len(all_ports),
+
+        # Subdomain intelligence (from certs + host data)
+        "subdomains": sorted(list(all_hostnames)),
+        "subdomain_count": len(all_hostnames),
+
+        # Technology/label intelligence
+        "technologies": sorted(list(all_technologies)),
+
+        # CVE intelligence
+        "cves": all_cves,
+        "cve_count": len(all_cves),
+
+        # Metadata
+        "recon_at": datetime.utcnow().isoformat(),
+        "auth_method": "PAT" if Config.CENSYS_PAT else "API_KEY"
     }
+
+    # ── Summary Log ───────────────────────────────────────
+    logger.info("[CENSYS] Recon complete for %s:", domain)
+    logger.info("  Hosts:      %d", result["host_count"])
+    logger.info("  IPs:        %d", result["ip_count"])
+    logger.info("  Ports:      %d", result["port_count"])
+    logger.info("  Subdomains: %d", result["subdomain_count"])
+    logger.info("  CVEs:       %d", result["cve_count"])
+
+    return result
 
 
 # =============================================================================
@@ -841,53 +505,51 @@ def run_passive_recon(domain: str) -> Dict[str, Any]:
 # =============================================================================
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("  CENSYS RECON — Standalone Test")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("  CENSYS RECON - Standalone Test")
+    logger.info("=" * 60)
 
-    if not is_available():
-        print("\n❌ Censys API not configured")
-        print(
-            "Set CENSYS_API_ID and CENSYS_API_SECRET "
-            "in .env"
-        )
-        print(
-            "Get credentials at: "
-            "https://search.censys.io/account/api"
-        )
+    # Quick credential check
+    pat = Config.CENSYS_PAT
+    api_id = Config.CENSYS_API_ID
+
+    if pat:
+        logger.info(f"[AUTH] Using PAT: {pat[:8]}...")
+    elif api_id:
+        logger.info(f"[AUTH] Using API ID: {api_id[:8]}...")
     else:
-        domain = input(
-            "\nEnter domain (e.g., example.com): "
-        ).strip()
-        if domain:
-            result = run_passive_recon(domain)
+        logger.warning("[AUTH] No credentials found!")
+        logger.warning("  Set CENSYS_PAT in your .env file")
+        logger.warning("  Get token: https://search.censys.io/account")
+        exit(1)
 
-            print(f"\n{'='*60}")
-            print(f"Domain: {result['domain']}")
-            print(f"Success: {result['success']}")
+    domain = input("\nEnter domain to test: ").strip()
+    if not domain:
+        domain = "example.com"
 
-            if result["success"]:
-                print(
-                    f"\nSubdomains "
-                    f"({len(result['subdomains'])}):"
-                )
-                for sub in result["subdomains"][:15]:
-                    print(f"  • {sub}")
-                if len(result["subdomains"]) > 15:
-                    remaining = (
-                        len(result["subdomains"]) - 15
-                    )
-                    print(f"  ... and {remaining} more")
+    result = run_passive_recon(domain)
 
-                print(f"\nHosts ({len(result['hosts'])}):")
-                for host in result["hosts"][:5]:
-                    print(
-                        f"  • {host['ip']} — "
-                        f"Ports: {host['ports']} — "
-                        f"Hostnames: "
-                        f"{host.get('hostnames', [])}"
-                    )
+    logger.info("\n" + "=" * 60)
+    logger.info(f"Results for {domain}:")
+    logger.info(f"  Success:    {result['success']}")
+    logger.info(f"  Hosts:      {result.get('host_count', 0)}")
+    logger.info(f"  IPs:        {result.get('ip_count', 0)}")
+    logger.info(f"  Ports:      {result.get('port_count', 0)}")
+    logger.info(f"  Subdomains: {result.get('subdomain_count', 0)}")
+    logger.info(f"  CVEs:       {result.get('cve_count', 0)}")
+    logger.info(f"  Auth:       {result.get('auth_method', 'unknown')}")
 
-                print(f"\nStats:")
-                for key, val in result["stats"].items():
-                    print(f"  {key}: {val}")
+    if result.get("ips"):
+        logger.info("\n  IPs found:")
+        for ip in result["ips"][:5]:
+            logger.info(f"    - {ip}")
+
+    if result.get("subdomains"):
+        logger.info("\n  Subdomains found:")
+        for sub in result["subdomains"][:5]:
+            logger.info(f"    - {sub}")
+
+    if result.get("cves"):
+        logger.info("\n  CVEs found:")
+        for cve in result["cves"][:5]:
+            logger.info(f"    - {cve['ip']} → {cve['cve_id']} ({cve['severity']})")

@@ -378,6 +378,14 @@
                     </li>
                     <li class="nav-item mt-4 mb-2">
                         <hr style="border-color: rgba(255,255,255,0.1); margin: 0 15px;">
+                        <div class="px-3 py-2 text-uppercase text-muted" style="font-size: 0.6rem; letter-spacing: 1px;">
+                            System Settings
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'api_keys' %}active{% endif %}" href="{{ url_for('api_keys.index') }}">
+                            <i class="bi bi-key"></i> API Keys
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/logout" style="color: rgba(255,255,255,0.5);">

@@ -1,9 +1,9 @@
-"""
+﻿"""
 EASM Scan Pipeline Orchestrator
 ================================
 Executes the complete scanning pipeline in sequence:
 
-    Phase 0: Passive Recon (Shodan + Censys)
+    Phase 0: Passive Recon (Shodan + Censys + WHOIS)
     Phase 1: Subdomain Discovery (Subfinder + crt.sh + merge passive)
     Phase 2: Port Scanning (Naabu — skips hosts covered by passive)
     Phase 3: HTTP Fingerprinting (HTTPX)
@@ -18,19 +18,33 @@ Design principles:
     - Pre-scan snapshot enables accurate change detection
     - Passive recon data merged with active scan results
     - Progress tracked in DB for frontend polling
+
+Resumability:
+    - Each completed phase is checkpointed to MongoDB
+    - On resume, completed phases are skipped
+    - Phase outputs are reloaded from DB for downstream phases
+    - mark_all_*_old() is skipped on resume to preserve data integrity
+
+Performance:
+    - Tier 1A CVE scans are batched by template set
+    - Tiers 1B/2A/2B already batch by tag groups
+    - Nuclei auto-splits large target lists via NUCLEI_BATCH_SIZE
 """
 import os
 from datetime import datetime
+from collections import defaultdict
 from database.targets_db import update_target_stats, update_last_scan
 from database.subdomains_db import (
     add_subdomains_bulk, mark_all_subdomains_old,
-    get_subdomains_by_target
+    get_subdomains_by_target, get_subdomains_by_source
 )
 from database.ports_db import (
-    add_ports_bulk, mark_all_ports_old, get_ports_by_target
+    add_ports_bulk, mark_all_ports_old,
+    get_ports_by_target, get_ports_by_source
 )
 from database.http_assets_db import (
-    add_http_asset, mark_all_http_assets_old
+    add_http_asset, mark_all_http_assets_old,
+    get_http_assets_by_target
 )
 from database.vulns_db import (
     add_vulnerability, mark_all_vulns_old, get_vulns_by_target
@@ -38,11 +52,13 @@ from database.vulns_db import (
 from database.emails_db import mark_all_emails_old
 from database.scans_db import (
     create_scan_with_domain, complete_scan, fail_scan,
-    update_scan_progress
+    update_scan_progress, mark_phase_completed,
+    get_completed_phases
 )
 from database.passive_recon_db import (
     save_shodan_results, save_censys_results,
-    save_whois_results, get_whois_data
+    save_whois_results, get_whois_data,
+    get_passive_recon
 )
 from core.subfinder import scan_subdomains, save_certificates
 from core.naabu import run_naabu
@@ -53,9 +69,430 @@ from core.risk_scorer import calculate_risk_score
 from utils.logger import logger
 
 
+# =========================================================================
+# RESUMABILITY: DATA RELOAD FROM DB
+# =========================================================================
+
+def _reload_from_db(target_id, domain, completed_phases):
+    """
+    Reload outputs of completed phases from MongoDB.
+
+    When resuming a scan, later phases need data that was produced
+    by earlier (already-completed) phases. Since those phases won't
+    re-run, we reconstruct their output variables from what was
+    persisted to the database.
+
+    Args:
+        target_id:        Target document ObjectId string
+        domain:           Root domain string
+        completed_phases: List of phase names already completed
+
+    Returns:
+        Tuple of (shodan_result, censys_result, whois_result,
+                  subdomain_list, subs_result, ports_result,
+                  http_result)
+    """
+    # Defaults (same as fresh scan)
+    shodan_result = {
+        "success": False, "subdomains": [],
+        "ports_by_host": {}, "vulnerabilities": [],
+        "hosts": [], "services": [], "stats": {}
+    }
+    censys_result = {
+        "success": False, "subdomains": [],
+        "ports_by_host": {}, "services": [],
+        "hosts": [], "stats": {}
+    }
+    whois_result = {"success": False}
+    subdomain_list = []
+    subs_result = {"success": False, "subdomains": []}
+    ports_result = {
+        "success": False, "ports_found": {}, "total_ports": 0
+    }
+    http_result = {
+        "success": False, "http_assets": [], "count": 0
+    }
+
+    # ── Reload Phase 0: Passive Recon ────────────────────
+    if "passive_recon" in completed_phases:
+        logger.info("[RESUME] Reloading Phase 0 data from DB...")
+
+        # Shodan
+        shodan_docs = get_passive_recon(domain, "shodan")
+        if shodan_docs:
+            doc = shodan_docs[0]
+            shodan_subs = get_subdomains_by_source(
+                target_id, "shodan"
+            )
+            sub_list = [s["subdomain"] for s in shodan_subs]
+
+            shodan_ports = get_ports_by_source(
+                target_id, "shodan"
+            )
+            pbh = {}
+            for p in shodan_ports:
+                host = p.get("host", "")
+                port = p.get("port")
+                if host and port is not None:
+                    if host not in pbh:
+                        pbh[host] = []
+                    if port not in pbh[host]:
+                        pbh[host].append(port)
+
+            shodan_result = {
+                "success": True,
+                "subdomains": sub_list,
+                "ports_by_host": pbh,
+                "vulnerabilities": doc.get(
+                    "vulnerabilities", []
+                ),
+                "hosts": doc.get("hosts", []),
+                "services": doc.get("services", []),
+                "stats": doc.get("stats", {}),
+            }
+            logger.info(
+                "[RESUME]   Shodan: %d subs, %d hosts "
+                "with ports, %d CVEs",
+                len(sub_list), len(pbh),
+                len(doc.get("vulnerabilities", []))
+            )
+
+        # Censys
+        censys_docs = get_passive_recon(domain, "censys")
+        if censys_docs:
+            doc = censys_docs[0]
+            censys_subs = get_subdomains_by_source(
+                target_id, "censys"
+            )
+            sub_list = [s["subdomain"] for s in censys_subs]
+
+            censys_ports = get_ports_by_source(
+                target_id, "censys"
+            )
+            pbh = {}
+            for p in censys_ports:
+                host = p.get("host", "")
+                port = p.get("port")
+                if host and port is not None:
+                    if host not in pbh:
+                        pbh[host] = []
+                    if port not in pbh[host]:
+                        pbh[host].append(port)
+
+            censys_result = {
+                "success": True,
+                "subdomains": sub_list,
+                "ports_by_host": pbh,
+                "vulnerabilities": [],
+                "hosts": doc.get("hosts", []),
+                "services": doc.get("services", []),
+                "stats": doc.get("stats", {}),
+            }
+            logger.info(
+                "[RESUME]   Censys: %d subs, "
+                "%d hosts with ports",
+                len(sub_list), len(pbh)
+            )
+
+        # WHOIS
+        whois_data = get_whois_data(domain)
+        if whois_data and whois_data.get("registrar"):
+            whois_result = {"success": True, **whois_data}
+            logger.info(
+                "[RESUME]   WHOIS: registrar=%s",
+                whois_data.get("registrar", "N/A")
+            )
+
+    # ── Reload Phase 1: Subdomain Discovery ──────────────
+    if "subdomain_discovery" in completed_phases:
+        stored_subs = get_subdomains_by_target(target_id)
+        subdomain_list = [s["subdomain"] for s in stored_subs]
+        subs_result = {
+            "success": True,
+            "subdomains": subdomain_list,
+            "count": len(subdomain_list)
+        }
+        logger.info(
+            "[RESUME] Reloaded Phase 1: %d subdomains",
+            len(subdomain_list)
+        )
+
+    # ── Reload Phase 2: Port Scanning ────────────────────
+    if "port_scanning" in completed_phases:
+        stored_ports = get_ports_by_target(target_id)
+        pbh = {}
+        for p in stored_ports:
+            host = p.get("host", "")
+            port = p.get("port")
+            if host and port is not None:
+                if host not in pbh:
+                    pbh[host] = []
+                if port not in pbh[host]:
+                    pbh[host].append(port)
+
+        ports_result = {
+            "success": True,
+            "ports_found": pbh,
+            "total_ports": sum(
+                len(v) for v in pbh.values()
+            )
+        }
+        logger.info(
+            "[RESUME] Reloaded Phase 2: %d ports "
+            "across %d hosts",
+            ports_result["total_ports"], len(pbh)
+        )
+
+    # ── Reload Phase 3: HTTP Fingerprinting ──────────────
+    if "http_fingerprinting" in completed_phases:
+        stored_http = get_http_assets_by_target(target_id)
+        http_result = {
+            "success": True,
+            "http_assets": stored_http,
+            "count": len(stored_http)
+        }
+        logger.info(
+            "[RESUME] Reloaded Phase 3: %d HTTP assets",
+            len(stored_http)
+        )
+
+    return (
+        shodan_result, censys_result, whois_result,
+        subdomain_list, subs_result, ports_result,
+        http_result
+    )
+
+
+def _build_http_target_map(http_result):
+    """Map host -> discovered HTTP URLs from HTTPX results."""
+    target_map = defaultdict(list)
+
+    for asset in http_result.get("http_assets", []):
+        host = str(asset.get("host", "")).strip()
+        url = str(asset.get("url", "")).strip()
+        if host and url and url not in target_map[host]:
+            target_map[host].append(url)
+
+    return target_map
+
+
+def _preferred_targets_for_hosts(hosts, http_target_map):
+    """Use discovered URLs for web scans and fall back to raw hosts."""
+    targets = []
+    seen = set()
+
+    for host in hosts:
+        preferred = http_target_map.get(host) or [host]
+        for target in preferred:
+            if target and target not in seen:
+                seen.add(target)
+                targets.append(target)
+
+    return targets
+
+
+def _persist_vulnerability_batch(
+    target_id, domain, vulnerabilities, all_vulns, persisted_keys
+):
+    """Persist a vulnerability batch immediately and keep memory deduped."""
+    for v in vulnerabilities:
+        dedupe_key = (
+            f"{v.get('template_id', '')}||"
+            f"{v.get('host', '')}"
+        )
+        if dedupe_key in persisted_keys:
+            continue
+
+        persisted_keys.add(dedupe_key)
+        all_vulns.append(v)
+        add_vulnerability(
+            target_id=target_id,
+            target_domain=domain,
+            subdomain_id="",
+            host=v.get("host", ""),
+            url=v.get(
+                "url",
+                v.get("matched_at", "")
+            ),
+            template_id=v.get(
+                "template_id", ""
+            ),
+            name=v.get("name", ""),
+            severity=v.get(
+                "severity", "info"
+            ),
+            cve_id=v.get("cve_id"),
+            description=v.get(
+                "description", ""
+            ),
+            matched_at=v.get(
+                "matched_at", ""
+            ),
+            reference=v.get(
+                "reference", []
+            ),
+            tags=v.get("tags", []),
+            cvss_score=v.get(
+                "cvss_score"
+            ),
+            cwe_id=v.get("cwe_id", []),
+            remediation=v.get(
+                "remediation", {}
+            ),
+            curl_command=v.get(
+                "curl_command", ""
+            ),
+            extracted_results=v.get(
+                "extracted_results", []
+            )
+        )
+
+
+
+
+# =========================================================================
+# VULNERABILITY TIER HELPERS
+# =========================================================================
+
+def _run_tag_tier_scan(
+    tier_name, tag_targets, http_target_map,
+    source_label, target_id, domain,
+    all_vulns, persisted_vuln_keys
+):
+    """
+    Run a tag-grouped Nuclei scan for a single intelligence tier.
+
+    Tiers 1B, 2A, and 2B all share the same pattern:
+      1. Group hosts by their sorted tag-set key
+      2. For each unique tag-set, run Nuclei on those hosts
+      3. Persist annotated findings to the DB
+
+    Args:
+        tier_name:          Human-readable tier label (e.g. "Tier 1B")
+        tag_targets:        Dict of {host: [tags]} from the scan plan
+        http_target_map:    Dict of {host: preferred_http_url}
+        source_label:       Value to set on verification_source field
+        target_id:          MongoDB target document ID
+        domain:             Root domain string
+        all_vulns:          Shared list to collect all vulns
+        persisted_vuln_keys: Shared set to deduplicate persisted vulns
+
+    Returns:
+        True if any batch returned a partial result, False otherwise
+    """
+    had_partial = False
+
+    # Group hosts that share the same tag-set into one Nuclei call
+    tag_groups = {}
+    for host, tags in tag_targets.items():
+        tag_key = ",".join(sorted(tags))
+        if tag_key not in tag_groups:
+            tag_groups[tag_key] = []
+        tag_groups[tag_key].append(host)
+
+    for tags_str, hosts in tag_groups.items():
+        tags_list = tags_str.split(",")
+        scan_targets = _preferred_targets_for_hosts(
+            hosts, http_target_map
+        )
+        logger.info(
+            "  %s: %d hosts with tags [%s]",
+            tier_name, len(hosts), tags_str
+        )
+
+        result = run_nuclei(scan_targets, custom_tags=tags_list)
+
+        if result.get("partial"):
+            had_partial = True
+
+        if result.get("success"):
+            annotated = []
+            for v in result.get("vulnerabilities", []):
+                v["verification_source"] = source_label
+                v["confidence"] = "medium"
+                annotated.append(v)
+            _persist_vulnerability_batch(
+                target_id, domain, annotated,
+                all_vulns, persisted_vuln_keys
+            )
+
+    return had_partial
+
+
+def _run_simple_tier_scan(
+    tier_name, hosts, http_target_map,
+    source_label, target_id, domain,
+    all_vulns, persisted_vuln_keys,
+    custom_tags=None, severity_override=None,
+    expand_http_schemes=True, confidence="standard"
+):
+    """
+    Run a simple (non-tag-grouped) Nuclei scan for a tier.
+
+    Used for Tier 2C (Broad) and Tier 2C-NET (Network).
+
+    Args:
+        tier_name:          Human-readable label
+        hosts:              List of host strings
+        http_target_map:    Dict of {host: preferred_url} or None (for raw IPs)
+        source_label:       verification_source value
+        target_id:          MongoDB ID
+        domain:             Root domain
+        all_vulns:          Shared vuln list
+        persisted_vuln_keys: Shared dedupe set
+        custom_tags:        Optional list of Nuclei tags
+        severity_override:  Optional Nuclei severity string
+        expand_http_schemes: Whether to add http/https prefixes
+        confidence:         confidence score ("standard", "medium", etc)
+
+    Returns:
+        True if partial, False otherwise
+    """
+    if not hosts:
+        return False
+
+    scan_targets = hosts
+    if http_target_map:
+        scan_targets = _preferred_targets_for_hosts(
+            hosts, http_target_map
+        )
+
+    logger.info(
+        "  %s: %d targets", tier_name, len(scan_targets)
+    )
+
+    result = run_nuclei(
+        scan_targets,
+        custom_tags=custom_tags,
+        severity_override=severity_override,
+        expand_http_schemes=expand_http_schemes
+    )
+
+    if result.get("success"):
+        annotated = []
+        for v in result.get("vulnerabilities", []):
+            v["verification_source"] = source_label
+            v["confidence"] = confidence
+            annotated.append(v)
+        _persist_vulnerability_batch(
+            target_id, domain, annotated,
+            all_vulns, persisted_vuln_keys
+        )
+
+    return result.get("partial", False)
+
+
+# =========================================================================
+# MAIN SCAN PIPELINE
+# =========================================================================
+
 def run_full_scan(target_id, domain, scan_id=None):
     """
     Execute the complete EASM scan pipeline.
+
+    Supports resumability: if scan_id points to a scan with
+    completed phases, those phases are skipped and their
+    outputs are reloaded from the database.
 
     Args:
         target_id: MongoDB target document ID (string)
@@ -67,7 +504,9 @@ def run_full_scan(target_id, domain, scan_id=None):
     """
 
     if scan_id is None:
-        scan = create_scan_with_domain(target_id, domain, "full")
+        scan = create_scan_with_domain(
+            target_id, domain, "full"
+        )
         scan_id = scan["scan_id"]
 
     logger.info("=" * 60)
@@ -75,9 +514,23 @@ def run_full_scan(target_id, domain, scan_id=None):
     logger.info("Target: %s", domain)
     logger.info("=" * 60)
 
+    # ── Check for resumable phases ───────────────────────
+    completed_phases_db = get_completed_phases(scan_id)
+    is_resuming = len(completed_phases_db) > 0
+
+    if is_resuming:
+        logger.info("=" * 60)
+        logger.info(
+            "RESUMING SCAN — Completed phases: %s",
+            completed_phases_db
+        )
+        logger.info("=" * 60)
+
     # ── Initialize result containers ─────────────────────
-    phases_completed = []
+    phases_completed = completed_phases_db.copy()
     phases_failed = []
+    vuln_scan_partial = False
+
     subs_result = {"success": False, "subdomains": []}
     subdomain_list = []
     ports_result = {"success": False, "ports_found": {}}
@@ -85,7 +538,6 @@ def run_full_scan(target_id, domain, scan_id=None):
     vuln_result = {"success": False, "vulnerabilities": []}
     changes_summary = {"total_changes": 0}
     risk_score = 0
-    vuln_scan_partial = False
 
     shodan_result = {
         "success": False, "subdomains": [],
@@ -99,13 +551,24 @@ def run_full_scan(target_id, domain, scan_id=None):
         "success": False, "registrar": None,
         "nameservers": [], "risk_flags": []
     }
+
+    # ── Reload data from DB if resuming ──────────────────
+    if is_resuming:
+        (shodan_result, censys_result, whois_result,
+         subdomain_list, subs_result, ports_result,
+         http_result) = _reload_from_db(
+            target_id, domain, completed_phases_db
+        )
+
     try:
         # ── Mark existing assets as old ──────────────────
-        mark_all_subdomains_old(target_id)
-        mark_all_ports_old(target_id)
-        mark_all_http_assets_old(target_id)
-        mark_all_vulns_old(target_id)
-        mark_all_emails_old(target_id)
+        # ONLY on fresh scans — resume needs existing data
+        if not is_resuming:
+            mark_all_subdomains_old(target_id)
+            mark_all_ports_old(target_id)
+            mark_all_http_assets_old(target_id)
+            mark_all_vulns_old(target_id)
+            mark_all_emails_old(target_id)
 
         # ── Pre-scan snapshot for change detection ───────
         before_state = {
@@ -126,864 +589,1061 @@ def run_full_scan(target_id, domain, scan_id=None):
         }
 
         # ═════════════════════════════════════════════════
-        # PHASE 0: PASSIVE RECON (SHODAN + CENSYS)
+        # PHASE 0: PASSIVE RECON (SHODAN + CENSYS + WHOIS)
         # ═════════════════════════════════════════════════
-        _progress(
-            scan_id, "passive_recon", 2,
-            f"Running passive recon on {domain}..."
-        )
-
-        try:
-            # ── Shodan ────────────────────────────────
-            from core.shodan_recon import (
-                run_passive_recon as shodan_recon,
-                is_available as shodan_available
+        if "passive_recon" not in completed_phases_db:
+            _progress(
+                scan_id, "passive_recon", 2,
+                f"Running passive recon on {domain}..."
             )
 
-            if shodan_available():
-                _progress(
-                    scan_id, "passive_recon", 3,
-                    "Querying Shodan..."
+            try:
+                # ── Shodan ────────────────────────────
+                from core.shodan_recon import (
+                    run_passive_recon as shodan_recon,
+                    is_available as shodan_available
                 )
-                shodan_result = shodan_recon(domain)
 
-                if shodan_result.get("success"):
-                    shodan_subs = shodan_result.get(
-                        "subdomains", []
+                if shodan_available():
+                    _progress(
+                        scan_id, "passive_recon", 3,
+                        "Querying Shodan..."
                     )
-                    if shodan_subs:
-                        add_subdomains_bulk(
-                            target_id, domain,
-                            shodan_subs, source="shodan"
+                    shodan_result = shodan_recon(domain)
+
+                    if shodan_result.get("success"):
+                        shodan_subs = shodan_result.get(
+                            "subdomains", []
+                        )
+                        if shodan_subs:
+                            add_subdomains_bulk(
+                                target_id, domain,
+                                shodan_subs, source="shodan"
+                            )
+
+                        for host, ports in shodan_result.get(
+                            "ports_by_host", {}
+                        ).items():
+                            add_ports_bulk(
+                                target_id, domain, "",
+                                host, ports, source="shodan"
+                            )
+
+                        s = shodan_result.get("stats", {})
+                        logger.info(
+                            "Phase 0a: Shodan — %d subs, "
+                            "%d ports, %d CVEs",
+                            s.get('subdomains_found', 0),
+                            s.get('unique_ports', 0),
+                            s.get('unique_vulns', 0)
                         )
 
-                    for host, ports in shodan_result.get(
-                        "ports_by_host", {}
-                    ).items():
-                        add_ports_bulk(
-                            target_id, domain, "", host, ports,
-                            source="shodan"
+                        save_shodan_results(
+                            target_id, domain, shodan_result
                         )
-
-                    # We no longer add Shodan vulnerabilities directly to the DB here.
-                    # We rely on Nuclei (Phase 4) to actively scan all discovered hosts 
-                    # and verify if vulnerabilities are truly exploitable.
-
-                    s = shodan_result.get("stats", {})
-                    logger.info(
-                        "Phase 0a: Shodan — %d subs, "
-                        "%d ports, %d CVEs",
-                        s.get('subdomains_found', 0),
-                        s.get('unique_ports', 0),
-                        s.get('unique_vulns', 0)
-                    )
-
-                    # ──── NEW: Save full Shodan intelligence ────
-                    save_shodan_results(
-                        target_id, domain, shodan_result
-                    )
+                    else:
+                        logger.warning(
+                            "Phase 0a: Shodan — %s",
+                            shodan_result.get(
+                                'error', 'No data'
+                            )
+                        )
                 else:
-                    logger.warning(
-                        "Phase 0a: Shodan — %s",
-                        shodan_result.get('error', 'No data')
+                    logger.info(
+                        "Phase 0a: Shodan not configured "
+                        "— skipping"
                     )
-            else:
-                logger.info(
-                    "Phase 0a: Shodan not configured — skipping"
+
+                # ── Censys ────────────────────────────
+                from core.censys_recon import (
+                    run_passive_recon as censys_recon,
+                    is_available as censys_available
                 )
 
-            # ── Censys ────────────────────────────────
-            from core.censys_recon import (
-                run_passive_recon as censys_recon,
-                is_available as censys_available
+                if censys_available():
+                    _progress(
+                        scan_id, "passive_recon", 5,
+                        "Querying Censys..."
+                    )
+                    censys_result = censys_recon(domain)
+
+                    if censys_result.get("success"):
+                        censys_subs = censys_result.get(
+                            "subdomains", []
+                        )
+                        if censys_subs:
+                            add_subdomains_bulk(
+                                target_id, domain,
+                                censys_subs, source="censys"
+                            )
+
+                        for host, ports in censys_result.get(
+                            "ports_by_host", {}
+                        ).items():
+                            add_ports_bulk(
+                                target_id, domain, "",
+                                host, ports, source="censys"
+                            )
+
+                        c = censys_result.get("stats", {})
+                        logger.info(
+                            "Phase 0b: Censys — %d subs, "
+                            "%d ports, %d services",
+                            c.get('total_subdomains', 0),
+                            c.get('unique_ports', 0),
+                            c.get('total_services', 0)
+                        )
+
+                        save_censys_results(
+                            target_id, domain, censys_result
+                        )
+                    else:
+                        logger.warning(
+                            "Phase 0b: Censys — %s",
+                            censys_result.get(
+                                'error', 'No data'
+                            )
+                        )
+                else:
+                    logger.info(
+                        "Phase 0b: Censys not configured "
+                        "— skipping"
+                    )
+
+                # ── WHOIS ─────────────────────────────
+                from core.whois_lookup import (
+                    run_whois_recon as whois_recon,
+                    is_available as whois_available
+                )
+
+                if whois_available():
+                    _progress(
+                        scan_id, "passive_recon", 7,
+                        "Querying WHOIS..."
+                    )
+                    whois_result = whois_recon(domain)
+
+                    if whois_result.get("success"):
+                        save_whois_results(
+                            target_id, domain, whois_result
+                        )
+                        w_stats = whois_result.get(
+                            "stats", {}
+                        )
+                        logger.info(
+                            "Phase 0c: WHOIS — "
+                            "registrar=%s, "
+                            "%d nameservers, "
+                            "%d risk flags",
+                            whois_result.get(
+                                "registrar", "N/A"
+                            ),
+                            w_stats.get(
+                                "nameserver_count", 0
+                            ),
+                            w_stats.get(
+                                "risk_flags_count", 0
+                            )
+                        )
+                    else:
+                        logger.warning(
+                            "Phase 0c: WHOIS — %s",
+                            whois_result.get(
+                                "error", "No data"
+                            )
+                        )
+                else:
+                    logger.info(
+                        "Phase 0c: WHOIS not available "
+                        "— install python-whois"
+                    )
+
+                phases_completed.append("passive_recon")
+                mark_phase_completed(
+                    scan_id, "passive_recon"
+                )
+
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "passive_recon",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 0 failed: %s", e, exc_info=True
+                )
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 0: passive_recon "
+                "(already completed)"
             )
-
-            if censys_available():
-                _progress(
-                    scan_id, "passive_recon", 5,
-                    "Querying Censys..."
-                )
-                censys_result = censys_recon(domain)
-
-                if censys_result.get("success"):
-                    censys_subs = censys_result.get(
-                        "subdomains", []
-                    )
-                    if censys_subs:
-                        add_subdomains_bulk(
-                            target_id, domain,
-                            censys_subs, source="censys"
-                        )
-
-                    for host, ports in censys_result.get(
-                        "ports_by_host", {}
-                    ).items():
-                        add_ports_bulk(
-                            target_id, domain, "", host, ports,
-                            source="censys"
-                        )
-
-                    c = censys_result.get("stats", {})
-                    logger.info(
-                        "Phase 0b: Censys — %d subs, "
-                        "%d ports, %d services",
-                        c.get('total_subdomains', 0),
-                        c.get('unique_ports', 0),
-                        c.get('total_services', 0)
-                    )
-
-                    # ──── NEW: Save full Censys intelligence ────
-                    save_censys_results(
-                        target_id, domain, censys_result
-                    )
-                else:
-                    logger.warning(
-                        "Phase 0b: Censys — %s",
-                        censys_result.get('error', 'No data')
-                    )
-            else:
-                logger.info(
-                    "Phase 0b: Censys not configured — skipping"
-                )
-
-            # ── WHOIS ─────────────────────────────────
-            from core.whois_lookup import (
-                run_whois_recon as whois_recon,
-                is_available as whois_available
-            )
-
-            if whois_available():
-                _progress(
-                    scan_id, "passive_recon", 7,
-                    "Querying WHOIS..."
-                )
-                whois_result = whois_recon(domain)
-
-                if whois_result.get("success"):
-                    save_whois_results(
-                        target_id, domain, whois_result
-                    )
-
-                    w_stats = whois_result.get("stats", {})
-                    logger.info(
-                        "Phase 0c: WHOIS — registrar=%s, "
-                        "%d nameservers, %d risk flags",
-                        whois_result.get("registrar", "N/A"),
-                        w_stats.get("nameserver_count", 0),
-                        w_stats.get("risk_flags_count", 0)
-                    )
-                else:
-                    logger.warning(
-                        "Phase 0c: WHOIS — %s",
-                        whois_result.get("error", "No data")
-                    )
-            else:
-                logger.info(
-                    "Phase 0c: WHOIS not available — "
-                    "install python-whois"
-                )
-
-            phases_completed.append("passive_recon")
-
-        except Exception as e:
-            phases_failed.append({
-                "phase": "passive_recon", "error": str(e)
-            })
-            logger.error("Phase 0 failed: %s", e, exc_info=True)
 
         # ═════════════════════════════════════════════════
         # PHASE 1: SUBDOMAIN DISCOVERY
         # ═════════════════════════════════════════════════
-        _progress(
-            scan_id, "subdomain_discovery", 10,
-            f"Discovering subdomains for {domain}..."
-        )
-
-        try:
-            subs_result = scan_subdomains(domain)
-            subdomain_list = subs_result.get("subdomains", [])
-
-            # Merge with passive recon subdomains
-            passive_subs = set()
-            passive_subs.update(
-                shodan_result.get("subdomains", [])
-            )
-            passive_subs.update(
-                censys_result.get("subdomains", [])
+        if "subdomain_discovery" not in completed_phases_db:
+            _progress(
+                scan_id, "subdomain_discovery", 10,
+                f"Discovering subdomains for {domain}..."
             )
 
-            if passive_subs:
-                active_count = len(subdomain_list)
-                merged = set(subdomain_list)
-                merged.update(passive_subs)
-                subdomain_list = sorted(merged)
+            try:
+                subs_result = scan_subdomains(domain)
+                subdomain_list = subs_result.get(
+                    "subdomains", []
+                )
+
+                # Merge with passive recon subdomains
+                passive_subs = set()
+                passive_subs.update(
+                    shodan_result.get("subdomains", [])
+                )
+                passive_subs.update(
+                    censys_result.get("subdomains", [])
+                )
+
+                if passive_subs:
+                    active_count = len(subdomain_list)
+                    merged = set(subdomain_list)
+                    merged.update(passive_subs)
+                    subdomain_list = sorted(merged)
+                    logger.info(
+                        "Merged: %d active + %d passive "
+                        "= %d total subdomains",
+                        active_count, len(passive_subs),
+                        len(subdomain_list)
+                    )
+
+                if (subs_result.get("success")
+                        and subdomain_list):
+                    add_subdomains_bulk(
+                        target_id, domain, subdomain_list,
+                        source="subfinder"
+                    )
+
+                    certs = subs_result.get(
+                        "certificates", []
+                    )
+                    if certs:
+                        save_certificates(domain, certs)
+
+                phases_completed.append(
+                    "subdomain_discovery"
+                )
+                mark_phase_completed(
+                    scan_id, "subdomain_discovery"
+                )
                 logger.info(
-                    "Merged: %d active + %d passive = "
-                    "%d total subdomains",
-                    active_count, len(passive_subs),
+                    "Phase 1 complete: %d subdomains",
                     len(subdomain_list)
                 )
 
-            if subs_result.get("success") and subdomain_list:
-                add_subdomains_bulk(
-                    target_id, domain, subdomain_list,
-                    source="subfinder"
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "subdomain_discovery",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 1 failed: %s", e, exc_info=True
                 )
-                
-                # ── NEW: Save certificate data ────
-                certs = subs_result.get("certificates", [])
-                if certs:
-                    save_certificates(domain, certs)
-
-            phases_completed.append("subdomain_discovery")
+        else:
             logger.info(
-                "Phase 1 complete: %d subdomains",
+                "[RESUME] Skipping Phase 1: "
+                "subdomain_discovery "
+                "(already completed — "
+                "%d subdomains loaded)",
                 len(subdomain_list)
             )
-
-        except Exception as e:
-            phases_failed.append({
-                "phase": "subdomain_discovery",
-                "error": str(e)
-            })
-            logger.error("Phase 1 failed: %s", e, exc_info=True)
 
         # ═════════════════════════════════════════════════
         # PHASE 2: PORT SCANNING
         # ═════════════════════════════════════════════════
-        _progress(
-            scan_id, "port_scanning", 25,
-            f"Scanning ports on {len(subdomain_list)} hosts..."
-        )
+        if "port_scanning" not in completed_phases_db:
+            _progress(
+                scan_id, "port_scanning", 25,
+                f"Scanning ports on "
+                f"{len(subdomain_list)} hosts..."
+            )
 
-        try:
-            if subdomain_list:
-                shodan_hosts = set(
-                    shodan_result.get(
-                        "ports_by_host", {}
-                    ).keys()
-                )
-                censys_hosts = set(
-                    censys_result.get(
-                        "ports_by_host", {}
-                    ).keys()
-                )
-                passive_hosts = shodan_hosts | censys_hosts
-
-                hosts_needing_scan = [
-                    h for h in subdomain_list
-                    if h not in passive_hosts
-                ]
-
-                if hosts_needing_scan:
-                    logger.info(
-                        "Passive covered %d hosts "
-                        "(Shodan: %d, Censys: %d), "
-                        "Naabu scanning %d",
-                        len(passive_hosts),
-                        len(shodan_hosts),
-                        len(censys_hosts),
-                        len(hosts_needing_scan)
+            try:
+                if subdomain_list:
+                    shodan_hosts = set(
+                        shodan_result.get(
+                            "ports_by_host", {}
+                        ).keys()
                     )
-                    ports_result = run_naabu(hosts_needing_scan)
-
-                    # ── NEW: Save Naabu ports with source ────
-                    # Save BEFORE the merge overwrites ports_result
-                    if ports_result.get("success"):
-                        for host, ports in ports_result.get(
-                            "ports_found", {}
-                        ).items():
-                            add_ports_bulk(
-                                target_id, domain, "",
-                                host, ports, source="naabu"
-                            )
-                else:
-                    logger.info(
-                        "Passive covered all %d hosts "
-                        "— skipping Naabu",
-                        len(passive_hosts)
+                    censys_hosts = set(
+                        censys_result.get(
+                            "ports_by_host", {}
+                        ).keys()
                     )
-                    ports_result = {
-                        "success": True,
-                        "ports_found": {},
-                        "total_ports": 0
-                    }
+                    passive_hosts = (
+                        shodan_hosts | censys_hosts
+                    )
 
-                # Merge all port sources
-                merged_ports = dict(
-                    shodan_result.get("ports_by_host", {})
-                )
+                    hosts_needing_scan = [
+                        h for h in subdomain_list
+                        if h not in passive_hosts
+                    ]
 
-                for host, ports in censys_result.get(
-                    "ports_by_host", {}
-                ).items():
-                    if host in merged_ports:
-                        existing = set(merged_ports[host])
-                        existing.update(ports)
-                        merged_ports[host] = sorted(existing)
-                    else:
-                        merged_ports[host] = sorted(ports)
-
-                for host, ports in ports_result.get(
-                    "ports_found", {}
-                ).items():
-                    if host in merged_ports:
-                        existing = set(merged_ports[host])
-                        existing.update(ports)
-                        merged_ports[host] = sorted(existing)
-                    else:
-                        merged_ports[host] = sorted(ports)
-
-                ports_result["ports_found"] = merged_ports
-                ports_result["total_ports"] = sum(
-                    len(p) for p in merged_ports.values()
-                )
-
-                if ports_result.get("success") or passive_hosts:
-                    for host, ports in merged_ports.items():
-                        add_ports_bulk(
-                            target_id, domain, "", host, ports,
-                            source="scan"
+                    if hosts_needing_scan:
+                        logger.info(
+                            "Passive covered %d hosts "
+                            "(Shodan: %d, Censys: %d), "
+                            "Naabu scanning %d",
+                            len(passive_hosts),
+                            len(shodan_hosts),
+                            len(censys_hosts),
+                            len(hosts_needing_scan)
+                        )
+                        ports_result = run_naabu(
+                            hosts_needing_scan
                         )
 
-                phases_completed.append("port_scanning")
-                logger.info(
-                    "Phase 2 complete: %d ports "
-                    "(Passive: %d hosts, Naabu: %d hosts)",
-                    ports_result.get('total_ports', 0),
-                    len(passive_hosts),
-                    len(hosts_needing_scan)
-                )
-            else:
-                phases_completed.append("port_scanning")
-                logger.info("Phase 2 skipped: no subdomains")
+                        if ports_result.get("success"):
+                            for host, ports in (
+                                ports_result.get(
+                                    "ports_found", {}
+                                ).items()
+                            ):
+                                add_ports_bulk(
+                                    target_id, domain, "",
+                                    host, ports,
+                                    source="naabu"
+                                )
+                    else:
+                        logger.info(
+                            "Passive covered all %d hosts "
+                            "— skipping Naabu",
+                            len(passive_hosts)
+                        )
+                        ports_result = {
+                            "success": True,
+                            "ports_found": {},
+                            "total_ports": 0
+                        }
 
-        except Exception as e:
-            phases_failed.append({
-                "phase": "port_scanning", "error": str(e)
-            })
-            logger.error("Phase 2 failed: %s", e, exc_info=True)
+                    # Merge all port sources
+                    merged_ports = dict(
+                        shodan_result.get(
+                            "ports_by_host", {}
+                        )
+                    )
+
+                    for host, ports in censys_result.get(
+                        "ports_by_host", {}
+                    ).items():
+                        if host in merged_ports:
+                            existing = set(
+                                merged_ports[host]
+                            )
+                            existing.update(ports)
+                            merged_ports[host] = sorted(
+                                existing
+                            )
+                        else:
+                            merged_ports[host] = sorted(
+                                ports
+                            )
+
+                    for host, ports in ports_result.get(
+                        "ports_found", {}
+                    ).items():
+                        if host in merged_ports:
+                            existing = set(
+                                merged_ports[host]
+                            )
+                            existing.update(ports)
+                            merged_ports[host] = sorted(
+                                existing
+                            )
+                        else:
+                            merged_ports[host] = sorted(
+                                ports
+                            )
+
+                    ports_result["ports_found"] = (
+                        merged_ports
+                    )
+                    ports_result["total_ports"] = sum(
+                        len(p)
+                        for p in merged_ports.values()
+                    )
+
+                    if (ports_result.get("success")
+                            or passive_hosts):
+                        for host, ports in (
+                            merged_ports.items()
+                        ):
+                            add_ports_bulk(
+                                target_id, domain, "",
+                                host, ports, source="scan"
+                            )
+
+                    phases_completed.append("port_scanning")
+                    mark_phase_completed(
+                        scan_id, "port_scanning"
+                    )
+                    logger.info(
+                        "Phase 2 complete: %d ports "
+                        "(Passive: %d hosts, "
+                        "Naabu: %d hosts)",
+                        ports_result.get(
+                            'total_ports', 0
+                        ),
+                        len(passive_hosts),
+                        len(hosts_needing_scan)
+                    )
+                else:
+                    phases_completed.append("port_scanning")
+                    mark_phase_completed(
+                        scan_id, "port_scanning"
+                    )
+                    logger.info(
+                        "Phase 2 skipped: no subdomains"
+                    )
+
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "port_scanning",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 2 failed: %s", e, exc_info=True
+                )
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 2: port_scanning "
+                "(already completed — %d ports loaded)",
+                ports_result.get("total_ports", 0)
+            )
 
         # ═════════════════════════════════════════════════
         # PHASE 3: HTTP FINGERPRINTING
         # ═════════════════════════════════════════════════
-        _progress(
-            scan_id, "http_fingerprinting", 45,
-            f"Probing HTTP on {len(subdomain_list)} hosts..."
-        )
+        if "http_fingerprinting" not in completed_phases_db:
+            _progress(
+                scan_id, "http_fingerprinting", 45,
+                f"Probing HTTP on "
+                f"{len(subdomain_list)} hosts..."
+            )
 
-        try:
-            if subdomain_list:
-                http_result = run_httpx(subdomain_list)
+            try:
+                if subdomain_list:
+                    http_result = run_httpx(subdomain_list)
 
-                if http_result.get("success"):
-                    for asset in http_result["http_assets"]:
-                        add_http_asset(
-                            target_id, domain, "",
-                            asset.get("url", ""),
-                            asset.get("host", ""),
-                            asset.get("port", 0),
-                            asset.get("status_code", 0),
-                            asset.get("title", ""),
-                            asset.get("web_server", ""),
-                            asset.get("tech", []),
-                            asset.get("content_length", 0)
-                        )
+                    if http_result.get("success"):
+                        for asset in http_result[
+                            "http_assets"
+                        ]:
+                            add_http_asset(
+                                target_id, domain, "",
+                                asset.get("url", ""),
+                                asset.get("host", ""),
+                                asset.get("port", 0),
+                                asset.get(
+                                    "status_code", 0
+                                ),
+                                asset.get("title", ""),
+                                asset.get(
+                                    "web_server", ""
+                                ),
+                                asset.get("tech", []),
+                                asset.get(
+                                    "content_length", 0
+                                )
+                            )
 
-                phases_completed.append("http_fingerprinting")
-                logger.info(
-                    "Phase 3 complete: %d HTTP assets",
-                    http_result.get('count', 0)
+                    phases_completed.append(
+                        "http_fingerprinting"
+                    )
+                    mark_phase_completed(
+                        scan_id, "http_fingerprinting"
+                    )
+                    logger.info(
+                        "Phase 3 complete: %d HTTP assets",
+                        http_result.get('count', 0)
+                    )
+                else:
+                    phases_completed.append(
+                        "http_fingerprinting"
+                    )
+                    mark_phase_completed(
+                        scan_id, "http_fingerprinting"
+                    )
+                    logger.info(
+                        "Phase 3 skipped: no subdomains"
+                    )
+
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "http_fingerprinting",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 3 failed: %s", e, exc_info=True
                 )
-            else:
-                phases_completed.append("http_fingerprinting")
-                logger.info("Phase 3 skipped: no subdomains")
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 3: "
+                "http_fingerprinting "
+                "(already completed — %d assets loaded)",
+                http_result.get("count", 0)
+            )
 
-        except Exception as e:
-            phases_failed.append({
-                "phase": "http_fingerprinting",
-                "error": str(e)
-            })
-            logger.error("Phase 3 failed: %s", e, exc_info=True)
-
-                 # ═════════════════════════════════════════════════
-        # PHASE 4: VULNERABILITY SCANNING (INTELLIGENCE-DRIVEN v2)
         # ═════════════════════════════════════════════════
-        _progress(
-            scan_id, "vuln_scanning", 55,
-            "Building intelligent scan plan..."
-        )
+        # PHASE 4: VULNERABILITY SCANNING
+        #          (INTELLIGENCE-DRIVEN v2 + BATCHED)
+        # ═════════════════════════════════════════════════
+        if "vuln_scanning" not in completed_phases_db:
+            _progress(
+                scan_id, "vuln_scanning", 55,
+                "Building intelligent scan plan..."
+            )
 
-        try:
-            if subdomain_list:
-                from core.smart_scanner import build_scan_plan
-                from collections import defaultdict
-
-                # ── Build targeted scan plan (now with port data) ─
-                scan_plan = build_scan_plan(
-                    shodan_result, censys_result,
-                    http_result, subdomain_list,
-                    ports_data=ports_result.get("ports_found", {})
-                )
-
-                all_vulns = []
-
-                # ══════════════════════════════════════════
-                # TIER 1A: Batched CVE Verification
-                # ══════════════════════════════════════════
-                cve_scans = scan_plan.get("tier1_cve_scans", [])
-                if cve_scans:
-                    _progress(
-                        scan_id, "vuln_scanning", 57,
-                        f"Tier 1A: Verifying "
-                        f"{len(cve_scans)} Shodan CVEs..."
+            try:
+                if subdomain_list:
+                    from core.smart_scanner import (
+                        build_scan_plan
                     )
 
-                    host_cves = defaultdict(list)
-                    for scan_item in cve_scans:
-                        target_url = scan_item.get(
-                            "target_url", scan_item["host"]
+                    scan_plan = build_scan_plan(
+                        shodan_result, censys_result,
+                        http_result, subdomain_list,
+                        ports_data=ports_result.get(
+                            "ports_found", {}
                         )
-                        host_cves[target_url].append(scan_item)
-
-                    logger.info(
-                        "Phase 4 Tier 1A: %d CVEs across %d hosts",
-                        len(cve_scans), len(host_cves)
                     )
 
-                    for target_url, items in host_cves.items():
-                        templates = [
-                            item["template"]
-                            for item in items
-                            if os.path.exists(item["template"])
-                        ]
-                        cve_ids = [
-                            item["cve_id"] for item in items
-                        ]
+                    all_vulns = []
+                    persisted_vuln_keys = set()
+                    http_target_map = _build_http_target_map(
+                        http_result
+                    )
 
-                        if not templates:
-                            continue
-
-                        logger.info(
-                            "  Scanning %s for %d CVEs: %s",
-                            target_url, len(cve_ids),
-                            ", ".join(cve_ids)
+                    # ══════════════════════════════════════
+                    # TIER 1A: Batched CVE Verification
+                    #   Groups targets by template set so
+                    #   hosts sharing CVEs are scanned in
+                    #   a single Nuclei call.
+                    # ══════════════════════════════════════
+                    cve_scans = scan_plan.get(
+                        "tier1_cve_scans", []
+                    )
+                    if cve_scans:
+                        _progress(
+                            scan_id, "vuln_scanning", 57,
+                            f"Tier 1A: Verifying "
+                            f"{len(cve_scans)} "
+                            f"Shodan CVEs..."
                         )
 
-                        targeted_result = run_nuclei(
-                            [target_url],
-                            custom_templates=templates
-                        )
-
-                        if (targeted_result.get("success")
-                                and targeted_result.get(
-                                    "vulnerabilities")):
-                            for v in targeted_result[
-                                "vulnerabilities"
-                            ]:
-                                v["verification_source"] = (
-                                    "shodan_cve_confirmed"
-                                )
-                                v["confidence"] = "high"
-                                all_vulns.append(v)
-                                logger.info(
-                                    "  CONFIRMED: %s",
-                                    v.get("template_id", "")
-                                )
-
-                        confirmed_templates = set(
-                            v.get("template_id", "")
-                            for v in targeted_result.get(
-                                "vulnerabilities", []
+                        # Collect per-host CVE items
+                        host_cves = defaultdict(list)
+                        for scan_item in cve_scans:
+                            target_url = scan_item.get(
+                                "target_url",
+                                scan_item["host"]
                             )
-                        )
-                        for cve in cve_ids:
-                            template_name = os.path.basename(
-                                [i["template"]
-                                 for i in items
-                                 if i["cve_id"] == cve][0]
-                            ).replace(".yaml", "")
-                            if template_name not in (
-                                confirmed_templates
-                            ):
-                                logger.info(
-                                    "  NOT CONFIRMED: %s "
-                                    "(stale/patched)", cve
-                                )
+                            host_cves[target_url].append(
+                                scan_item
+                            )
 
-                # ══════════════════════════════════════════
-                # TIER 1B: Tech-Targeted Scans
-                # ══════════════════════════════════════════
-                tech_targets = scan_plan.get(
-                    "tier1_tech_tags", {}
-                )
-                if tech_targets:
-                    _progress(
-                        scan_id, "vuln_scanning", 62,
-                        f"Tier 1B: Tech-targeted scan on "
-                        f"{len(tech_targets)} hosts..."
-                    )
-
-                    tag_groups = {}
-                    for host, tags in tech_targets.items():
-                        tag_key = ",".join(sorted(tags))
-                        if tag_key not in tag_groups:
-                            tag_groups[tag_key] = []
-                        tag_groups[tag_key].append(host)
-
-                    for tags_str, hosts in tag_groups.items():
-                        tags_list = tags_str.split(",")
                         logger.info(
-                            "  Tier 1B: %d hosts with "
-                            "tags [%s]",
-                            len(hosts), tags_str
+                            "Phase 4 Tier 1A: %d CVEs "
+                            "across %d hosts",
+                            len(cve_scans),
+                            len(host_cves)
                         )
 
-                        targeted_result = run_nuclei(
-                            hosts, custom_tags=tags_list
-                        )
-
-                        if targeted_result.get("success"):
-                            for v in targeted_result.get(
-                                "vulnerabilities", []
-                            ):
-                                v["verification_source"] = (
-                                    "tech_targeted"
-                                )
-                                v["confidence"] = "medium"
-                                all_vulns.append(v)
-
-                # ══════════════════════════════════════════
-                # TIER 2A: Port-Informed Scans
-                # ══════════════════════════════════════════
-                port_targets = scan_plan.get(
-                    "tier2a_port_tags", {}
-                )
-                if port_targets:
-                    _progress(
-                        scan_id, "vuln_scanning", 68,
-                        f"Tier 2A: Port-targeted scan on "
-                        f"{len(port_targets)} hosts..."
-                    )
-
-                    tag_groups = {}
-                    for host, tags in port_targets.items():
-                        tag_key = ",".join(sorted(tags))
-                        if tag_key not in tag_groups:
-                            tag_groups[tag_key] = []
-                        tag_groups[tag_key].append(host)
-
-                    for tags_str, hosts in tag_groups.items():
-                        tags_list = tags_str.split(",")
-                        logger.info(
-                            "  Tier 2A: %d hosts with "
-                            "port-tags [%s]",
-                            len(hosts), tags_str
-                        )
-
-                        targeted_result = run_nuclei(
-                            hosts, custom_tags=tags_list
-                        )
-
-                        if targeted_result.get("success"):
-                            for v in targeted_result.get(
-                                "vulnerabilities", []
-                            ):
-                                v["verification_source"] = (
-                                    "port_targeted"
-                                )
-                                v["confidence"] = "medium"
-                                all_vulns.append(v)
-
-                # ══════════════════════════════════════════
-                # TIER 2B: Header-Mined Scans
-                # ══════════════════════════════════════════
-                header_targets = scan_plan.get(
-                    "tier2b_header_tags", {}
-                )
-                if header_targets:
-                    _progress(
-                        scan_id, "vuln_scanning", 73,
-                        f"Tier 2B: Header-informed scan on "
-                        f"{len(header_targets)} hosts..."
-                    )
-
-                    tag_groups = {}
-                    for host, tags in header_targets.items():
-                        tag_key = ",".join(sorted(tags))
-                        if tag_key not in tag_groups:
-                            tag_groups[tag_key] = []
-                        tag_groups[tag_key].append(host)
-
-                    for tags_str, hosts in tag_groups.items():
-                        tags_list = tags_str.split(",")
-                        logger.info(
-                            "  Tier 2B: %d hosts with "
-                            "header-tags [%s]",
-                            len(hosts), tags_str
-                        )
-
-                        targeted_result = run_nuclei(
-                            hosts, custom_tags=tags_list
-                        )
-
-                        if targeted_result.get("success"):
-                            for v in targeted_result.get(
-                                "vulnerabilities", []
-                            ):
-                                v["verification_source"] = (
-                                    "header_targeted"
-                                )
-                                v["confidence"] = "medium"
-                                all_vulns.append(v)
-
-                # ══════════════════════════════════════════
-                # TIER 2C: Catch-All — Web Hosts Only,
-                #          Critical + High Severity ONLY
-                # ══════════════════════════════════════════
-                catchall_hosts = scan_plan.get(
-                    "tier2c_catchall", []
-                )
-                if catchall_hosts:
-                    _progress(
-                        scan_id, "vuln_scanning", 78,
-                        f"Tier 2C: Broad scan on "
-                        f"{len(catchall_hosts)} unknown "
-                        f"web hosts (critical+high only)..."
-                    )
-                    logger.info(
-                        "  Tier 2C: %d hosts, "
-                        "critical+high only",
-                        len(catchall_hosts)
-                    )
-
-                    broad_result = run_nuclei(
-                        catchall_hosts,
-                        severity_override="critical,high"
-                    )
-
-                    if broad_result.get("success"):
-                        for v in broad_result.get(
-                            "vulnerabilities", []
+                        # Group by identical template sets
+                        template_groups = {}
+                        for target_url, items in (
+                            host_cves.items()
                         ):
-                            v["verification_source"] = (
-                                "broad_scan"
+                            templates = tuple(sorted([
+                                item["template"]
+                                for item in items
+                                if os.path.exists(
+                                    item["template"]
+                                )
+                            ]))
+
+                            if not templates:
+                                continue
+
+                            if templates not in (
+                                template_groups
+                            ):
+                                template_groups[
+                                    templates
+                                ] = {
+                                    "hosts": [],
+                                    "cve_ids": set(),
+                                    "items": []
+                                }
+
+                            grp = template_groups[templates]
+                            grp["hosts"].append(target_url)
+                            grp["items"].extend(items)
+                            grp["cve_ids"].update(
+                                item["cve_id"]
+                                for item in items
                             )
-                            v["confidence"] = "standard"
-                            all_vulns.append(v)
 
-                    if broad_result.get("partial"):
-                        vuln_scan_partial = True
-
-                # ══════════════════════════════════════════
-                # TIER 2C-NET: Non-Web Hosts —
-                #              Network Protocol Templates
-                # ══════════════════════════════════════════
-                non_web_hosts = scan_plan.get(
-                    "tier2c_non_web", []
-                )
-                if non_web_hosts:
-                    _progress(
-                        scan_id, "vuln_scanning", 83,
-                        f"Tier 2C-NET: Network scan on "
-                        f"{len(non_web_hosts)} non-web hosts..."
-                    )
-                    logger.info(
-                        "  Tier 2C-NET: %d non-web hosts",
-                        len(non_web_hosts)
-                    )
-
-                    network_result = run_nuclei(
-                        non_web_hosts,
-                        custom_tags=[
-                            "network", "ssh", "ftp", "dns",
-                            "smtp", "snmp", "rdp", "vnc",
-                            "default-login", "mysql", "postgres",
-                            "mssql", "redis", "mongodb",
-                            "memcached", "ldap"
-                        ]
-                    )
-
-                    if network_result.get("success"):
-                        for v in network_result.get(
-                            "vulnerabilities", []
+                        # Scan each template group
+                        for templates_tuple, grp in (
+                            template_groups.items()
                         ):
-                            v["verification_source"] = (
-                                "network_scan"
+                            batch_hosts = grp["hosts"]
+                            batch_cves = sorted(
+                                grp["cve_ids"]
                             )
-                            v["confidence"] = "standard"
-                            all_vulns.append(v)
+                            templates_list = list(
+                                templates_tuple
+                            )
 
-                    if network_result.get("partial"):
-                        vuln_scan_partial = True
+                            logger.info(
+                                "  Tier 1A batch: "
+                                "%d hosts, %d CVEs, "
+                                "%d templates",
+                                len(batch_hosts),
+                                len(batch_cves),
+                                len(templates_list)
+                            )
 
-                # ── Build final vuln_result ──────────────
-                severity_count = {
-                    "critical": 0, "high": 0, "medium": 0,
-                    "low": 0, "info": 0
-                }
-                for v in all_vulns:
-                    sev = v.get(
-                        "severity", "info"
-                    ).lower()
-                    if sev in severity_count:
-                        severity_count[sev] += 1
+                            targeted_result = run_nuclei(
+                                batch_hosts,
+                                custom_templates=(
+                                    templates_list
+                                )
+                            )
 
-                vuln_result = {
-                    "success": True,
-                    "partial": vuln_scan_partial,
-                    "vulnerabilities": all_vulns,
-                    "count": len(all_vulns),
-                    "scan_plan_stats": scan_plan.get(
-                        "stats", {}
-                    ),
-                    "severity_breakdown": severity_count
-                }
+                            if targeted_result.get("partial"):
+                                vuln_scan_partial = True
 
-                # Save all vulns to DB
-                for v in all_vulns:
-                    add_vulnerability(
-                        target_id=target_id,
-                        target_domain=domain,
-                        subdomain_id="",
-                        host=v.get("host", ""),
-                        url=v.get(
-                            "url",
-                            v.get("matched_at", "")
-                        ),
-                        template_id=v.get(
-                            "template_id", ""
-                        ),
-                        name=v.get("name", ""),
-                        severity=v.get(
+                            if (
+                                targeted_result.get("success")
+                                and targeted_result.get("vulnerabilities")
+                            ):
+                                annotated_vulns = []
+                                for v in targeted_result[
+                                    "vulnerabilities"
+                                ]:
+                                    v[
+                                        "verification_source"
+                                    ] = "shodan_cve_confirmed"
+                                    v["confidence"] = "high"
+                                    annotated_vulns.append(v)
+                                    logger.info(
+                                        "  CONFIRMED: "
+                                        "%s @ %s",
+                                        v.get(
+                                            "template_id",
+                                            ""
+                                        ),
+                                        v.get("host", "")
+                                    )
+                                _persist_vulnerability_batch(
+                                    target_id,
+                                    domain,
+                                    annotated_vulns,
+                                    all_vulns,
+                                    persisted_vuln_keys
+                                )
+
+                            # Log unconfirmed CVEs
+                            confirmed = set(
+                                v.get("template_id", "")
+                                for v in
+                                targeted_result.get(
+                                    "vulnerabilities", []
+                                )
+                            )
+                            for cve in batch_cves:
+                                tname = os.path.basename(
+                                    [
+                                        i["template"]
+                                        for i in
+                                        grp["items"]
+                                        if i["cve_id"]
+                                        == cve
+                                    ][0]
+                                ).replace(".yaml", "")
+                                if tname not in confirmed:
+                                    logger.debug(
+                                        "  NOT CONFIRMED:"
+                                        " %s "
+                                        "(stale/patched)",
+                                        cve
+                                    )
+
+                    # ══════════════════════════════════════
+                    # TIER 1B: Tech-Targeted Scans
+                    # ══════════════════════════════════════
+                    tech_targets = scan_plan.get(
+                        "tier1_tech_tags", {}
+                    )
+                    if tech_targets:
+                        _progress(
+                            scan_id, "vuln_scanning", 62,
+                            f"Tier 1B: Tech-targeted scan on "
+                            f"{len(tech_targets)} hosts..."
+                        )
+                        if _run_tag_tier_scan(
+                            "Tier 1B", tech_targets,
+                            http_target_map, "tech_targeted",
+                            target_id, domain,
+                            all_vulns, persisted_vuln_keys
+                        ):
+                            vuln_scan_partial = True
+
+
+                    # ══════════════════════════════════════
+                    # TIER 2A: Port-Informed Scans
+                    # ══════════════════════════════════════
+                    port_targets = scan_plan.get(
+                        "tier2a_port_tags", {}
+                    )
+                    if port_targets:
+                        _progress(
+                            scan_id, "vuln_scanning", 68,
+                            f"Tier 2A: Port-targeted scan on "
+                            f"{len(port_targets)} hosts..."
+                        )
+                        if _run_tag_tier_scan(
+                            "Tier 2A", port_targets,
+                            http_target_map, "port_targeted",
+                            target_id, domain,
+                            all_vulns, persisted_vuln_keys
+                        ):
+                            vuln_scan_partial = True
+
+
+                    # ══════════════════════════════════════
+                    # TIER 2B: Header-Mined Scans
+                    # ══════════════════════════════════════
+                    header_targets = scan_plan.get(
+                        "tier2b_header_tags", {}
+                    )
+                    if header_targets:
+                        _progress(
+                            scan_id, "vuln_scanning", 73,
+                            f"Tier 2B: Header-informed "
+                            f"scan on "
+                            f"{len(header_targets)} "
+                            f"hosts..."
+                        )
+
+                        tag_groups = {}
+                        for host, tags in (
+                            header_targets.items()
+                        ):
+                            tag_key = ",".join(
+                                sorted(tags)
+                            )
+                            if tag_key not in tag_groups:
+                                tag_groups[tag_key] = []
+                            tag_groups[tag_key].append(
+                                host
+                            )
+
+                        for tags_str, hosts in (
+                            tag_groups.items()
+                        ):
+                            tags_list = tags_str.split(",")
+                            scan_targets = (
+                                _preferred_targets_for_hosts(
+                                    hosts, http_target_map
+                                )
+                            )
+                    # ══════════════════════════════════════
+                    # TIER 2B: Header-Mined Scans
+                    # ══════════════════════════════════════
+                    header_targets = scan_plan.get(
+                        "tier2b_header_tags", {}
+                    )
+                    if header_targets:
+                        _progress(
+                            scan_id, "vuln_scanning", 73,
+                            f"Tier 2B: Header-informed scan on "
+                            f"{len(header_targets)} hosts..."
+                        )
+                        if _run_tag_tier_scan(
+                            "Tier 2B", header_targets,
+                            http_target_map, "header_targeted",
+                            target_id, domain,
+                            all_vulns, persisted_vuln_keys
+                        ):
+                            vuln_scan_partial = True
+
+                    # ══════════════════════════════════════
+                    # TIER 2C: Catch-All — Web Hosts Only
+                    # ══════════════════════════════════════
+                    catchall_hosts = scan_plan.get(
+                        "tier2c_catchall", []
+                    )
+                    if catchall_hosts:
+                        _progress(
+                            scan_id, "vuln_scanning", 78,
+                            f"Tier 2C: Broad scan on {len(catchall_hosts)} unknown web hosts..."
+                        )
+                        if _run_simple_tier_scan(
+                            "Tier 2C", catchall_hosts, http_target_map,
+                            "broad_scan", target_id, domain,
+                            all_vulns, persisted_vuln_keys,
+                            severity_override="critical,high"
+                        ):
+                            vuln_scan_partial = True
+
+                    # ══════════════════════════════════════
+                    # TIER 2C-NET: Non-Web Hosts
+                    # ══════════════════════════════════════
+                    non_web_hosts = scan_plan.get(
+                        "tier2c_non_web", []
+                    )
+                    if non_web_hosts:
+                        _progress(
+                            scan_id, "vuln_scanning", 83,
+                            f"Tier 2C-NET: Network scan on {len(non_web_hosts)} non-web hosts..."
+                        )
+                        if _run_simple_tier_scan(
+                            "Tier 2C-NET", non_web_hosts, None,
+                            "network_scan", target_id, domain,
+                            all_vulns, persisted_vuln_keys,
+                            custom_tags=[
+                                "network", "ssh", "ftp", "dns", "smtp", "snmp",
+                                "rdp", "vnc", "default-login", "mysql",
+                                "postgres", "mssql", "redis", "mongodb",
+                                "memcached", "ldap"
+                            ],
+                            expand_http_schemes=False
+                        ):
+                            vuln_scan_partial = True
+
+
+                    # ── Build final vuln_result ───────────
+                    severity_count = {
+                        "critical": 0, "high": 0,
+                        "medium": 0, "low": 0, "info": 0
+                    }
+                    for v in all_vulns:
+                        sev = v.get(
                             "severity", "info"
+                        ).lower()
+                        if sev in severity_count:
+                            severity_count[sev] += 1
+
+                    vuln_result = {
+                        "success": True,
+                        "partial": vuln_scan_partial,
+                        "vulnerabilities": all_vulns,
+                        "count": len(all_vulns),
+                        "scan_plan_stats": scan_plan.get(
+                            "stats", {}
                         ),
-                        cve_id=v.get("cve_id"),
-                        description=v.get(
-                            "description", ""
-                        ),
-                        matched_at=v.get(
-                            "matched_at", ""
-                        ),
-                        reference=v.get(
-                            "reference", []
-                        ),
-                        tags=v.get("tags", []),
-                        cvss_score=v.get("cvss_score"),
-                        cwe_id=v.get("cwe_id", []),
-                        remediation=v.get(
-                            "remediation", {}
-                        ),
-                        curl_command=v.get(
-                            "curl_command", ""
-                        ),
-                        extracted_results=v.get(
-                            "extracted_results", []
+                        "severity_breakdown": (
+                            severity_count
                         )
+                    }
+
+                    if not vuln_scan_partial:
+                        phases_completed.append(
+                            "vuln_scanning"
+                        )
+                        mark_phase_completed(
+                            scan_id, "vuln_scanning"
+                        )
+
+                    logger.info(
+                        "Phase 4 complete: %d vulns "
+                        "(1A: %d confirmed, "
+                        "1B: %d tech, "
+                        "2A: %d port, "
+                        "2B: %d header, "
+                        "2C: %d broad, "
+                        "2C-NET: %d network)",
+                        len(all_vulns),
+                        sum(
+                            1 for v in all_vulns
+                            if v.get("confidence")
+                            == "high"
+                        ),
+                        sum(
+                            1 for v in all_vulns
+                            if v.get(
+                                "verification_source"
+                            ) == "tech_targeted"
+                        ),
+                        sum(
+                            1 for v in all_vulns
+                            if v.get(
+                                "verification_source"
+                            ) == "port_targeted"
+                        ),
+                        sum(
+                            1 for v in all_vulns
+                            if v.get(
+                                "verification_source"
+                            ) == "header_targeted"
+                        ),
+                        sum(
+                            1 for v in all_vulns
+                            if v.get(
+                                "verification_source"
+                            ) == "broad_scan"
+                        ),
+                        sum(
+                            1 for v in all_vulns
+                            if v.get(
+                                "verification_source"
+                            ) == "network_scan"
+                        ),
+                    )
+                else:
+                    phases_completed.append(
+                        "vuln_scanning"
+                    )
+                    mark_phase_completed(
+                        scan_id, "vuln_scanning"
+                    )
+                    logger.info(
+                        "Phase 4 skipped: no subdomains"
                     )
 
-                if not vuln_scan_partial:
-                    phases_completed.append("vuln_scanning")
-
-                logger.info(
-                    "Phase 4 complete: %d vulns "
-                    "(1A: %d confirmed, 1B: %d tech, "
-                    "2A: %d port, 2B: %d header, "
-                    "2C: %d broad, 2C-NET: %d network)",
-                    len(all_vulns),
-                    sum(1 for v in all_vulns
-                        if v.get("confidence") == "high"),
-                    sum(1 for v in all_vulns
-                        if v.get("verification_source")
-                        == "tech_targeted"),
-                    sum(1 for v in all_vulns
-                        if v.get("verification_source")
-                        == "port_targeted"),
-                    sum(1 for v in all_vulns
-                        if v.get("verification_source")
-                        == "header_targeted"),
-                    sum(1 for v in all_vulns
-                        if v.get("verification_source")
-                        == "broad_scan"),
-                    sum(1 for v in all_vulns
-                        if v.get("verification_source")
-                        == "network_scan"),
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "vuln_scanning",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 4 failed: %s", e, exc_info=True
                 )
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 4: vuln_scanning "
+                "(already completed)"
+            )
+
+        # ═════════════════════════════════════════════════
+        # PHASE 5: CHANGE DETECTION
+        # ═════════════════════════════════════════════════
+        if "change_detection" not in completed_phases_db:
+            _progress(
+                scan_id, "change_detection", 85,
+                "Comparing with previous state..."
+            )
+
+            try:
+                vuln_data_for_changes = vuln_result
+                if vuln_scan_partial:
+                    logger.warning(
+                        "Phase 5: Skipping vuln change "
+                        "detection (partial scan results)"
+                    )
+                    vuln_data_for_changes = {
+                        "vulnerabilities": [],
+                        "success": False
+                    }
+
+                changes_summary = (
+                    detect_changes_with_snapshot(
+                        target_id, domain, scan_id,
+                        before_state,
+                        subs_result, ports_result,
+                        vuln_data_for_changes,
+                        new_whois_result=whois_result
+                    )
+                )
+                phases_completed.append(
+                    "change_detection"
+                )
+                mark_phase_completed(
+                    scan_id, "change_detection"
+                )
+                logger.info(
+                    "Phase 5 complete: %d changes",
+                    changes_summary.get(
+                        'total_changes', 0
+                    )
+                )
+
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "change_detection",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 5 failed: %s", e, exc_info=True
+                )
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 5: "
+                "change_detection (already completed)"
+            )
+
+        # ═════════════════════════════════════════════════
+        # PHASE 6: RISK SCORING
+        # ═════════════════════════════════════════════════
+        if "risk_scoring" not in completed_phases_db:
+            _progress(
+                scan_id, "risk_scoring", 93,
+                "Calculating risk score..."
+            )
+
+            try:
+                risk_score = calculate_risk_score(
+                    target_id
+                )
+                phases_completed.append("risk_scoring")
+                mark_phase_completed(
+                    scan_id, "risk_scoring"
+                )
+                logger.info(
+                    "Phase 6 complete: Risk score %d/100",
+                    risk_score
+                )
+
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "risk_scoring",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 6 failed: %s", e, exc_info=True
+                )
+        else:
+            # Recalculate if any scoring-relevant phase
+            # was re-run during this resume
+            recalc_phases = {
+                "vuln_scanning", "port_scanning",
+                "http_fingerprinting"
+            }
+            reran = recalc_phases - set(
+                completed_phases_db
+            )
+            if reran:
+                logger.info(
+                    "[RESUME] Recalculating risk score "
+                    "(phases %s were re-run)", reran
+                )
+                try:
+                    risk_score = calculate_risk_score(
+                        target_id
+                    )
+                    logger.info(
+                        "Risk score recalculated: "
+                        "%d/100", risk_score
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Risk recalculation failed: %s",
+                        e
+                    )
             else:
-                phases_completed.append("vuln_scanning")
                 logger.info(
-                    "Phase 4 skipped: no subdomains"
+                    "[RESUME] Skipping Phase 6: "
+                    "risk_scoring (already completed)"
                 )
-
-        except Exception as e:
-            phases_failed.append({
-                "phase": "vuln_scanning",
-                "error": str(e)
-            })
-            logger.error(
-                "Phase 4 failed: %s", e, exc_info=True
-            )
-        # ═════════════════════════════════════════════════
-        # PHASE 5: CHANGE DETECTION                        
-        # ═════════════════════════════════════════════════   
-        _progress(                                        
-            scan_id, "change_detection", 85,
-            "Comparing with previous state..."
-        )
-
-        try:
-            vuln_data_for_changes = vuln_result
-            if vuln_scan_partial:
-                logger.warning(
-                    "Phase 5: Skipping vuln change detection "
-                    "(partial scan results)"
-                )
-                vuln_data_for_changes = {
-                    "vulnerabilities": [],
-                    "success": False
-                }
-
-            changes_summary = detect_changes_with_snapshot(
-                target_id, domain, scan_id,
-                before_state,
-                subs_result, ports_result,
-                vuln_data_for_changes,
-                new_whois_result=whois_result
-            )
-            phases_completed.append("change_detection")
-            logger.info(
-                "Phase 5 complete: %d changes",
-                changes_summary.get('total_changes', 0)
-            )
-
-        except Exception as e:
-            phases_failed.append({
-                "phase": "change_detection",
-                "error": str(e)
-            })
-            logger.error("Phase 5 failed: %s", e, exc_info=True)
-
-        # ═════════════════════════════════════════════════
-        # PHASE 6: RISK SCORING                           
-        # ═════════════════════════════════════════════════  
-        _progress(                                       
-            scan_id, "risk_scoring", 93,
-            "Calculating risk score..."
-        )
-
-        try:
-            risk_score = calculate_risk_score(target_id)
-            phases_completed.append("risk_scoring")
-            logger.info(
-                "Phase 6 complete: Risk score %d/100",
-                risk_score
-            )
-
-        except Exception as e:
-            phases_failed.append({
-                "phase": "risk_scoring", "error": str(e)
-            })
-            logger.error("Phase 6 failed: %s", e, exc_info=True)
 
         # ═════════════════════════════════════════════════
         # FINALIZE
@@ -1029,10 +1689,13 @@ def run_full_scan(target_id, domain, scan_id=None):
             "risk_score": risk_score,
             "phases_completed": phases_completed,
             "phases_failed": phases_failed,
+            "resumed": is_resuming,
             "passive_recon": {
                 "shodan": {
                     "subdomains": len(
-                        shodan_result.get("subdomains", [])
+                        shodan_result.get(
+                            "subdomains", []
+                        )
                     ),
                     "ports": len(
                         shodan_result.get(
@@ -1043,7 +1706,9 @@ def run_full_scan(target_id, domain, scan_id=None):
                 },
                 "censys": {
                     "subdomains": len(
-                        censys_result.get("subdomains", [])
+                        censys_result.get(
+                            "subdomains", []
+                        )
                     ),
                     "ports": len(
                         censys_result.get(
@@ -1064,8 +1729,10 @@ def run_full_scan(target_id, domain, scan_id=None):
                     "dnssec": whois_result.get(
                         "dnssec", False
                     ),
-                    "days_until_expiry": whois_result.get(
-                        "days_until_expiry"
+                    "days_until_expiry": (
+                        whois_result.get(
+                            "days_until_expiry"
+                        )
                     )
                 }
             }
@@ -1081,13 +1748,20 @@ def run_full_scan(target_id, domain, scan_id=None):
 
         logger.info("=" * 60)
         logger.info("Scan %s for %s", status, domain)
+        if is_resuming:
+            logger.info(
+                "  (Resumed — skipped: %s)",
+                completed_phases_db
+            )
         logger.info(
-            "Subs: %d | Ports: %d | HTTP: %d | Vulns: %d",
+            "Subs: %d | Ports: %d | HTTP: %d | "
+            "Vulns: %d",
             subdomain_count, port_count,
             http_count, vuln_count
         )
         logger.info(
-            "Passive: %d Shodan CVEs, %d Censys services",
+            "Passive: %d Shodan CVEs, "
+            "%d Censys services",
             shodan_vuln_count, censys_service_count
         )
         logger.info(
@@ -1118,9 +1792,9 @@ def run_full_scan(target_id, domain, scan_id=None):
         }
 
 
-# =============================================================================
+# =========================================================================
 # HELPER FUNCTIONS
-# =============================================================================
+# =========================================================================
 
 def _progress(scan_id, phase, percent, detail=""):
     """Write progress to DB (non-fatal if fails)."""

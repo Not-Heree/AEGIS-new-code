@@ -1,4 +1,5 @@
 import math
+from config import Config
 from database.vulns_db import get_vuln_stats, get_vulns_by_target
 from database.subdomains_db import get_subdomain_count
 from database.ports_db import get_port_count
@@ -114,7 +115,7 @@ def calculate_risk_score(target_id):
             if vuln_score > 0:
                 # Use a smooth exponential approach to asymptotic cap (60)
                 # Formula: Cap * (1 - e^(-raw / sensitivity))
-                vuln_score = VULN_SCORE_CAP * (1 - math.exp(-vuln_score / 80.0))
+                vuln_score = VULN_SCORE_CAP * (1 - math.exp(-vuln_score / Config.RISK_SCORE_SENSITIVITY))
         else:
             # Fallback to stats-only if individual vulns aren't available
             for entry in vuln_stats:

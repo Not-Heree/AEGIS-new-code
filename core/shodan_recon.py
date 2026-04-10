@@ -26,12 +26,10 @@ try:
     SHODAN_AVAILABLE = True
 except ImportError:
     SHODAN_AVAILABLE = False
-    print(
-        "[SHODAN] WARNING: shodan library not installed. "
-        "Run: pip install shodan"
-    )
+    logger.warning("[SHODAN] shodan library not installed. Run: pip install shodan")
 
 from config import Config
+from utils.logger import logger
 
 
 # =============================================================================
@@ -63,11 +61,11 @@ def _get_api():
                 f"{info.get('scan_credits', 0)} scans"
             )
         except shodan.APIError as e:
-            print(f"[SHODAN] API key error: {e}")
+            logger.error("[SHODAN] API key error: %s", e)
             _api = None
             return None
         except Exception as e:
-            print(f"[SHODAN] Connection error: {e}")
+            logger.error("[SHODAN] Connection error: %s", e)
             _api = None
             return None
 
@@ -105,7 +103,10 @@ def discover_subdomains(domain: str) -> Dict[str, Any]:
             "source": "shodan"
         }
 
-    print(f"[SHODAN] Discovering subdomains for {domain}...")
+    from utils.throttler import throttler
+    throttler.wait_if_needed("shodan", Config.API_THROTTLE_SECONDS)
+
+    logger.info("[SHODAN] Discovering subdomains for {domain}...")
 
     try:
         result = api.dns.domain_info(domain)
@@ -143,9 +144,9 @@ def discover_subdomains(domain: str) -> Dict[str, Any]:
     except shodan.APIError as e:
         error_msg = str(e)
         if "access denied" in error_msg.lower():
-            print("[SHODAN] DNS lookup requires paid plan")
+            logger.warning("[SHODAN] DNS lookup requires paid plan (needs paid Shodan plan)")
         else:
-            print(f"[SHODAN] API error: {e}")
+            logger.error("[SHODAN] API error: %s", e)
         return {
             "success": False,
             "error": error_msg,
@@ -154,7 +155,7 @@ def discover_subdomains(domain: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        print(f"[SHODAN] Subdomain discovery error: {e}")
+        logger.error("[SHODAN] Subdomain discovery error: %s", e, exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -189,7 +190,7 @@ def search_domain(domain: str) -> Dict[str, Any]:
             "source": "shodan"
         }
 
-    print(f"[SHODAN] Searching for hosts matching {domain}...")
+    logger.info("[SHODAN] Searching for hosts matching {domain}...")
 
     try:
         query = f"hostname:{domain}"
@@ -201,7 +202,7 @@ def search_domain(domain: str) -> Dict[str, Any]:
         all_banners = []
         total_results = results.get("total", 0)
 
-        print(f"[SHODAN] Found {total_results} results")
+        logger.info("[SHODAN] Found %d results", total_results)
 
         for match in results.get("matches", []):
             ip = match.get("ip_str", "")
@@ -352,7 +353,7 @@ def search_domain(domain: str) -> Dict[str, Any]:
         }
 
     except shodan.APIError as e:
-        print(f"[SHODAN] Search error: {e}")
+        logger.error("[SHODAN] Search error: %s", e, exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -361,7 +362,7 @@ def search_domain(domain: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        print(f"[SHODAN] Search error: {e}")
+        logger.error("[SHODAN] Search error: %s", e, exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -437,11 +438,11 @@ def lookup_ip(ip: str) -> Optional[Dict[str, Any]]:
         }
 
     except shodan.APIError as e:
-        print(f"[SHODAN] IP lookup error for {ip}: {e}")
+        logger.warning("[SHODAN] IP lookup error for %s: %s", ip, e)
         return None
 
     except Exception as e:
-        print(f"[SHODAN] IP lookup error for {ip}: {e}")
+        logger.warning("[SHODAN] IP lookup error for %s: %s", ip, e)
         return None
 
 
@@ -467,8 +468,8 @@ def run_passive_recon(domain: str) -> Dict[str, Any]:
     print(f"{'='*60}")
 
     if not is_available():
-        print("[SHODAN] Not available — skipping passive recon")
-        print("[SHODAN] Set SHODAN_API_KEY in .env to enable")
+        logger.warning("[SHODAN] Not available — skipping passive recon")
+        logger.warning("[SHODAN] Set SHODAN_API_KEY in .env to enable")
         return {
             "success": False,
             "error": "Shodan API not configured",
@@ -520,10 +521,10 @@ def run_passive_recon(domain: str) -> Dict[str, Any]:
     stats["subdomains_found"] = len(final_subdomains)
 
     print(f"\n[SHODAN] Passive recon complete:")
-    print(f"[SHODAN]   Subdomains: {len(final_subdomains)}")
-    print(f"[SHODAN]   IPs: {stats.get('unique_ips', 0)}")
-    print(f"[SHODAN]   Ports: {stats.get('unique_ports', 0)}")
-    print(f"[SHODAN]   CVEs: {stats.get('unique_vulns', 0)}")
+    logger.info("[SHODAN]   Subdomains: %d", len(final_subdomains))
+    logger.info("[SHODAN]   IPs: %d", stats.get('unique_ips', 0))
+    logger.info("[SHODAN]   Ports: %d", stats.get('unique_ports', 0))
+    logger.info("[SHODAN]   CVEs: %d", stats.get('unique_vulns', 0))
     print(
         f"[SHODAN]   Services: "
         f"{stats.get('total_services', 0)}"

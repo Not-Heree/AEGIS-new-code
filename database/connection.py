@@ -1,8 +1,22 @@
-# database/connection.py
+"""
+Database Connection & Initialization Module
+============================================
+Manages the MongoDB connection lifecycle and ensures all
+9 collections have the correct indexes for the application's
+query patterns.
+
+Index strategy:
+  - Each collection indexed on target_domain for efficient lookups
+  - Unique indexes prevent duplicate entries across scans
+  - Time-based indexes (detected_at, started_at) support sorting
+  - The passive_recon collection has a compound unique index
+    on (target_domain, source) so each source has one entry per target
+"""
 
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from config import Config
+from utils.logger import logger
 
 # ─── Module-level connection variables ───────────────────────────────────
 client = None
@@ -20,17 +34,17 @@ def connect_db():
             serverSelectionTimeoutMS=5000
         )
         db = client[Config.MONGO_DB_NAME]
-        print(f"✅ MongoDB Connected: {Config.MONGO_URI}")
-        print(f"📦 Database: {Config.MONGO_DB_NAME}")
+        logger.info("MongoDB connected: %s", Config.MONGO_URI)
+        logger.info("Database: %s", Config.MONGO_DB_NAME)
         return db
     except ServerSelectionTimeoutError:
-        print(f"❌ MongoDB Timeout: {Config.MONGO_URI}")
+        logger.error("MongoDB timeout: %s", Config.MONGO_URI)
         raise
     except ConnectionFailure:
-        print(f"❌ MongoDB Connection Failed: {Config.MONGO_URI}")
+        logger.error("MongoDB connection failed: %s", Config.MONGO_URI)
         raise
     except Exception as e:
-        print(f"❌ Unexpected Error: {e}")
+        logger.error("Unexpected DB error: %s", e)
         raise
 
 
@@ -41,10 +55,10 @@ def test_connection():
         if client is None:
             connect_db()
         client.admin.command("ping")
-        print("✅ MongoDB connection is alive")
+        logger.info("MongoDB connection is alive")
         return True
     except Exception as e:
-        print(f"❌ MongoDB ping failed: {e}")
+        logger.error("MongoDB ping failed: %s", e)
         return False
 
 
@@ -53,9 +67,10 @@ def test_connection():
 def _safe_create_index(collection, keys, **kwargs):
     """
     Create index safely — drops conflicting index if needed.
-    
+
     This prevents crashes when index definition changes
-    between code updates.
+    between code updates (e.g., adding a new field to a
+    unique compound index).
     """
     try:
         collection.create_index(keys, **kwargs)
@@ -70,18 +85,32 @@ def _safe_create_index(collection, keys, **kwargs):
             collection.drop_indexes()
             collection.create_index(keys, **kwargs)
         except Exception as e:
-            print(f"  ⚠️  Index warning on {collection.name}: {e}")
+            logger.warning(
+                "Index warning on %s: %s",
+                collection.name, e
+            )
 
 
 # ─── Database Initialization ─────────────────────────────────────────────
 
 def init_db():
     """
-    Initialize MongoDB connection and create indexes on all 8 collections.
-    
+    Initialize MongoDB connection and create indexes on all 9 collections.
+
     Indexes match how routes actually query data:
-    - Routes query by: root_domain, target_domain, subdomain, host, port
-    - Indexes are created on those exact fields
+      - Routes query by: root_domain, target_domain, subdomain, host, port
+      - Indexes are created on those exact fields
+
+    Collections:
+      1. targets          — root domain lookup
+      2. subdomains       — per-target subdomain lists
+      3. ports_services   — host+port unique pairs
+      4. http_assets      — per-URL unique assets
+      5. vulnerabilities  — per-target, severity, status
+      6. changes          — per-target, time sorted
+      7. scan_history     — per-target, time sorted
+      8. email_exposures  — per-target, breach status
+      9. passive_recon    — per-target, per-source unique records
     """
     global db
 
@@ -103,7 +132,7 @@ def init_db():
             sparse=True,
             name="domain_unique"
         )
-        print("  ✅ targets indexes created")
+        logger.debug("targets indexes created")
 
         # ── 2. subdomains ───────────────────────────
         _safe_create_index(
@@ -117,9 +146,10 @@ def init_db():
             [("target_domain", ASCENDING)],
             name="subdomain_target_domain"
         )
-        print("  ✅ subdomains indexes created")
+        logger.debug("subdomains indexes created")
 
         # ── 3. ports_services ───────────────────────
+        # Compound unique: same host+port pair cannot be duplicated
         _safe_create_index(
             db[Config.PORTS_COLLECTION],
             [("host", ASCENDING), ("port", ASCENDING)],
@@ -131,7 +161,7 @@ def init_db():
             [("target_domain", ASCENDING)],
             name="port_target_domain"
         )
-        print("  ✅ ports_services indexes created")
+        logger.debug("ports_services indexes created")
 
         # ── 4. http_assets ──────────────────────────
         _safe_create_index(
@@ -145,7 +175,7 @@ def init_db():
             [("target_domain", ASCENDING)],
             name="http_target_domain"
         )
-        print("  ✅ http_assets indexes created")
+        logger.debug("http_assets indexes created")
 
         # ── 5. vulnerabilities ──────────────────────
         _safe_create_index(
@@ -163,7 +193,7 @@ def init_db():
             [("status", ASCENDING)],
             name="vuln_status"
         )
-        print("  ✅ vulnerabilities indexes created")
+        logger.debug("vulnerabilities indexes created")
 
         # ── 6. changes ──────────────────────────────
         _safe_create_index(
@@ -176,7 +206,7 @@ def init_db():
             [("detected_at", DESCENDING)],
             name="change_date"
         )
-        print("  ✅ changes indexes created")
+        logger.debug("changes indexes created")
 
         # ── 7. scan_history ─────────────────────────
         _safe_create_index(
@@ -189,7 +219,7 @@ def init_db():
             [("started_at", DESCENDING)],
             name="scan_date"
         )
-        print("  ✅ scan_history indexes created")
+        logger.debug("scan_history indexes created")
 
         # ── 8. email_exposures ──────────────────────
         _safe_create_index(
@@ -208,15 +238,11 @@ def init_db():
             [("breach_status", ASCENDING)],
             name="email_breach_status"
         )
-        print("  ✅ email_exposures indexes created")
+        logger.debug("email_exposures indexes created")
 
-        print("✅ All 8 collections initialized!")
-        return True
-
-    except Exception as e:
-        print(f"❌ Index creation failed: {e}")
-        raise
-            # ── 9. passive_recon ────────────────────────
+        # ── 9. passive_recon ────────────────────────
+        # Compound unique: one document per (target_domain, source) pair.
+        # This ensures Shodan and Censys each have their own record per target.
         _safe_create_index(
             db["passive_recon"],
             [("target_domain", ASCENDING), ("source", ASCENDING)],
@@ -228,10 +254,16 @@ def init_db():
             [("target_id", ASCENDING)],
             name="passive_target_id"
         )
-        print("  ✅ passive_recon indexes created")
+        logger.debug("passive_recon indexes created")
 
-# Update the success message:
-        print("✅ All 9 collections initialized!")
+        logger.info("All 9 collections initialized successfully")
+        return True
+
+    except Exception as e:
+        logger.error("Index creation failed: %s", e)
+        raise
+
+
 # ─── Getters ─────────────────────────────────────────────────────────────
 
 def get_db():

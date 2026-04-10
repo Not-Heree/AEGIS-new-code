@@ -210,6 +210,8 @@
                 '<td>' + escapeHtml(domain) + '<br>' + statusBadge + '</td>' +
                 '<td>' +
                 '<div class="btn-group btn-group-sm">' +
+                '<a href="/vulns/' + encodeURIComponent(vulnId) + '/show" class="btn btn-outline-primary" title="View Details">' +
+                '<i class="bi bi-eye"></i></a>' +
                 '<a href="/remediation?vuln=' + encodeURIComponent(vulnId) + '" class="btn btn-outline-info" title="View Remediation">' +
                 '<i class="bi bi-tools"></i></a>' +
                 (status === 'open'

@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
 from database.vulns_db import get_vulns_by_target, update_vuln_status
+from utils.logger import logger
 from core.cve_enricher import (
     enrich_vulnerability,
     enrich_cve,
@@ -52,21 +53,19 @@ def get_remediation_plan(target_id: str,
     Returns:
         Dict with summary, priority_breakdown, and remediation_items
     """
-    print(f"\n{'='*60}")
-    print(f"[REMEDIATION] Generating plan for {target_domain or target_id}")
-    print(f"{'='*60}")
+    logger.info(f"Generating remediation plan for {target_domain or target_id}")
 
     # Ensure enrichment data sources are loaded
     try:
         init_enricher()
     except Exception as e:
-        print(f"[REMEDIATION] Enricher init warning: {e}")
+        logger.warning(f"Enricher init warning: {e}")
 
     # Get all open vulnerabilities
     vulns = get_vulns_by_target(target_id, status="open")
 
     if not vulns:
-        print("[REMEDIATION] No open vulnerabilities found")
+        logger.info("No open vulnerabilities found")
         return {
             "success": True,
             "target_id": target_id,
@@ -145,9 +144,8 @@ def get_remediation_plan(target_id: str,
         )
     }
 
-    print(f"[REMEDIATION] Plan generated: {len(remediation_items)} items")
-    print(f"[REMEDIATION] KEV: {kev_count} | CVE: {cve_count}")
-    print(f"[REMEDIATION] Priorities: {priority_counts}")
+    logger.info(f"Plan generated: {len(remediation_items)} items (KEV: {kev_count}, CVE: {cve_count})")
+    logger.info(f"Priority breakdown: {priority_counts}")
 
     return {
         "success": True,
@@ -527,7 +525,7 @@ def get_single_remediation(vuln_id: str,
         return _build_remediation_item(target_vuln)
 
     except Exception as e:
-        print(f"[REMEDIATION] Error getting single remediation: {e}")
+        logger.error(f"Error getting single remediation: {e}", exc_info=True)
         return None
 
 
@@ -626,7 +624,7 @@ def get_remediation_summary_stats(target_id: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        print(f"[REMEDIATION] Stats error: {e}")
+        logger.error(f"Stats error: {e}", exc_info=True)
         return {
             "total_open": 0,
             "severity_counts": {},
@@ -641,9 +639,9 @@ def get_remediation_summary_stats(target_id: str) -> Dict[str, Any]:
 # =============================================================================
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("  REMEDIATION ENGINE — Standalone Test")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("  REMEDIATION ENGINE — Standalone Test")
+    logger.info("=" * 60)
 
     # Test with a mock vulnerability
     mock_vuln = {
@@ -667,33 +665,33 @@ if __name__ == "__main__":
         "tags": ["cve", "apache", "path-traversal"]
     }
 
-    print("\nBuilding remediation item for mock vulnerability...")
+    logger.info("Building remediation item for mock vulnerability...")
     item = _build_remediation_item(mock_vuln)
 
-    print(f"\n{'='*60}")
-    print(f"Name: {item['name']}")
-    print(f"CVE: {item['cve_id']}")
-    print(f"Priority: {item['priority_score']}/100 — {item['priority_label']}")
-    print(f"KEV: {'⚠️ YES' if item['is_kev'] else 'No'}")
-    print(f"Fix by: {item['fix_by_date']}")
-    print(f"Timeline: {item['recommended_timeline']}")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Name: {item['name']}")
+    logger.info(f"CVE: {item['cve_id']}")
+    logger.info(f"Priority: {item['priority_score']}/100 — {item['priority_label']}")
+    logger.info(f"KEV: {'⚠️ YES' if item['is_kev'] else 'No'}")
+    logger.info(f"Fix by: {item['fix_by_date']}")
+    logger.info(f"Timeline: {item['recommended_timeline']}")
 
     if item.get("epss"):
-        print(f"EPSS: {item['epss']['explanation']}")
+        logger.info(f"EPSS: {item['epss']['explanation']}")
 
-    print(f"\nRemediation ({item['remediation']['source']}):")
-    print(f"  Summary: {item['remediation']['summary']}")
-    print(f"  Steps:")
+    logger.info(f"Remediation ({item['remediation']['source']}):")
+    logger.info(f"  Summary: {item['remediation']['summary']}")
+    logger.info(f"  Steps:")
     for i, step in enumerate(item["remediation"]["detailed_steps"], 1):
-        print(f"    {i}. {step}")
+        logger.info(f"    {i}. {step}")
 
     if item["remediation"].get("code_examples"):
-        print(f"  Code Examples:")
+        logger.info(f"  Code Examples:")
         for lang, code in item["remediation"]["code_examples"].items():
-            print(f"    [{lang}]")
+            logger.info(f"    [{lang}]")
             for line in code.split("\n"):
-                print(f"      {line}")
+                logger.info(f"      {line}")
 
-    print(f"\n  Threat Indicators:")
+    logger.info(f"  Threat Indicators:")
     for indicator in item.get("threat_indicators", []):
-        print(f"    ⚠️ {indicator}")
+        logger.info(f"    ⚠️ {indicator}")

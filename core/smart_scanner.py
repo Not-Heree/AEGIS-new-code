@@ -23,6 +23,7 @@ Port philosophy:
 import os
 import re
 from typing import List, Dict, Any, Set, Optional
+from config import Config
 from utils.logger import logger
 
 
@@ -46,6 +47,7 @@ def _build_template_index() -> Dict[str, str]:
     userprofile = os.getenv("USERPROFILE", home)
 
     base_dirs = [
+        Config.NUCLEI_TEMPLATES_PATH,
         os.path.join(home, "nuclei-templates"),
         os.path.join(userprofile, "nuclei-templates"),
     ]
@@ -53,7 +55,7 @@ def _build_template_index() -> Dict[str, str]:
     _TEMPLATE_INDEX = {}
 
     for base in base_dirs:
-        if not os.path.exists(base):
+        if not base or not os.path.exists(base):
             continue
 
         for root, dirs, files in os.walk(base):
@@ -99,14 +101,20 @@ TECH_TO_NUCLEI_TAGS = {
     "joomla": ["joomla"],
     "drupal": ["drupal"],
     "magento": ["magento"],
+    "ghost": ["ghost"],
+    "strapi": ["strapi"],
+    "directus": ["directus"],
+    "opencart": ["opencart"],
+    "prestashop": ["prestashop"],
 
     # Frameworks
     "laravel": ["laravel"],
     "django": ["django"],
     "flask": ["flask"],
     "spring": ["spring", "springboot"],
+    "ruby on rails": ["rails"],
 
-    # Panels & Tools
+    # Panels, Auth, & Containers
     "grafana": ["grafana"],
     "jenkins": ["jenkins"],
     "gitlab": ["gitlab"],
@@ -117,22 +125,46 @@ TECH_TO_NUCLEI_TAGS = {
     "phpmyadmin": ["phpmyadmin"],
     "webmin": ["webmin"],
     "cpanel": ["cpanel"],
+    "docker": ["docker"],
+    "kubernetes": ["kubernetes", "k8s"],
+    "keycloak": ["keycloak"],
+    "auth0": ["auth0"],
+    "okta": ["okta"],
 
     # Languages
     "php": ["php"],
     "asp.net": ["aspnet"],
     "node.js": ["nodejs"],
 
-    # Infrastructure
+    # Infrastructure & Gateway
     "citrix": ["citrix"],
     "fortinet": ["fortinet", "fortigate"],
     "sonicwall": ["sonicwall"],
     "paloalto": ["paloalto"],
     "f5": ["f5", "bigip"],
+    "vmware": ["vmware", "vcenter", "esxi"],
+    "hashicorp vault": ["vault"],
+    "traefik": ["traefik"],
+    "envoy": ["envoy"],
+    "kong": ["kong"],
 
-    # Mail
+    # Cloud & Storage
+    "amazon s3": ["aws", "s3"],
+    "azure blob": ["azure", "storage"],
+    "google cloud storage": ["gcp", "bucket"],
+
+    # Databases (Web Interface/API)
+    "mongodb": ["mongodb"],
+    "redis": ["redis"],
+    "couchdb": ["couchdb"],
+    "influxdb": ["influxdb"],
+
+    # Mail & Collaboration
     "exchange": ["exchange"],
     "zimbra": ["zimbra"],
+    "nextcloud": ["nextcloud"],
+    "owncloud": ["owncloud"],
+    "mattermost": ["mattermost"],
 }
 
 
@@ -267,6 +299,7 @@ SERVER_SIGNATURES = {
     "daphne":       ["python", "django"],
     "cheroot":      ["python"],
     "twisted":      ["python"],
+    "runway":       ["python"],
 
     # Java servers (beyond Tomcat)
     "jetty":        ["java"],

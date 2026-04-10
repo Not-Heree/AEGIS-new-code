@@ -666,18 +666,19 @@
                 </ul>`;
         }
 
-        // Code examples
+        // Code examples (EXPANDED by default)
         let codeHtml = '';
         const examples = item.remediation?.code_examples || {};
         const exampleKeys = Object.keys(examples);
         if (exampleKeys.length > 0) {
             codeHtml = `
-                <div class="mt-3">
+                <div class="mt-4 p-3" style="background: #f8f9fa; border-left: 4px solid #3498db; border-radius: 6px;">
                     <h6 class="section-toggle" data-bs-toggle="collapse"
-                        data-bs-target="#code-${index}">
-                        <i class="bi bi-chevron-down"></i> Code Examples
+                        data-bs-target="#code-${index}" style="color: #3498db; margin-bottom: 10px;">
+                        <i class="bi bi-code"></i> Code Examples (${exampleKeys.length})
+                        <small class="text-muted fw-normal">— Click to ${exampleKeys.length > 0 ? 'collapse' : 'expand'}</small>
                     </h6>
-                    <div class="collapse" id="code-${index}">
+                    <div class="collapse show" id="code-${index}">
                         ${exampleKeys.map(lang => `
                             <div class="code-block">
                                 <span class="code-label">${escapeHtml(lang)}</span>${escapeHtml(examples[lang])}
@@ -687,31 +688,31 @@
                 </div>`;
         }
 
-        // References
+        // References & Patches (EXPANDED by default)
         let refsHtml = '';
         const allRefs = [...(item.patch_urls || []), ...(item.references || [])];
-        const uniqueRefs = [...new Set(allRefs)].slice(0, 8);
+        const uniqueRefs = [...new Set(allRefs)].slice(0, 12);
         if (uniqueRefs.length > 0) {
+            const patchCount = item.patch_urls?.length || 0;
             refsHtml = `
-                <div class="mt-3">
+                <div class="mt-4 p-3" style="background: #f0fdf4; border-left: 4px solid #27ae60; border-radius: 6px;">
                     <h6 class="section-toggle" data-bs-toggle="collapse"
-                        data-bs-target="#refs-${index}">
-                        <i class="bi bi-chevron-down"></i> References & Patches
-                        (${uniqueRefs.length})
+                        data-bs-target="#refs-${index}" style="color: #27ae60; margin-bottom: 10px;">
+                        <i class="bi bi-link-45deg"></i> References & Patches (${uniqueRefs.length})
+                        ${patchCount > 0 ? `<span class="badge bg-success ms-2">${patchCount} Patch${patchCount !== 1 ? 'es' : ''}</span>` : ''}
                     </h6>
-                    <div class="collapse" id="refs-${index}">
-                        <ul class="list-unstyled ms-3">
+                    <div class="collapse show" id="refs-${index}">
+                        <ul class="list-unstyled ms-2">
                             ${uniqueRefs.map(ref => {
                 const url = typeof ref === 'object' ? ref.url || '' : ref;
                 const isPatch = item.patch_urls?.includes(url);
                 return `
-                                    <li class="mb-1">
-                                        ${isPatch ? '' : ''}
+                                    <li class="mb-2">
+                                        ${isPatch ? '<span class="badge bg-success me-2">Patch</span>' : '<span class="badge bg-info me-2">Reference</span>'}
                                         <a href="${escapeHtml(url)}" target="_blank"
-                                           class="text-break small">
-                                            ${escapeHtml(url)}
+                                           class="text-break small text-decoration-none">
+                                            ${escapeHtml(url.substring(0, 80))}${url.length > 80 ? '...' : ''}
                                         </a>
-                                        ${isPatch ? '<span class="badge bg-success ms-1">Patch</span>' : ''}
                                     </li>`;
             }).join('')}
                         </ul>
@@ -776,15 +777,17 @@
                 ` : ''}
 
                 <!-- Remediation -->
-                <div class="mt-3">
-                    <h6>
-                        <i class="bi bi-wrench"></i> How To Fix
-                        <small class="text-muted fw-normal ms-2">
+                <div class="mt-4 p-3" style="background: #fffaE8; border-left: 4px solid #f39c12; border-radius: 6px;">
+                    <h6 style="color: #e67e22; margin-bottom: 10px;">
+                        <i class="bi bi-wrench-adjustable"></i> How To Fix
+                        <small class="text-muted fw-normal ms-2" style="font-size: 0.85rem;">
                             Source: ${escapeHtml(item.remediation?.source || 'auto-generated')}
                         </small>
                     </h6>
-                    <p class="mb-2"><strong>${escapeHtml(item.remediation?.summary || '')}</strong></p>
-                    ${stepsHtml}
+                    <p class="mb-3" style="font-weight: 500; font-size: 0.95rem;">
+                        <strong>${escapeHtml(item.remediation?.summary || 'Follow the steps below to remediate this vulnerability.')}</strong>
+                    </p>
+                    ${stepsHtml ? `<div style="padding-left: 10px;">${stepsHtml}</div>` : `<p class="text-muted small">No detailed steps available. Refer to references and code examples below.</p>`}
                 </div>
 
                 <!-- Code Examples -->
