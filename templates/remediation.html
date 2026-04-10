@@ -434,11 +434,11 @@
             <label class="form-label mb-0 small fw-bold">Severity</label>
             <select class="form-select form-select-sm" id="filter-severity" onchange="applyFilters()">
                 <option value="">All Severities</option>
-                <option value="critical">🔴 Critical</option>
-                <option value="high">🟠 High</option>
-                <option value="medium">🟡 Medium</option>
-                <option value="low">🟢 Low</option>
-                <option value="info">🔵 Info</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="info">Info</option>
             </select>
         </div>
         <div class="col-md-3">
@@ -455,9 +455,9 @@
             <label class="form-label mb-0 small fw-bold">Priority</label>
             <select class="form-select form-select-sm" id="filter-priority" onchange="applyFilters()">
                 <option value="">All Priorities</option>
-                <option value="80">🔴 Fix Immediately (80+)</option>
-                <option value="60">🟠 Fix This Week (60+)</option>
-                <option value="40">🟡 Fix This Month (40+)</option>
+                <option value="80">Fix Immediately (80+)</option>
+                <option value="60">Fix This Week (60+)</option>
+                <option value="40">Fix This Month (40+)</option>
             </select>
         </div>
         <div class="col-md-3 text-end">
@@ -665,28 +665,7 @@
                     ${steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
                 </ul>`;
         }
-
-        // Code examples (EXPANDED by default)
         let codeHtml = '';
-        const examples = item.remediation?.code_examples || {};
-        const exampleKeys = Object.keys(examples);
-        if (exampleKeys.length > 0) {
-            codeHtml = `
-                <div class="mt-4 p-3" style="background: #f8f9fa; border-left: 4px solid #3498db; border-radius: 6px;">
-                    <h6 class="section-toggle" data-bs-toggle="collapse"
-                        data-bs-target="#code-${index}" style="color: #3498db; margin-bottom: 10px;">
-                        <i class="bi bi-code"></i> Code Examples (${exampleKeys.length})
-                        <small class="text-muted fw-normal">— Click to ${exampleKeys.length > 0 ? 'collapse' : 'expand'}</small>
-                    </h6>
-                    <div class="collapse show" id="code-${index}">
-                        ${exampleKeys.map(lang => `
-                            <div class="code-block">
-                                <span class="code-label">${escapeHtml(lang)}</span>${escapeHtml(examples[lang])}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>`;
-        }
 
         // References & Patches (EXPANDED by default)
         let refsHtml = '';
@@ -698,7 +677,7 @@
                 <div class="mt-4 p-3" style="background: #f0fdf4; border-left: 4px solid #27ae60; border-radius: 6px;">
                     <h6 class="section-toggle" data-bs-toggle="collapse"
                         data-bs-target="#refs-${index}" style="color: #27ae60; margin-bottom: 10px;">
-                        <i class="bi bi-link-45deg"></i> References & Patches (${uniqueRefs.length})
+                         References & Patches (${uniqueRefs.length})
                         ${patchCount > 0 ? `<span class="badge bg-success ms-2">${patchCount} Patch${patchCount !== 1 ? 'es' : ''}</span>` : ''}
                     </h6>
                     <div class="collapse show" id="refs-${index}">
@@ -779,7 +758,7 @@
                 <!-- Remediation -->
                 <div class="mt-4 p-3" style="background: #fffaE8; border-left: 4px solid #f39c12; border-radius: 6px;">
                     <h6 style="color: #e67e22; margin-bottom: 10px;">
-                        <i class="bi bi-wrench-adjustable"></i> How To Fix
+                        How To Fix
                         <small class="text-muted fw-normal ms-2" style="font-size: 0.85rem;">
                             Source: ${escapeHtml(item.remediation?.source || 'auto-generated')}
                         </small>
@@ -789,8 +768,6 @@
                     </p>
                     ${stepsHtml ? `<div style="padding-left: 10px;">${stepsHtml}</div>` : `<p class="text-muted small">No detailed steps available. Refer to references and code examples below.</p>`}
                 </div>
-
-                <!-- Code Examples -->
                 ${codeHtml}
 
                 <!-- References -->
@@ -811,28 +788,7 @@
                     </div>
                 </div>
 
-                <!-- Status Buttons -->
-                <div class="mt-3 pt-3 border-top d-flex justify-content-between align-items-center">
-                    <div class="status-btn-group">
-                        <span class="small text-muted me-2">Status:</span>
-                        <button class="btn btn-sm ${status === 'open' ? 'btn-danger active-status' : 'btn-outline-danger'}"
-                                onclick="updateStatus('${vulnId}', 'open')">
-                             Open
-                        </button>
-                        <button class="btn btn-sm ${status === 'in_progress' ? 'btn-warning active-status' : 'btn-outline-warning'} ms-1"
-                                onclick="updateStatus('${vulnId}', 'in_progress')">
-                             In Progress
-                        </button>
-                        <button class="btn btn-sm ${status === 'resolved' ? 'btn-success active-status' : 'btn-outline-success'} ms-1"
-                                onclick="updateStatus('${vulnId}', 'resolved')">
-                             Resolved
-                        </button>
-                        <button class="btn btn-sm ${status === 'false_positive' ? 'btn-secondary active-status' : 'btn-outline-secondary'} ms-1"
-                                onclick="updateStatus('${vulnId}', 'false_positive')">
-                             False Positive
-                        </button>
-                    </div>
-                </div>
+
             </div>
         </div>`;
     }

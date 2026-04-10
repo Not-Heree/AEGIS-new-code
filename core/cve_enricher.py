@@ -1147,11 +1147,11 @@ def generate_detailed_remediation(vuln: Dict[str, Any], enrichment: Dict[str, An
         cwe_data = get_cwe_remediation(cwe_ids)
         if cwe_data:
             remediation["cwe_guidance"] = {
-                "name": cwe_data["name"],
-                "category": cwe_data["category"],
-                "impact": cwe_data["impact"],
-                "business_impact": cwe_data["business_impact"],
-                "fix_steps": cwe_data["fix_steps"],
+                "name": cwe_data.get("name", "Unknown CWE"),
+                "category": cwe_data.get("category", "Unknown Category"),
+                "impact": cwe_data.get("impact", "Potential security impact"),
+                "business_impact": cwe_data.get("business_impact", "Review details for business risk"),
+                "fix_steps": cwe_data.get("fix_steps", []),
                 "code_examples": cwe_data.get("code_examples", {}),
                 "timeline": cwe_data.get("timeline", "30 days")
             }
@@ -1162,7 +1162,7 @@ def generate_detailed_remediation(vuln: Dict[str, Any], enrichment: Dict[str, An
                 remediation["timeline"] = cwe_timeline
             
             # Use CWE impact as business impact
-            remediation["business_impact"] = cwe_data["business_impact"]
+            remediation["business_impact"] = cwe_data.get("business_impact", "")
             
             # Add CWE references
             remediation["references"].extend(cwe_data.get("references", []))

@@ -347,7 +347,10 @@ def show_vuln_detail(vuln_id):
             except Exception:
                 vuln['target'] = None
         
-        return render_template('vulnerability_detail.html', vuln=vuln)
+        # Serialize the MongoDB document to make it JSON-safe for the template
+        safe_vuln = _serialize(vuln)
+        
+        return render_template('vulnerability_detail.html', vuln=safe_vuln)
     
     except Exception as e:
         logger.error(f"[VULN] Error loading vulnerability {vuln_id}: {e}", exc_info=True)

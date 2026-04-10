@@ -236,6 +236,11 @@ def target_assets_breakdown(domain):
 def vulnerabilities_view():
     return render_template("vulnerabilities.html", active_page="vulnerabilities")
 
+@app.route("/vulns/<vuln_id>/show")
+def show_vuln_detail_ui(vuln_id):
+    from routes.vulns import show_vuln_detail
+    return show_vuln_detail(vuln_id)
+
 @app.route("/changes")
 def changes_view():
     return render_template("changes.html", active_page="changes")
