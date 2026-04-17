@@ -6,6 +6,9 @@
 Flask==3.0.0
 python-dotenv==1.0.0
 Werkzeug==3.0.1
+python-socketio==5.10.0    # Real-time WebSocket support
+python-engineio==4.8.0     # Engine.IO transport for SocketIO
+Flask-SocketIO==5.3.6      # Flask integration for Socket.IO
 
 # ── Database ──────────────────────────────────────────────────────────────
 pymongo==4.6.1

@@ -1,84 +1,85 @@
-# EASM AEGIS: Master Project Guide
+# EASM AEGIS: Master Project Reference
 
-This document provides a comprehensive overview of the EASM (External Attack Surface Management) AEGIS project, serving as the definitive reference for its architecture, features, and current technical state.
-
----
-
-## 🏗️ System Architecture
-
-AEGIS follows a modular, layered architecture designed for scalability and asynchronous processing.
-
-### 1. Unified Workflow (Data Flow)
-The project follows a standard penetration testing methodology automated into a single pipeline:
-
-```mermaid
-graph TD
-    A[Add Target] --> B(Passive Recon)
-    B --> C[Shodan / Censys Data]
-    B --> D[Email Harvesting]
-    A --> E[Active Scan Start]
-    E --> F(Subdomain Discovery)
-    F --> G(Port Scanning)
-    G --> H(HTTP Fingerprinting)
-    H --> I(Vulnerability Scanning)
-    I --> J(Change Detection)
-    J --> K(Risk Scoring)
-    K --> L[Remediation Plan]
-    L --> M[PDF Report]
-```
-
-### 2. Implementation Layers
-- **UI Layer (`templates/`, `static/`)**: Vanilla JS + Bootstrap dashboard. Performs real-time polling for scan status.
-- **Route Layer (`routes/`)**: Flask Blueprints acting as an API gateway.
-- **Logic Layer (`core/`)**: The "brain" of the app. Orchestrates third-party binaries and processes raw results.
-- **Data Layer (`database/`)**: MongoDB interface with strict sanitization (`utils/sanitize.py`) and deduplication logic.
+This document serves as the canonical map for the EASM AEGIS architecture, feature status, and data flow.
 
 ---
 
-## ✅ Feature List & Audit Status
+## 🏗️ CORE ARCHITECTURE
 
-| Feature Name | Primary Files Involved | Status |
+The system follows a **Tiered Parallel Pipeline** architecture. Each scan phase enriches the target with increasing depth.
+
+### 1. The Pipeline Flow
+`Target (Domain)` → `Phase 0: Passive Recon` → `Phase 1: Subdomain Discovery` → `Phase 2: Port Scanning` → `Phase 3: HTTP Probing` → `Phase 4: Vulnerability Scanning` → `Phase 5: OSINT/Email Harvesting` → `Phase 6: Risk Scoring`.
+
+### 2. Primary Entry Points
+- **Web UI**: `app.py` (Flask)
+- **Scanner Orchestrator**: `core/scanner.py` (`run_full_scan`)
+- **Intel Engine**: `core/cve_enricher.py` (Canonical Remediation)
+
+---
+
+## 📋 COMPLETE FEATURE LIST
+
+Feature Name | Files Involved | Status
+--- | --- | ---
+**Subdomain Enumeration** | `core/subfinder.py`, `core/amass.py`, `database/subdomains_db.py` | WORKING
+**Passive Intel (Shodan)** | `core/shodan_recon.py`, `database/passive_recon_db.py` | WORKING
+**Passive Intel (Censys)** | `core/censys_recon.py`, `database/passive_recon_db.py` | WORKING
+**WHOIS Analysis** | `core/whois_lookup.py`, `database/passive_recon_db.py` | WORKING
+**Port Discovery** | `core/naabu.py`, `database/ports_db.py` | WORKING
+**HTTP Fingerprinting** | `core/httpx_runner.py`, `database/http_assets_db.py` |  WORKING
+**Parameter Mining** | `core/arjun_runner.py`, `core/wordlist_builder.py` |  WORKING
+**Vulnerability Scan** | `core/nuclei.py`, `database/vulns_db.py`, `routes/vulns.py` | WORKING
+**Remediation Logic** | `core/cve_enricher.py`, `core/remediation_engine.py` | WORKING
+**Email / Breach OSINT** | `core/email_harvester.py`, `database/emails_db.py` | WORKING
+**Risk Calculation** | `core/risk_scorer.py`, `core/cve_enricher.py` | WORKING
+**Change Detection** | `core/change_detector.py`, `database/changes_db.py` | WORKING
+**PDF Reporting** | `reports/pdf_generator.py`, `routes/reports.py` | WORKING
+**Dashboard Analytics** | `routes/dashboard.py`, `static/js/dashboard.js` | PARTIAL (Passive recon cards broken)
+**API Management** | `core/api_key_manager.py`, `routes/api_keys.py` | WORKING
+**Auth Guard** | `app.py` (`require_login`), `config.py` | WORKING
+
+---
+
+## 🔗 DATA INTEGRITY MAP
+
+| Collection | Purpose | Source Module |
 | :--- | :--- | :--- |
-| **Email Discovery** | `email_harvester.py`, `emails_db.py`, `emails.py` | ✅ WORKING |
-| **Passive Recon** | `scanner.py`, `dashboard.py`, `dashboard.html` | ✅ WORKING |
-| **Active Discovery** | `subfinder.py`, `naabu.py`, `httpx_runner.py` | ✅ WORKING |
-| **Vulnerability Scanning** | `nuclei.py`, `vulns_db.py`, `vulns.py` | ✅ WORKING |
-| **Remediation Engine** | `remediation_engine.py`, `remediation.html` | ✅ WORKING |
-| **Change Detection** | `scanner.py`, `changes_db.py`, `changes.html` | ✅ WORKING |
-| **PDF Reporting** | `pdf_generator.py`, `report_generator.py` | ✅ WORKING |
-| **User Authentication** | `app.py`, `login.html` | ⚠️ PARTIAL |
-
-> [!NOTE]
-> **Authentication Status**: Current implementation is a simple session-based single-admin login. It is functional but lacks multi-user support or RBAC.
+| `targets` | Main domain inventory | `database/targets_db.py` |
+| `subdomains` | Discovered hosts | `core/subfinder.py`, `core/amass.py` |
+| `ports` | Service discovery | `core/naabu.py` |
+| `http_assets` | Web fingerprinting | `core/httpx_runner.py` |
+| `vulnerabilities`| Confirmed security issues | `core/nuclei.py`, `core/cve_enricher.py` |
+| `passive_recon` | Shodan/Censys/WHOIS info | `database/passive_recon_db.py` |
+| `emails` | OSINT identity intel | `core/email_harvester.py` |
+| `changes` | Historic state changes | `core/change_detector.py` |
 
 ---
 
-## 💀 Dead Code & Redundancy Inventory
+## 🛠️ EXTERNAL TOOL DEPENDENCIES
 
-The following files or functions were identified as unused or redundant:
+The project invokes several Go binaries. Paths must be configured in `.env` or `config.py`.
 
-1. **`tools/theHarvester/restfulHarvest.py`**: Leftover script, not called by the main harvester.
-2. **`database/db.py`**: Redundant (Modular `_db.py` files are now preferred).
-3. **`core/utils.py`** (if exists): Check if functions were migrated to `utils/`.
-
----
-
-## 🔧 External Tools & APIs
-
-AEGIS integrates the following external capabilities:
-
-| Category | Tool / API | Integration Type |
-| :--- | :--- | :--- |
-| **Recon** | `subfinder.exe` | Subprocess Binary |
-| **Scanning** | `naabu.exe`, `nuclei.exe` | Subprocess Binary |
-| **Intelligence** | `Shodan`, `Censys` | REST API |
-| **Email** | `Hunter.io`, `LeakCheck`, `IntelX` | REST API |
-| **Knowledge** | `CISA KEV`, `CWE`, `EPSS` | Static JSON Data |
+1.  **Subfinder**: Passive subdomain discovery.
+2.  **Amass**: Advanced DNS/Passive enumeration.
+3.  **Naabu**: Fast port scanning.
+4.  **HTTPX**: HTTP probing and tech detection.
+5.  **Nuclei**: Template-driven vulnerability scanning.
+6.  **Arjun**: HTTP parameter discovery.
 
 ---
 
-## 🔍 Debugging & Maintenance
+## 🩹 CRITICAL MAINTENANCE LOG (AUDIT FINDINGS)
 
-- **Logs**: Located in `utils/logger.py` output. Check terminal for "Background harvest info".
-- **Database**: Connect to `mongodb://localhost:27017` using MongoDB Compass.
-- **API Health**: Access `/api/health` for connection status.
+### 1. Dead Code Candidates (Delete for Maturity)
+- `core/remediation_engine.py` -> `_combine_remediation_sources()`
+- `core/cve_enricher.py` -> `enrich_vulnerabilities_batch()`
+- `core/scanner.py` -> `_cvss_to_severity()`
+
+### 2. Architectural Debt
+- **Duplication**: `serialize_doc()` repeats in 10 files. **Fix**: Move to `database/connection.py`.
+- **API Mismatch**: Frontend calls `/api/passive/` but backend expects `/api/passive-recon/`. **Fix**: Standardize on `/api/passive/`.
+
+### 3. Missing Infrastructure
+- **Manual Cache Clear**: No UI button to force-clear the 24h Enrichment Cache.
+- **Bulk Cleanup**: No "Delete All" for old scans or changes.

@@ -67,6 +67,12 @@ def add_target(root_domain, org_name=None):
             "org_name": org_name or "",
             "description": "",
             "status": "active",
+            "scan_config": {
+                "enable_parameter_discovery": False,
+                "parameter_discovery_rate_limit": (
+                    Config.ARJUN_RATE_LIMIT
+                ),
+            },
 
             # ── Computed Stats (updated by scanner) ───
             "total_subdomains": 0,
@@ -122,6 +128,11 @@ def get_target_by_id(target_id):
         return serialize_doc(doc)
     except Exception:
         return None
+
+
+def get_target(target_id):
+    """Backward-compatible alias used by the scanner."""
+    return get_target_by_id(target_id)
 
 
 def get_target_by_domain(root_domain):
@@ -180,4 +191,4 @@ def delete_target(target_id):
         return {"success": True, "message": "Target deleted"}
     except Exception as e:
         return {"success": False, "message": str(e)}
-
+

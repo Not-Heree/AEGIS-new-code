@@ -7,6 +7,7 @@ from config import Config
 from database.connection import init_db, test_connection, get_db
 from utils.logger import logger
 import os
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 # ─── Blueprint Imports ────────────────────────────────────────────────────
 from routes.targets import targets_bp
@@ -20,16 +21,20 @@ from routes.remediation import remediation_bp
 from routes.emails import emails_bp
 from routes.passive_recon import passive_bp
 from routes.api_keys import bp as api_keys_bp
+from routes.scheduled_scans import schedules_bp
 
 # ─── Create Flask App ─────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
 
 def initialize_app():
     """Initialize the EASM application and verify database connection."""
     if test_connection():
         init_db()
+        from database.scans_db import cleanup_stale_scans
+        cleanup_stale_scans()
         logger.info("Application initialized")       
     else:
         logger.error("Failed to connect to MongoDB")              
@@ -54,6 +59,7 @@ app.register_blueprint(remediation_bp)
 app.register_blueprint(emails_bp)
 app.register_blueprint(passive_bp)
 app.register_blueprint(api_keys_bp)
+app.register_blueprint(schedules_bp)
 
 
 # ─── Authentication ───────────────────────────────────────────────────────
@@ -254,6 +260,37 @@ def emails_view():
     return render_template("emails.html", active_page="emails")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# WebSocket Events for Real-time Scan Progress
+# ═══════════════════════════════════════════════════════════════════════════
+
+@socketio.on('subscribe_scan')
+def handle_subscribe_scan(data):
+    """Subscribe to real-time updates for a specific scan"""
+    scan_id = data.get('scan_id')
+    if scan_id:
+        join_room(f'scan_{scan_id}')
+        logger.debug(f"Client subscribed to scan: {scan_id}")
+        emit('subscribed', {'scan_id': scan_id})
+
+@socketio.on('unsubscribe_scan')
+def handle_unsubscribe_scan(data):
+    """Unsubscribe from real-time updates for a specific scan"""
+    scan_id = data.get('scan_id')
+    if scan_id:
+        leave_room(f'scan_{scan_id}')
+        logger.debug(f"Client unsubscribed from scan: {scan_id}")
+
+@socketio.on('connect')
+def handle_connect():
+    logger.debug(f"WebSocket client connected: {request.sid}")
+    emit('connected', {'message': 'Connected to EASM AEGIS'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    logger.debug(f"WebSocket client disconnected: {request.sid}")
+
+
 # Entry Point
 
 if __name__ == "__main__":
@@ -262,10 +299,11 @@ if __name__ == "__main__":
         "Starting AEGIS on port %d (debug=%s)",
         Config.PORT, Config.DEBUG
     )                                                             
-    app.run(
+    socketio.run(
+        app,
         host="0.0.0.0",
         port=Config.PORT,
         debug=Config.DEBUG,
         use_reloader=False,
-        threaded=True
+        allow_unsafe_werkzeug=True
     )

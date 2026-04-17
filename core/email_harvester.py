@@ -38,6 +38,7 @@ from config import Config
 from utils.logger import logger
 from core.api_key_manager import APIKeyManager 
 from utils.throttler import throttler
+from utils.cancellation import is_cancelled
 
 # =============================================================================
 # TEMP DIRECTORY MANAGEMENT
@@ -1267,6 +1268,11 @@ def harvest_and_check(domain):
       - Falls back to LeakCheck if needed
       - Better result aggregation
     """
+    # Check for cancellation before starting
+    if is_cancelled(domain):
+        logger.warning(f"[ABORT] Email harvest cancelled for {domain}")
+        return {"success": False, "error": "Cancelled"}
+
     # Step 1: Harvest emails
     harvest_result = harvest_emails(domain)
     emails = harvest_result.get("emails", [])
@@ -1297,6 +1303,10 @@ def harvest_and_check(domain):
         }
 
     # Step 2: Check breaches (now uses IntelX + LeakCheck)
+    if is_cancelled(domain):
+        logger.warning(f"[ABORT] Breach check cancelled for {domain}")
+        return {"success": False, "error": "Cancelled"}
+
     breach_result = check_breaches_batch(emails)
     breach_results = breach_result.get("results", {})
 

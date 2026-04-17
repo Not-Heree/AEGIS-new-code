@@ -66,6 +66,41 @@ def _serialize(doc):
     return doc
 
 
+def calculate_risk_score(crit, high, med, low, info, subdomains_count, ports_count, http_assets_count, breached_emails, total_emails):
+    """Refactored risk score calculation used by both domain and overall reports."""
+    risk_score = 0
+
+    # Vulnerability scoring
+    risk_score += crit * 40
+    risk_score += high * 25
+    risk_score += med * 10
+    risk_score += low * 3
+    risk_score += info * 1
+
+    # Exposure scoring
+    if subdomains_count > 50:
+        risk_score += 10
+    if ports_count > 100:
+        risk_score += 10
+    if http_assets_count > 20:
+        risk_score += 5
+
+    # Email breach scoring
+    if breached_emails > 10:
+        risk_score += 15
+    elif breached_emails > 5:
+        risk_score += 10
+    elif breached_emails > 0:
+        risk_score += 5
+
+    if total_emails > 0:
+        breach_rate = breached_emails / total_emails
+        if breach_rate > 0.5:
+            risk_score += 5
+
+    return min(risk_score, 100)
+
+
 # ─── Main Report Generator ───────────────────────────────────────────────
 
 def generate_report(domain, db=None):
@@ -128,6 +163,23 @@ def generate_report(domain, db=None):
         ).sort("detected_at", -1).limit(50)
     ))
 
+    # ─── Get Passive Recon Data (WHOIS, Shodan, Censys) ───
+    whois_data = _serialize(
+        db.get_collection("passive_recon").find_one(
+            {"target_domain": domain, "source": "whois"}
+        )
+    )
+    shodan_data = _serialize(
+        db.get_collection("passive_recon").find_one(
+            {"target_domain": domain, "source": "shodan"}
+        )
+    )
+    censys_data = _serialize(
+        db.get_collection("passive_recon").find_one(
+            {"target_domain": domain, "source": "censys"}
+        )
+    )
+
     # ─── Get Email Exposures ─────────────────────────────
     emails = _serialize(list(
         db[Config.EMAILS_COLLECTION].find(
@@ -184,40 +236,18 @@ def generate_report(domain, db=None):
             vuln_breakdown[sev] += 1
 
     # ─── Calculate Risk Score ────────────────────────────
-    risk_score = 0
-
-    # Vulnerability scoring
-    risk_score += vuln_breakdown["critical"] * 40
-    risk_score += vuln_breakdown["high"] * 25
-    risk_score += vuln_breakdown["medium"] * 10
-    risk_score += vuln_breakdown["low"] * 3
-    risk_score += vuln_breakdown["info"] * 1
-
-    # Exposure scoring
-    if len(subdomains) > 50:
-        risk_score += 10
-    if len(ports) > 100:
-        risk_score += 10
-    if len(http_assets) > 20:
-        risk_score += 5
-
-    # Email breach scoring
-    if email_stats["breached"] > 10:
-        risk_score += 15
-    elif email_stats["breached"] > 5:
-        risk_score += 10
-    elif email_stats["breached"] > 0:
-        risk_score += 5
-
-    if email_stats["total"] > 0:
-        breach_rate = (
-            email_stats["breached"] /
-            email_stats["total"]
-        )
-        if breach_rate > 0.5:
-            risk_score += 5
-
-    risk_score = min(risk_score, 100)
+    risk_score = calculate_risk_score(
+        vuln_breakdown["critical"],
+        vuln_breakdown["high"],
+        vuln_breakdown["medium"],
+        vuln_breakdown["low"],
+        vuln_breakdown["info"],
+        len(subdomains),
+        len(ports),
+        len(http_assets),
+        email_stats["breached"],
+        email_stats["total"]
+    )
 
     # ─── Group Vulnerabilities by Severity ───────────────
     vulns_by_severity = {
@@ -300,6 +330,9 @@ def generate_report(domain, db=None):
         "email_stats": email_stats,
         "technologies": tech_list[:20],
         "latest_scan": latest_scan,
+        "whois": whois_data,
+        "shodan": shodan_data,
+        "censys": censys_data,
         "recommendations": _generate_recommendations(
             vuln_breakdown, len(subdomains),
             len(ports), email_stats
@@ -500,7 +533,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                 f"Address {vuln_breakdown['critical']} "
                 f"critical vulnerabilities immediately"
             ),
-            "timeframe": "24 hours"
+            "timeframe": "24 hours",
+            "compliance": "SOC2 CC6.1, PCI-DSS Req 6.5.1"
         })
 
     if vuln_breakdown.get("high", 0) > 0:
@@ -510,7 +544,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                 f"Remediate {vuln_breakdown['high']} "
                 f"high-severity issues"
             ),
-            "timeframe": "7 days"
+            "timeframe": "7 days",
+            "compliance": "SOC2 CC6.6, ISO 27001 A.14.2.1"
         })
 
     if vuln_breakdown.get("medium", 0) > 0:
@@ -520,7 +555,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                 f"Address {vuln_breakdown['medium']} "
                 f"medium-severity findings"
             ),
-            "timeframe": "30 days"
+            "timeframe": "30 days",
+            "compliance": "SOC2 CC6.6, ISO 27001 A.14.2"
         })
 
     # ── Exposure recommendations ──────────────────────
@@ -531,7 +567,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                 f"Review {subdomain_count} subdomains "
                 f"for unnecessary exposure"
             ),
-            "timeframe": "30 days"
+            "timeframe": "30 days",
+            "compliance": "SOC2 CC6.6, PCI-DSS Req 2.1"
         })
 
     if port_count > 100:
@@ -541,7 +578,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                 f"Audit {port_count} open ports and "
                 f"close unnecessary services"
             ),
-            "timeframe": "30 days"
+            "timeframe": "30 days",
+            "compliance": "PCI-DSS Req 1.1.6, ISO 27001 A.13.1.1"
         })
 
     # ── Email breach recommendations ──────────────────
@@ -559,7 +597,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                     f"have leaked passwords. Force password "
                     f"resets and enable MFA immediately."
                 ),
-                "timeframe": "48 hours"
+                "timeframe": "48 hours",
+                "compliance": "SOC2 CC6.1, PCI-DSS Req 8.2.4"
             })
 
         if breached > 0 and password_leaks == 0:
@@ -570,7 +609,8 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
                     f"data breaches. Review affected accounts "
                     f"and enable MFA."
                 ),
-                "timeframe": "7 days"
+                "timeframe": "7 days",
+                "compliance": "SOC2 CC6.1, ISO 27001 A.9.2.1"
             })
 
         total_emails = email_stats.get("total", 0)
@@ -597,3 +637,85 @@ def _generate_recommendations(vuln_breakdown, subdomain_count,
         })
 
     return recommendations
+
+
+# ─── Overall Report Generator ───────────────────────────────────────────
+
+def generate_overall_report(db=None):
+    """
+    Generate a portfolio-wide organization report.
+    Aggregates risk metrics across all monitored domains.
+    """
+    if db is None:
+        db = get_db()
+
+    print("[REPORT] Generating overall organization report...")
+
+    targets = list(db[Config.TARGETS_COLLECTION].find({}))
+    
+    overall_critical = 0
+    overall_high = 0
+    overall_medium = 0
+    overall_low = 0
+    total_risk_score = 0
+    domains_stats = []
+
+    for t in targets:
+        domain = t.get("root_domain") or t.get("domain")
+        if not domain:
+            continue
+            
+        # Vulnerabilities
+        vulns = list(db[Config.VULNS_COLLECTION].find({"target_domain": domain}))
+        
+        crit = sum(1 for v in vulns if v.get("severity", "").lower() == "critical")
+        high = sum(1 for v in vulns if v.get("severity", "").lower() == "high")
+        med = sum(1 for v in vulns if v.get("severity", "").lower() == "medium")
+        low = sum(1 for v in vulns if v.get("severity", "").lower() in ["low"])
+        info = sum(1 for v in vulns if v.get("severity", "").lower() == "info")
+        
+        # Exposure estimates
+        subs = db[Config.SUBDOMAINS_COLLECTION].count_documents({"target_domain": domain})
+        ports = db[Config.PORTS_COLLECTION].count_documents({"target_domain": domain})
+        assets = db[Config.HTTP_ASSETS_COLLECTION].count_documents({"target_domain": domain})
+
+        # Emails 
+        emails = list(db[Config.EMAILS_COLLECTION].find({"target_domain": domain}))
+        breached = sum(1 for e in emails if e.get("breach_status") == "breached")
+
+        risk_score = calculate_risk_score(crit, high, med, low, info, subs, ports, assets, breached, len(emails))
+
+        overall_critical += crit
+        overall_high += high
+        overall_medium += med
+        overall_low += low
+        total_risk_score += risk_score
+        
+        domains_stats.append({
+            "domain": domain,
+            "risk_score": risk_score,
+            "critical_vulns": crit,
+            "high_vulns": high,
+            "medium_vulns": med,
+            "low_vulns": low,
+            "total_vulns": len(vulns)
+        })
+
+    average_risk = int(total_risk_score / len(domains_stats)) if domains_stats else 0
+
+    return {
+        "meta": {
+            "report_type": "overall",
+            "generated_at": datetime.utcnow().isoformat(),
+            "target": "Organization Portfolio"
+        },
+        "organization_stats": {
+            "total_domains": len(domains_stats),
+            "total_critical": overall_critical,
+            "total_high": overall_high,
+            "total_medium": overall_medium,
+            "total_low": overall_low,
+            "average_risk_score": average_risk
+        },
+        "domains_stats": domains_stats
+    }

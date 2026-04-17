@@ -14,6 +14,7 @@ from core.remediation_engine import (
     update_remediation_status,
     get_remediation_summary_stats
 )
+from utils.logger import logger
 from utils.sanitize import (                              # ◄ NEW
     sanitize_domain, sanitize_object_id,                  # ◄ NEW
     sanitize_status, sanitize_string                      # ◄ NEW
@@ -190,7 +191,7 @@ def api_remediation_plan(domain):
         return jsonify(plan)
 
     except Exception as e:
-        print(f"[REMEDIATION API] Error: {e}")
+        logger.error("[REMEDIATION API] Error: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -329,9 +330,7 @@ def api_update_status(vuln_id):
                     )                                          # ◄ NEW
                     result["new_risk_score"] = new_score        # ◄ NEW
             except Exception as e:                             # ◄ NEW
-                print(                                         # ◄ NEW
-                    f"[REMEDIATION] Risk recalc error: {e}"   # ◄ NEW
-                )                                              # ◄ NEW
+                logger.warning("[REMEDIATION] Risk recalc error: %s", e)
 
         if result.get("success"):
             return jsonify(result)
@@ -400,3 +399,52 @@ def api_export_plan(domain):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# REMEDIATION TRACKER UI
+# =============================================================================
+
+@remediation_bp.route("/remediation-tracker/<vuln_id>")
+def remediation_tracker(vuln_id):
+    """
+    Display interactive remediation tracker for a specific vulnerability.
+    
+    Shows step-by-step remediation guidance with progress tracking capability.
+    """
+    try:
+        try:
+            vuln_id = sanitize_object_id(vuln_id)
+        except ValueError as e:
+            logger.warning(f"Invalid vuln_id format: {vuln_id}")
+            return render_template("remediation_tracker.html",
+                                 error="Invalid vulnerability ID")
+
+        db = get_db()
+        vuln = db[Config.VULNS_COLLECTION].find_one({"_id": ObjectId(vuln_id)})
+
+        if not vuln:
+            return render_template("remediation_tracker.html",
+                                 error="Vulnerability not found")
+
+        # Get remediation details
+        remediation = get_single_remediation(vuln_id)
+
+        return render_template(
+            "remediation_tracker.html",
+            vuln_name=vuln.get("name", "Unknown Vulnerability"),
+            cve_id=vuln.get("cve_id", "N/A"),
+            severity=vuln.get("severity", "MEDIUM").upper(),
+            affected_endpoint=vuln.get("host", "N/A"),
+            discovered_date=vuln.get("discovered_at", "Unknown"),
+            remediation_plan=remediation.get("detailed_steps", []),
+            resources=remediation.get("resources", []),
+            deadline=remediation.get("fix_by_date", "7 days"),
+            active_page="remediation"
+        )
+
+    except Exception as e:
+        logger.error(f"Error loading remediation tracker: {e}", exc_info=True)
+        return render_template("remediation_tracker.html",
+                             error=f"Error loading remediation tracker: {str(e)}")
+

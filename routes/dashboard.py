@@ -399,7 +399,7 @@ def get_changes(domain):
         changes = _serialize_list(
             db[Config.CHANGES_COLLECTION].find(
                 {"target_domain": domain}
-            ).sort("detected_at", -1).limit(50)
+            ).sort("detected_at", -1).limit(1000)
         )
         return jsonify({
             "success": True,

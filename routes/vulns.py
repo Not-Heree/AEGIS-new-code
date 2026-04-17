@@ -1,10 +1,17 @@
 # routes/vulns.py
 
+from datetime import datetime, timedelta
+
 from flask import Blueprint, jsonify, request, render_template
 from bson import ObjectId
 from database.connection import get_db
 from config import Config
-from core.cve_enricher import enrich_vulnerability, initialize as init_enricher
+from core.cve_enricher import (
+    enrich_vulnerability, 
+    lightweight_enrich_vuln,           
+    initialize as init_enricher,
+    smart_brief_engine
+)
 from utils.logger import logger
 from utils.sanitize import (                              # ◄ NEW
     sanitize_domain, sanitize_object_id,                  # ◄ NEW
@@ -52,21 +59,78 @@ def _serialize_list(docs):
     return [_serialize(doc) for doc in docs]
 
 
+ENRICHMENT_CACHE_TTL = timedelta(hours=24)
+
+
+def _is_cached_enrichment_fresh(vuln):
+    cache = vuln.get("enrichment_cache")
+    cached_at = vuln.get("enrichment_cached_at")
+    if not cache or not cached_at:
+        return False
+
+    # 🚨 FORCE RE-ENRICHMENT if high-precision intel is missing
+    # We check for research_data/technical_details to ensure 'Zero-Noise' logic is populated
+    if not cache.get("research_data") or "technical_details" not in cache.get("research_data", {}):
+        logger.info("[VULN] Forcing re-enrichment for %s (missing high-precision narratives)", vuln.get("template_id"))
+        return False
+
+    if isinstance(cached_at, str):
+        try:
+            cached_at = datetime.fromisoformat(cached_at)
+        except ValueError:
+            return False
+
+    if not isinstance(cached_at, datetime):
+        return False
+
+    return datetime.utcnow() - cached_at <= ENRICHMENT_CACHE_TTL
+
+
+def _get_or_build_enrichment(db, vuln):
+    if _is_cached_enrichment_fresh(vuln):
+        return vuln.get("enrichment_cache")
+
+    enrichment = enrich_vulnerability(vuln)
+    try:
+        db[Config.VULNS_COLLECTION].update_one(
+            {"_id": vuln["_id"]},
+            {"$set": {
+                "enrichment_cache": enrichment,
+                "enrichment_cached_at": datetime.utcnow()
+            }}
+        )
+    except Exception as exc:
+        logger.warning("[VULN] Failed to persist enrichment cache: %s", exc)
+
+    return enrichment
+
+
 # ─── GET All Vulnerabilities ─────────────────────────────────────────────
 
 @vulns_bp.route("/", methods=["GET"])
 def get_all_vulns():
-    """GET /api/vulns/ - List all vulnerabilities"""
+    """GET /api/vulns/ - List all vulnerabilities (with light enrichment)"""
     try:
         db = get_db()
-        vulns = _serialize_list(
+        raw_vulns = _serialize_list(
             db[Config.VULNS_COLLECTION].find()
             .sort("severity", 1)
         )
+        
+        # ── Enrich each vuln for the "Smart Brief View" ─────
+        enriched_vulns = []
+        for v in raw_vulns:
+            try:
+                v['smart_intelligence'] = lightweight_enrich_vuln(v)
+            except Exception as e:
+                logger.error(f"Enrichment failed for {v.get('_id')}: {e}")
+                v['smart_intelligence'] = None
+            enriched_vulns.append(v)
+            
         return jsonify({
             "success": True,
-            "count": len(vulns),
-            "vulnerabilities": vulns
+            "count": len(enriched_vulns),
+            "vulnerabilities": enriched_vulns
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -253,14 +317,12 @@ def update_vuln_status(vuln_id):
                     {"_id": vuln["target_id"]},                # ◄ NEW
                     {"$set": {"risk_score": new_risk_score}}   # ◄ NEW
                 )                                              # ◄ NEW
-                print(                                         # ◄ NEW
-                    f"[VULNS] Risk score recalculated: "       # ◄ NEW
-                    f"{new_risk_score}/100"                    # ◄ NEW
-                )                                              # ◄ NEW
+                logger.info(
+                    "[VULNS] Risk score recalculated: %s/100",
+                    new_risk_score
+                )
         except Exception as e:                                 # ◄ NEW
-            print(                                             # ◄ NEW
-                f"[VULNS] Risk recalc error: {e}"             # ◄ NEW
-            )                                                  # ◄ NEW
+            logger.warning("[VULNS] Risk recalc error: %s", e)
 
         response = {                                           # ◄ CHANGED
             "success": True,
@@ -327,13 +389,15 @@ def show_vuln_detail(vuln_id):
         if not vuln:
             return "Vulnerability not found", 404
         
-        # ── ENRICHMENT: Compute on retrieval ────────────────
-        logger.info(f"[VULN] Enriching {vuln.get('template_id')} for display...")
+        logger.info("[VULN] Loading enrichment for %s", vuln.get("template_id"))
         
         try:
-            enrichment = enrich_vulnerability(vuln)
+            enrichment = _get_or_build_enrichment(db, vuln)
             vuln['enrichment'] = enrichment
-            logger.info(f"[VULN] Enrichment complete: Priority={enrichment.get('priority_label')}")
+            logger.info(
+                "[VULN] Enrichment ready: Priority=%s",
+                enrichment.get("priority_label")
+            )
         except Exception as e:
             logger.error(f"[VULN] Enrichment failed: {e}", exc_info=True)
             # Continue without enrichment - don't break the page
@@ -347,8 +411,11 @@ def show_vuln_detail(vuln_id):
             except Exception:
                 vuln['target'] = None
         
-        # Serialize the MongoDB document to make it JSON-safe for the template
+        # Serialize the MongoDB document
         safe_vuln = _serialize(vuln)
+        
+        # Generate Smart Brief for the template
+        safe_vuln["smart_brief"] = smart_brief_engine.generate_smart_brief(safe_vuln) or {}
         
         return render_template('vulnerability_detail.html', vuln=safe_vuln)
     
@@ -356,5 +423,22 @@ def show_vuln_detail(vuln_id):
         logger.error(f"[VULN] Error loading vulnerability {vuln_id}: {e}", exc_info=True)
         return f"Error loading vulnerability: {e}", 500
 
+
+@vulns_bp.route('/<vuln_id>/smart-brief')
+def api_smart_brief(vuln_id):
+    """API endpoint for Smart Brief data"""
+    try:
+        db = get_db()
+        vuln = db[Config.VULNS_COLLECTION].find_one({"_id": ObjectId(vuln_id)})
+        
+        if not vuln:
+            return jsonify({"error": "Not found"}), 404
+        
+        # Serialize and generate brief
+        safe_vuln = _serialize(vuln)
+        smart_brief = smart_brief_engine.generate_smart_brief(safe_vuln)
+        return jsonify(smart_brief)
+        
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error(f"Smart Brief API error: {e}")
+        return jsonify({"error": str(e)}), 500

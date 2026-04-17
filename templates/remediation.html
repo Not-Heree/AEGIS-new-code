@@ -646,12 +646,12 @@
 
         // Threat indicators
         let threatHtml = '';
-        if (item.threat_indicators && item.threat_indicators.length > 0) {
+        if (item.threat_indicators && Array.isArray(item.threat_indicators)) {
             threatHtml = `
                 <div class="mt-2">
                     ${item.threat_indicators.map(t => {
                 const tagClass = t.includes('KEV') ? 'tag-kev' : 'tag-epss';
-                return `<span class="threat-tag ${tagClass}">⚠️ ${t}</span>`;
+                return `<span class="threat-tag ${tagClass}">${t}</span>`;
             }).join('')}
                 </div>`;
         }
@@ -665,32 +665,67 @@
                     ${steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
                 </ul>`;
         }
+        // Code Examples
         let codeHtml = '';
+        const examples = item.remediation?.code_examples;
+        if (examples && Array.isArray(examples) && examples.length > 0) {
+            codeHtml = `
+                <div class="mt-3">
+                    <h6 class="text-muted small fw-bold">Technical Code Examples</h6>
+                    ${examples.map(ex => `
+                        <div class="code-block">
+                            <span class="code-label">${escapeHtml(ex.language || 'Code')}</span>
+                            <code>${escapeHtml(ex.code || '')}</code>
+                        </div>
+                    `).join('')}
+                </div>`;
+        }
 
-        // References & Patches (EXPANDED by default)
+        // Compliance Information
+        let complianceHtml = '';
+        const compliance = item.remediation?.compliance;
+        if (compliance && Array.isArray(compliance) && compliance.length > 0) {
+            complianceHtml = `
+                <div class="mt-3">
+                    <h6 class="text-muted small fw-bold">Compliance Frameworks</h6>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${compliance.map(c => `<span class="badge bg-secondary" style="font-size: 0.7rem;">${escapeHtml(c)}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        // Affected Products
+        let productsHtml = '';
+        if (item.affected_products && item.affected_products.length > 0) {
+            productsHtml = `
+                <div class="mt-3">
+                    <h6 class="text-muted small fw-bold">Affected Products (NVD)</h6>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${item.affected_products.map(p => `<span class="badge border text-dark bg-light" style="font-size: 0.7rem;">${escapeHtml(p)}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        // Intelligence Links (REPLACES old refsHtml)
         let refsHtml = '';
-        const allRefs = [...(item.patch_urls || []), ...(item.references || [])];
-        const uniqueRefs = [...new Set(allRefs)].slice(0, 12);
-        if (uniqueRefs.length > 0) {
-            const patchCount = item.patch_urls?.length || 0;
+        const intelLinks = item.intelligence_links;
+        if (intelLinks && Array.isArray(intelLinks) && intelLinks.length > 0) {
             refsHtml = `
                 <div class="mt-4 p-3" style="background: #f0fdf4; border-left: 4px solid #27ae60; border-radius: 6px;">
                     <h6 class="section-toggle" data-bs-toggle="collapse"
                         data-bs-target="#refs-${index}" style="color: #27ae60; margin-bottom: 10px;">
-                         References & Patches (${uniqueRefs.length})
-                        ${patchCount > 0 ? `<span class="badge bg-success ms-2">${patchCount} Patch${patchCount !== 1 ? 'es' : ''}</span>` : ''}
+                        <i class="bi bi-link-45deg"></i> Intelligence & Patch Links (${intelLinks.length})
                     </h6>
                     <div class="collapse show" id="refs-${index}">
-                        <ul class="list-unstyled ms-2">
-                            ${uniqueRefs.map(ref => {
-                const url = typeof ref === 'object' ? ref.url || '' : ref;
-                const isPatch = item.patch_urls?.includes(url);
+                        <ul class="list-unstyled ms-2 mb-0">
+                            ${intelLinks.map(link => {
+                const badgeCls = link.type === 'patch' ? 'bg-success' : link.type === 'research' ? 'bg-primary' : 'bg-info';
                 return `
                                     <li class="mb-2">
-                                        ${isPatch ? '<span class="badge bg-success me-2">Patch</span>' : '<span class="badge bg-info me-2">Reference</span>'}
-                                        <a href="${escapeHtml(url)}" target="_blank"
+                                        <span class="badge ${badgeCls} me-2" style="width: 75px;">${(link.type || 'LINK').toUpperCase()}</span>
+                                        <a href="${escapeHtml(link.url)}" target="_blank"
                                            class="text-break small text-decoration-none">
-                                            ${escapeHtml(url.substring(0, 80))}${url.length > 80 ? '...' : ''}
+                                            ${escapeHtml(link.title || link.url.substring(0, 80))}
                                         </a>
                                     </li>`;
             }).join('')}
@@ -766,8 +801,24 @@
                     <p class="mb-3" style="font-weight: 500; font-size: 0.95rem;">
                         <strong>${escapeHtml(item.remediation?.summary || 'Follow the steps below to remediate this vulnerability.')}</strong>
                     </p>
-                    ${stepsHtml ? `<div style="padding-left: 10px;">${stepsHtml}</div>` : `<p class="text-muted small">No detailed steps available. Refer to references and code examples below.</p>`}
+                    ${stepsHtml ? `<div style="padding-left: 10px;">${stepsHtml}</div>` : `<p class="text-muted small">No detailed steps available. Refer to documentation below.</p>`}
+                    
+                    <div class="mt-3 d-flex gap-2">
+                        ${item.remediation_reference ? `
+                            <a href="${escapeHtml(item.remediation_reference)}" target="_blank" class="btn btn-sm btn-success">
+                                <i class="bi bi-journal-check"></i> Official Fix Guide
+                            </a>
+                        ` : ''}
+                        ${item.google_search_url ? `
+                            <a href="${item.google_search_url}" target="_blank" class="btn btn-sm btn-outline-dark">
+                                <i class="bi bi-google"></i> Google Research
+                            </a>
+                        ` : ''}
+                    </div>
                 </div>
+                
+                ${productsHtml}
+                ${complianceHtml}
                 ${codeHtml}
 
                 <!-- References -->
@@ -788,6 +839,27 @@
                     </div>
                 </div>
 
+                <!-- Status Management Tags -->
+                <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+                    <div class="status-btn-group">
+                        <span class="small fw-bold text-muted me-2">SET STATUS:</span>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-danger ${status === 'open' ? 'active active-status' : ''}" 
+                                    onclick="updateStatus('${vulnId}', 'open')">Open</button>
+                            <button class="btn btn-outline-warning ${status === 'in_progress' ? 'active active-status' : ''}" 
+                                    onclick="updateStatus('${vulnId}', 'in_progress')">In Progress</button>
+                            <button class="btn btn-outline-success ${status === 'resolved' ? 'active active-status' : ''}" 
+                                    onclick="updateStatus('${vulnId}', 'resolved')">Resolved</button>
+                            <button class="btn btn-outline-secondary ${status === 'false_positive' ? 'active active-status' : ''}" 
+                                    onclick="updateStatus('${vulnId}', 'false_positive')">False Positive</button>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-dark border p-2">
+                            Current Status: <strong class="text-uppercase">${status.replace('_', ' ')}</strong>
+                        </span>
+                    </div>
+                </div>
 
             </div>
         </div>`;

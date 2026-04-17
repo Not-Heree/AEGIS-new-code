@@ -102,13 +102,13 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card stat-card">
+        <div class="card stat-card filter-card" onclick="cardFilter('breached')" style="cursor: pointer;">
             <div class="stat-value stat-breached" id="stat-breached">-</div>
             <div class="stat-label">Breached</div>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card stat-card">
+        <div class="card stat-card filter-card" onclick="cardFilter('clean')" style="cursor: pointer;">
             <div class="stat-value stat-clean" id="stat-clean">-</div>
             <div class="stat-label">Clean</div>
         </div>
@@ -249,9 +249,9 @@
             ).join('');
 
             const statusIcon = {
-                'breached': `<span class="badge bg-danger"> Breached</span><br>${bSources}`,
-                'clean': `<span class="badge bg-success"> Clean</span><br>${bSources}`,
-                'unknown': '<span class="badge bg-warning text-dark"> Unchecked</span>'
+                'breached': `<span class="badge bg-danger">Breached</span><br>${bSources}`,
+                'clean': `<span class="badge bg-success">Clean</span><br>${bSources}`,
+                'unknown': '<span class="badge bg-warning text-dark">Unchecked</span>'
             }[status] || '<span class="badge bg-secondary">Unknown</span>';
 
             // Name / Position
@@ -293,7 +293,7 @@
                 <td>${statusIcon}</td>
                 <td><strong>${e.email || '-'}</strong>
                     ${e.password_leaked
-                    ? '<br><small class="text-danger"> Password exposed</small>'
+                    ? '<br><small class="text-danger">Password exposed</small>'
                     : ''}
                 </td>
                 <td>${nameHtml}</td>
@@ -407,6 +407,23 @@
     }
 
     // ─── Initialize ──────────────────────────────────────────
+    function cardFilter(status) {
+        const select = document.getElementById('filter-breach');
+        select.value = status;
+        
+        // Remove active class from all filter cards
+        document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('active-filter'));
+        
+        // Add active class to clicked card
+        if (status === 'breached') {
+            document.querySelector('.stat-breached').parentElement.classList.add('active-filter');
+        } else if (status === 'clean') {
+            document.querySelector('.stat-clean').parentElement.classList.add('active-filter');
+        }
+        
+        loadEmails();
+    }
+
     loadTargets();
 </script>
 {% endblock %}

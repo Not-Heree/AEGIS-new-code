@@ -7,17 +7,17 @@
 var MAX_CHART_BARS = 20;
 
 var SEVERITY_COLORS = {
-    critical: '#dc3545',
-    high: '#fd7e14',
-    medium: '#ffc107',
-    low: '#0dcaf0'
+    critical: '#ff3333',
+    high: '#ff6600',
+    medium: '#ffcc00',
+    low: '#888888'
 };
 
 var TIER_BADGES = {
-    critical: '<span class="badge bg-danger">CRITICAL</span>',
-    high: '<span class="badge" style="background:#fd7e14">HIGH</span>',
-    standard: '<span class="badge bg-secondary">STANDARD</span>',
-    low: '<span class="badge bg-success">LOW</span>'
+    critical: '<span class="badge bg-black text-danger border border-danger border-opacity-25 fw-800">CRITICAL</span>',
+    high: '<span class="badge bg-black text-warning border border-warning border-opacity-25 fw-800">HIGH VALUE</span>',
+    standard: '<span class="badge bg-black text-secondary border border-secondary border-opacity-25 fw-800">STANDARD</span>',
+    low: '<span class="badge bg-black text-muted border border-secondary border-opacity-10 fw-800">DEV / TEST</span>'
 };
 
 // ── Global State ─────────────────────────────────────────────────────────
@@ -400,7 +400,7 @@ function renderTable(assets) {
         var techStr = '';
         if (a.tech && a.tech.length > 0) {
             techStr = a.tech.slice(0, 3).map(function (t) {
-                return '<span class="badge bg-secondary me-1" style="font-size:0.65rem">' +
+                return '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle me-1" style="font-size:0.65rem">' +
                     escapeHtml(t) + '</span>';
             }).join('');
             if (a.tech.length > 3) {
@@ -440,11 +440,16 @@ function renderTable(assets) {
 
 function vulnBadge(count, severity) {
     if (count === 0) {
-        return '<span class="text-muted">0</span>';
+        return '<span class="text-muted small fw-800">0</span>';
     }
-    var color = SEVERITY_COLORS[severity] || '#6c757d';
-    return '<span class="badge" style="background-color:' +
-        color + '">' + count + '</span>';
+    var cls = {
+        critical: 'text-danger border-danger border-opacity-25',
+        high: 'text-warning border-warning border-opacity-25',
+        medium: 'text-warning text-opacity-75 border-warning border-opacity-10',
+        low: 'text-secondary border-secondary border-opacity-25'
+    }[severity] || 'text-secondary';
+    
+    return '<span class="badge bg-black fw-800 border ' + cls + '">' + count + '</span>';
 }
 
 function truncateLabel(text, maxLen) {

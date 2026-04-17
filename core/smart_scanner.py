@@ -28,6 +28,23 @@ from utils.logger import logger
 
 
 # =============================================================================
+# NETWORK SCAN TAGS (used by Tier 2C-NET in scanner.py)
+# =============================================================================
+#
+# These tags define which Nuclei template categories are used when scanning
+# non-web hosts (hosts with no HTTP service confirmed by HTTPX).
+# Centralised here so they're findable, changeable in one place, and
+# importable by the pipeline orchestrator.
+
+NETWORK_SCAN_TAGS = [
+    "network", "ssh", "ftp", "dns", "smtp", "snmp",
+    "rdp", "vnc", "default-login", "mysql",
+    "postgres", "mssql", "redis", "mongodb",
+    "memcached", "ldap",
+]
+
+
+# =============================================================================
 # CVE TEMPLATE INDEX (Built Once, Reused)
 # =============================================================================
 

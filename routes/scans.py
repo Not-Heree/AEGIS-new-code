@@ -262,6 +262,40 @@ def scan_status():
     })
 
 
+@scans_bp.route("/all-history", methods=["GET"])
+def global_scan_history():
+    """Return the 50 most recent scans across all targets."""
+    try:
+        db = get_db()
+        history = list(db[Config.SCANS_COLLECTION].find().sort("started_at", -1).limit(50))
+        
+        return jsonify({
+            "success": True,
+            "count": len(history),
+            "scans": [_serialize(r) for r in history]
+        })
+    except Exception as e:
+        logger.error("Error loading global scan history: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@scans_bp.route("/active", methods=["GET"])
+def get_active_scans():
+    """Return any scans currently with status 'running'."""
+    try:
+        db = get_db()
+        active_scans = list(db[Config.SCANS_COLLECTION].find({"status": "running"}))
+        
+        return jsonify({
+            "success": True,
+            "count": len(active_scans),
+            "scans": [_serialize(r) for r in active_scans]
+        })
+    except Exception as e:
+        logger.error("Error loading active scans: %s", e)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @scans_bp.route("/history/<domain>", methods=["GET"])
 def scan_history(domain):
     try:

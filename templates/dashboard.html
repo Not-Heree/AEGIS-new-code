@@ -55,15 +55,49 @@
     </div>
 </div>
 
-<!-- Passive Recon Sources Summary -->
+<!-- Passive Recon Sources -->
 <div class="card mb-4">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
-            Passive Recon Sources
+            <i class="bi bi-binoculars"></i> Passive Recon Sources
         </h6>
+        <a href="/recon" class="btn btn-sm btn-outline-secondary">View All</a>
     </div>
-    <div class="card-body" id="dashboard-passive-recon">
-        <span class="text-muted">Loading...</span>
+    <div class="card-body">
+        <div class="row g-3" id="dashboard-passive-recon">
+            <div class="col-md-3">
+                <div class="card filter-card h-100 text-center py-3" style="cursor:pointer; border-left: 3px solid #e74c3c;"
+                     onclick="window.location='/recon?source=shodan'">
+                    <i class="bi bi-search" style="font-size: 1.5rem; color: #e74c3c;"></i>
+                    <div class="fw-bold mt-2">Shodan</div>
+                    <div class="text-muted small" id="pr-shodan-stat">Loading...</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card filter-card h-100 text-center py-3" style="cursor:pointer; border-left: 3px solid #3498db;"
+                     onclick="window.location='/recon?source=censys'">
+                    <i class="bi bi-globe2" style="font-size: 1.5rem; color: #3498db;"></i>
+                    <div class="fw-bold mt-2">Censys</div>
+                    <div class="text-muted small" id="pr-censys-stat">Loading...</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card filter-card h-100 text-center py-3" style="cursor:pointer; border-left: 3px solid #2ecc71;"
+                     onclick="window.location='/recon?source=whois'">
+                    <i class="bi bi-person-vcard" style="font-size: 1.5rem; color: #2ecc71;"></i>
+                    <div class="fw-bold mt-2">WHOIS</div>
+                    <div class="text-muted small" id="pr-whois-stat">Loading...</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card filter-card h-100 text-center py-3" style="cursor:pointer; border-left: 3px solid #f39c12;"
+                     onclick="window.location='/recon?source=certificates'">
+                    <i class="bi bi-shield-lock" style="font-size: 1.5rem; color: #f39c12;"></i>
+                    <div class="fw-bold mt-2">Certificate</div>
+                    <div class="text-muted small" id="pr-cert-stat">Loading...</div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

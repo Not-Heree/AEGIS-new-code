@@ -135,6 +135,26 @@ def create_scan_with_domain(target_id, target_domain, scan_type="full"):
         return {"success": False, "message": str(e)}
 
 
+def cleanup_stale_scans():
+    """Mark all 'running' scans as 'failed' (interrupted by server restart)."""
+    try:
+        collection = get_collection(Config.SCANS_COLLECTION)
+        result = collection.update_many(
+            {"status": "running"},
+            {"$set": {
+                "status": "failed",
+                "completed_at": datetime.utcnow(),
+                "error_message": "Scan interrupted by system restart. Ready for resume."
+            }}
+        )
+        if result.modified_count > 0:
+            from utils.logger import logger
+            logger.info("Cleaned up %d stale scans", result.modified_count)
+        return True
+    except Exception:
+        return False
+
+
 def update_scan_progress(scan_id, progress_data):
     """Update scan progress. Called by scanner.py at each phase."""
     try:

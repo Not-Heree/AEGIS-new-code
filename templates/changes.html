@@ -99,19 +99,19 @@
         }
 
         var icons = {
-            'new_subdomain': '🟢', 'subdomain_removed': '🔴',
-            'new_port': '🟡', 'port_closed': '⚪',
-            'new_vulnerability': '🔴', 'vulnerability_resolved': '✅',
-            'email_breached': '🔓', 'new_email': '📧',
-            'whois_nameserver_change': '🔄', 'whois_registrar_change': '⚠️',
-            'whois_dnssec_removed': '🔓', 'whois_dnssec_added': '🔒'
+            'new_subdomain': '', 'subdomain_removed': '',
+            'new_port': '', 'port_closed': '',
+            'new_vulnerability': '', 'vulnerability_resolved': '',
+            'email_breached': '', 'new_email': '',
+            'whois_nameserver_change': '', 'whois_registrar_change': '',
+            'whois_dnssec_removed': '', 'whois_dnssec_added': ''
         };
 
         div.innerHTML = '<div class="table-responsive"><table class="table table-hover"><thead><tr>' +
             '<th>Type</th><th>Domain</th><th>Detail</th><th>Severity</th><th>Detected</th><th>Status</th>' +
             '</tr></thead><tbody>' +
             filtered.map(function (c) {
-                var icon = icons[c.change_type] || '🔵';
+                var icon = icons[c.change_type] || '';
                 var details = c.details || {};
                 var severity = c.severity || 'info';
                 var sevClass = {

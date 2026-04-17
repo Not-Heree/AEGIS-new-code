@@ -15,22 +15,24 @@ async function loadTargets() {
 
     tbody.innerHTML = data.targets.map(t => `
         <tr>
-            <td><strong>${t.root_domain || t.domain}</strong></td>
-            <td>${t.org_name || '-'}</td>
-            <td><span class="badge bg-success">${t.status || 'active'}</span></td>
-            <td>${formatNumber(t.total_subdomains)}</td>
-            <td>${formatNumber(t.total_vulns)}</td>
-            <td>${t.risk_score || 0}/100</td>
+            <td class="fw-800 text-white" style="font-size: 0.8rem; letter-spacing: 0.5px;">${(t.root_domain || t.domain).toUpperCase()}</td>
+            <td class="text-secondary small fw-bold">${t.org_name || 'N/A'}</td>
+            <td><span class="badge bg-black text-secondary border border-secondary border-opacity-25 fw-800">${(t.status || 'active').toUpperCase()}</span></td>
+            <td class="text-white small fw-bold">${formatNumber(t.total_subdomains)}</td>
+            <td class="text-white small fw-bold">${formatNumber(t.total_vulns)}</td>
+            <td class="text-white small fw-bold">${t.risk_score || 0}/100</td>
             <td>
-                <button class="btn btn-sm btn-success" onclick="runScan('${t.root_domain || t.domain}')" title="Run Scan">
-                    <i class="bi bi-play"></i>
-                </button>
-                <button class="btn btn-sm btn-info" onclick="viewTarget('${t.root_domain || t.domain}')" title="View">
-                    <i class="bi bi-eye"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteTarget('${t.root_domain || t.domain}')" title="Delete">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-scan btn-sm px-3" onclick="runScan('${t.root_domain || t.domain}')" title="RUN_SCAN">
+                        <i class="bi bi-terminal"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm px-3" onclick="viewTarget('${t.root_domain || t.domain}')" title="VIEW_INTELLIGENCE">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm px-3 border-opacity-25" onclick="deleteTarget('${t.root_domain || t.domain}')" title="REMOVE_TARGET">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -58,7 +60,13 @@ async function addTarget() {
 }
 
 async function runScan(domain) {
-    if (!confirm(`Run full scan on ${domain}? This may take several minutes.`)) return;
+    const confirmed = await toast.confirm({
+        title: 'Run Scan',
+        message: `Run full scan on ${domain}? This may take several minutes.`,
+        confirmText: 'Start Scan',
+        type: 'primary'
+    });
+    if (!confirmed) return;
 
     showAlert('Scan started... Monitoring progress...', 'info');
     const result = await api.post(`/api/scans/full/${domain}`);
@@ -133,7 +141,13 @@ function viewTarget(domain) {
 }
 
 async function deleteTarget(domain) {
-    if (!confirm(`Delete ${domain} and ALL its data? This cannot be undone!`)) return;
+    const confirmed = await toast.confirm({
+        title: 'Delete Target',
+        message: `Delete ${domain} and ALL its data? This cannot be undone!`,
+        confirmText: 'Delete',
+        type: 'danger'
+    });
+    if (!confirmed) return;
 
     const result = await api.delete(`/api/targets/${domain}`);
 

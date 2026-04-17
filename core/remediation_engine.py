@@ -22,10 +22,7 @@ from database.vulns_db import get_vulns_by_target, update_vuln_status
 from utils.logger import logger
 from core.cve_enricher import (
     enrich_vulnerability,
-    enrich_cve,
-    get_cwe_remediation,
     is_in_kev,
-    calculate_priority_score,
     initialize as init_enricher
 )
 
@@ -158,6 +155,30 @@ def get_remediation_plan(target_id: str,
     }
 
 
+def _calculate_fix_by_date(priority_score, is_kev=False, kev_info=None):
+    """Calculate the recommended fix date based on priority score and KEV status."""
+    from datetime import datetime, timedelta
+    
+    now = datetime.utcnow()
+    
+    # Priority based timelines
+    if is_kev or priority_score >= 80:
+        days = 2
+        label = "48 Hours"
+    elif priority_score >= 60:
+        days = 7
+        label = "7 Days"
+    elif priority_score >= 40:
+        days = 30
+        label = "30 Days"
+    else:
+        days = 90
+        label = "90 Days"
+        
+    target_date = now + timedelta(days=days)
+    return target_date.strftime("%b %d, %Y")
+
+
 # =============================================================================
 # BUILD INDIVIDUAL REMEDIATION ITEM
 # =============================================================================
@@ -181,11 +202,8 @@ def _build_remediation_item(vuln: Dict[str, Any]) -> Dict[str, Any]:
     enrichment = enrich_vulnerability(vuln)
 
     cve_enrichment = enrichment.get("cve_enrichment")
-    cwe_data = enrichment.get("cwe_remediation")
-
-    # ── Build the combined remediation ────────────────────────
-    remediation = _combine_remediation_sources(
-        vuln, cve_enrichment, cwe_data
+    remediation = _canonicalize_remediation(
+        enrichment.get("detailed_remediation") or {}
     )
 
     # ── KEV details ───────────────────────────────────────────
@@ -249,221 +267,99 @@ def _build_remediation_item(vuln: Dict[str, Any]) -> Dict[str, Any]:
         "remediation": remediation,
 
         # Timeline
-        "recommended_timeline": enrichment["recommended_timeline"],
+        "recommended_timeline": remediation.get(
+            "timeline", enrichment["recommended_timeline"]
+        ),
         "fix_by_date": fix_by_date,
 
-        # References
-        "patch_urls": patch_urls,
-        "references": vuln.get("reference", []),
+        # Intelligence Matrix
+        "intelligence_links": _consolidate_links(patch_urls, enrichment.get("research_hubs", []), enrichment.get("references", [])),
+        
+        # Primary reference (Restored as requested)
+        "primary_reference": (enrichment.get("references", [])[0] if enrichment.get("references") else ({"url": patch_urls[0], "source": "NVD"} if patch_urls else None)),
 
-        # Status
-        "status": vuln.get("status", "open"),
-        "first_found": vuln.get("first_found", ""),
-        "last_found": vuln.get("last_found", "")
+        # Dynamic Research Search (Restored as requested)
+        "google_search_url": enrichment.get("smart_brief", {}).get("google_search_url") or f"https://www.google.com/search?q={vuln.get('name', 'Vulnerability').replace(' ', '+')}+(site:github.com+OR+site:exploit-db.com+OR+site:medium.com+OR+site:gitbook.io)+technical+analysis+writeup+poc",
+        
+        # Official Fix Guide (NEW)
+        "remediation_reference": enrichment.get("smart_brief", {}).get("remediation_reference")
     }
 
 
-# =============================================================================
-# COMBINE REMEDIATION SOURCES
-# =============================================================================
-
-def _combine_remediation_sources(
-    vuln: Dict[str, Any],
-    cve_enrichment: Optional[Dict],
-    cwe_data: Optional[Dict]
-) -> Dict[str, Any]:
-    """
-    Combine all remediation sources into one clean object.
-
-    Priority order:
-        1. KEV required action (most authoritative)
-        2. CWE knowledge base (most detailed)
-        3. Nuclei template remediation (template-specific)
-        4. Auto-generated fallback (always available)
-    """
-    result = {
-        "summary": "",
-        "detailed_steps": [],
-        "code_examples": {},
-        "references": [],
-        "source": "auto-generated"
-    }
-
-    steps_added = set()
-
-    # ── Source 1: KEV Required Action ─────────────────────────
-    if cve_enrichment:
-        kev = cve_enrichment.get("kev", {})
-        if kev.get("is_known_exploited") and kev.get("details"):
-            action = kev["details"].get("required_action", "")
-            if action:
-                result["summary"] = action
-                result["source"] = "CISA KEV"
-                _add_step(result["detailed_steps"], steps_added,
-                         f"⚠️ CISA Required Action: {action}")
-
-    # ── Source 2: CWE Knowledge Base ──────────────────────────
-    if cwe_data:
-        # Use CWE summary if no KEV action
-        if not result["summary"]:
-            result["summary"] = (
-                f"Fix {cwe_data['name']}: {cwe_data.get('fix_steps', [''])[0]}"
-            )
-            result["source"] = "CWE Knowledge Base"
-
-        # Add all fix steps
-        for step in cwe_data.get("fix_steps", []):
-            _add_step(result["detailed_steps"], steps_added, step)
-
-        # Add code examples
-        result["code_examples"].update(cwe_data.get("code_examples", {}))
-
-        # Add references
-        for ref in cwe_data.get("references", []):
-            if ref not in result["references"]:
-                result["references"].append(ref)
-
-        # Add business impact context
-        impact = cwe_data.get("business_impact", "")
-        if impact:
-            _add_step(result["detailed_steps"], steps_added,
-                     f"Business Impact: {impact}")
-
-    # ── Source 3: Nuclei Template Remediation ─────────────────
-    nuclei_remediation = vuln.get("remediation", {})
-    if isinstance(nuclei_remediation, dict):
-        nuclei_desc = nuclei_remediation.get("description", "")
-        if nuclei_desc:
-            if not result["summary"]:
-                result["summary"] = nuclei_desc
-                result["source"] = "Nuclei Template"
-
-            _add_step(result["detailed_steps"], steps_added, nuclei_desc)
-
-    elif isinstance(nuclei_remediation, str) and nuclei_remediation:
-        if not result["summary"]:
-            result["summary"] = nuclei_remediation
-            result["source"] = "Nuclei Template"
-
-        _add_step(result["detailed_steps"], steps_added, nuclei_remediation)
-
-    # ── Source 4: NVD Patch URLs ──────────────────────────────
-    if cve_enrichment and cve_enrichment.get("nvd"):
-        patch_urls = cve_enrichment["nvd"].get("patch_urls", [])
-        if patch_urls:
-            _add_step(result["detailed_steps"], steps_added,
-                     "Apply vendor patch (see patch URLs below)")
-
-        # Add NVD references
-        for ref in cve_enrichment["nvd"].get("references", []):
-            url = ref.get("url", "") if isinstance(ref, dict) else ref
-            if url and url not in result["references"]:
-                result["references"].append(url)
-
-    # ── Source 5: Auto-generated Fallback ─────────────────────
-    if not result["summary"]:
-        severity = vuln.get("severity", "info").lower()
-        result["summary"] = _fallback_summary(severity)
-        result["source"] = "auto-generated"
-
-    if not result["detailed_steps"]:
-        result["detailed_steps"] = _fallback_steps(
-            vuln.get("severity", "info").lower()
-        )
-
-    # Always add verification step at the end
-    _add_step(result["detailed_steps"], steps_added,
-             "Re-run scan to verify the vulnerability has been resolved")
-
-    return result
+def _consolidate_links(patches, hubs, refs) -> List[Dict[str, str]]:
+    """Unify all intelligence links into a single categorized list."""
+    combined = []
+    
+    # Add Official Patches
+    for url in (patches or []):
+        combined.append({
+            "title": "Official Patch / Vendor Advisory",
+            "url": url,
+            "type": "patch",
+            "source": "NVD"
+        })
+        
+    # Add Automated Research Hubs
+    for hub in (hubs or []):
+        combined.append(hub)
+        
+    # Add Curated KB References
+    for ref in (refs or []):
+        combined.append({
+            "title": f"Technical Deep-Dive ({ref.get('source', 'Expert')})",
+            "url": ref.get("url"),
+            "type": "research",
+            "source": ref.get("source", "AEGIS KB")
+        })
+        
+    return combined
 
 
-def _add_step(steps: List[str], seen: set, step: str) -> None:
-    """Add a step if not already present (dedup)."""
-    normalized = step.strip().lower()
-    if normalized and normalized not in seen:
-        seen.add(normalized)
-        steps.append(step.strip())
+def _canonicalize_remediation(remediation: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize enricher remediation into the legacy remediation-engine shape."""
+    canonical = dict(remediation or {})
+    steps = canonical.get("steps", []) or []
 
+    detailed_steps = []
+    for step in steps:
+        if isinstance(step, dict):
+            desc = step.get("description") or step.get("step")
+            if desc:
+                detailed_steps.append(desc)
+        elif isinstance(step, str) and step.strip():
+            detailed_steps.append(step.strip())
 
-def _fallback_summary(severity: str) -> str:
-    """Generate fallback summary when no other source provides one."""
-    summaries = {
-        "critical": "Critical vulnerability requires immediate investigation and remediation.",
-        "high": "High severity vulnerability. Prioritize remediation within 7 days.",
-        "medium": "Medium severity finding. Schedule remediation within 30 days.",
-        "low": "Low severity finding. Plan remediation within 90 days.",
-        "info": "Informational finding. Review for potential improvement."
-    }
-    return summaries.get(severity, summaries["info"])
+    refs = canonical.get("references", []) or []
+    normalized_refs = []
+    for ref in refs:
+        if isinstance(ref, dict):
+            url = ref.get("url")
+            if url:
+                normalized_refs.append(url)
+        elif isinstance(ref, str) and ref:
+            normalized_refs.append(ref)
 
-
-def _fallback_steps(severity: str) -> List[str]:
-    """Generate fallback remediation steps."""
-    base_steps = [
-        "Review the vulnerability details and affected endpoint",
-        "Assess the business impact for your environment",
-        "Research the specific fix for your technology stack",
-        "Apply the fix in a test environment first",
-        "Deploy the fix to production",
-        "Re-run scan to verify the vulnerability has been resolved"
-    ]
-
-    if severity in ("critical", "high"):
-        base_steps.insert(0,
-            "Immediately assess if this vulnerability has been exploited"
-        )
-        base_steps.insert(1,
-            "Consider taking the affected service offline if exploitation is likely"
-        )
-
-    return base_steps
-
-
-# =============================================================================
-# TIMELINE HELPERS
-# =============================================================================
-
-def _calculate_fix_by_date(priority_score: int,
-                            is_kev: bool,
-                            kev_info: Optional[Dict]) -> str:
-    """Calculate a specific fix-by date."""
-    # KEV has mandated due dates
-    if is_kev and kev_info and kev_info.get("due_date"):
-        return kev_info["due_date"]
-
-    now = datetime.utcnow()
-
-    if priority_score >= 80:
-        fix_date = now + timedelta(hours=48)
-    elif priority_score >= 60:
-        fix_date = now + timedelta(days=7)
-    elif priority_score >= 40:
-        fix_date = now + timedelta(days=30)
-    elif priority_score >= 20:
-        fix_date = now + timedelta(days=90)
-    else:
-        fix_date = now + timedelta(days=180)
-
-    return fix_date.strftime("%Y-%m-%d")
-
-
-def _generate_summary_message(total_vulns: int,
-                               kev_count: int,
-                               priorities: Dict[str, int]) -> str:
-    """Generate a human-readable summary message for the plan."""
+    cwe_guidance = canonical.get("cwe_guidance") or {}
+    canonical.setdefault("source", "cve_enricher")
+    canonical["detailed_steps"] = detailed_steps
+    canonical["references"] = normalized_refs
+    canonical["code_examples"] = cwe_guidance.get("code_examples", {})
+    canonical["compliance"] = cwe_guidance.get(
+        "compliance",
+        canonical.get("compliance", "N/A")
+    )
+    return canonical
+def _generate_summary_message(total_vulns, kev_count, priorities):
+    """Generate a high-impact summary string for the remediation dashboard."""
     parts = []
 
     if kev_count > 0:
-        parts.append(
-            f"🚨 {kev_count} vulnerabilit{'y is' if kev_count == 1 else 'ies are'} "
-            f"actively exploited in the wild (CISA KEV). Fix these FIRST."
-        )
+        parts.append(f"🔥 Found {kev_count} known-exploited vulnerabilities (KEV).")
 
     immediate = priorities.get("fix_immediately", 0)
     if immediate > 0:
         parts.append(
-            f"🔴 {immediate} vulnerabilit{'y requires' if immediate == 1 else 'ies require'} "
+            f"🔴 {immediate} findings require "
             f"immediate attention (within 48 hours)."
         )
 
@@ -672,7 +568,7 @@ if __name__ == "__main__":
     logger.info(f"Name: {item['name']}")
     logger.info(f"CVE: {item['cve_id']}")
     logger.info(f"Priority: {item['priority_score']}/100 — {item['priority_label']}")
-    logger.info(f"KEV: {'⚠️ YES' if item['is_kev'] else 'No'}")
+    logger.info(f"KEV: {'YES' if item['is_kev'] else 'No'}")
     logger.info(f"Fix by: {item['fix_by_date']}")
     logger.info(f"Timeline: {item['recommended_timeline']}")
 
@@ -694,4 +590,4 @@ if __name__ == "__main__":
 
     logger.info(f"  Threat Indicators:")
     for indicator in item.get("threat_indicators", []):
-        logger.info(f"    ⚠️ {indicator}")
+        logger.info(f"    {indicator}")

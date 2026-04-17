@@ -1,12 +1,13 @@
-﻿"""
+"""
 EASM Scan Pipeline Orchestrator
 ================================
 Executes the complete scanning pipeline in sequence:
 
     Phase 0: Passive Recon (Shodan + Censys + WHOIS)
-    Phase 1: Subdomain Discovery (Subfinder + crt.sh + merge passive)
+    Phase 1: Subdomain Discovery (Subfinder + Amass + crt.sh + merge)
     Phase 2: Port Scanning (Naabu — skips hosts covered by passive)
     Phase 3: HTTP Fingerprinting (HTTPX)
+    Phase 3.5: Parameter Discovery (Arjun — opt-in, active)
     Phase 4: Vulnerability Scanning (Nuclei + Shodan CVEs)
     Phase 5: Change Detection (diff against pre-scan snapshot)
     Phase 6: Risk Scoring (vulns + exposure + email breaches)
@@ -66,7 +67,29 @@ from core.httpx_runner import run_httpx
 from core.nuclei import run_nuclei
 from core.change_detector import detect_changes_with_snapshot
 from core.risk_scorer import calculate_risk_score
+from core.smart_scanner import NETWORK_SCAN_TAGS
+from config import Config
+from database.endpoints_db import (
+    add_endpoints_bulk, mark_all_endpoints_old
+)
 from utils.logger import logger
+from utils.cancellation import register_target, is_cancelled, cleanup_signal
+from utils.websocket import (
+    emit_scan_progress, emit_scan_completed, emit_scan_error
+)
+
+# Internal mapping for frontend phase numbers
+PHASE_MAP = {
+    "passive_recon": 0,
+    "subdomain_discovery": 1,
+    "port_scanning": 2,
+    "http_fingerprinting": 3,
+    "parameter_discovery": 3.5,
+    "vuln_scanning": 4,
+    "change_detection": 5,
+    "risk_scoring": 6,
+    "done": 7
+}
 
 
 # =========================================================================
@@ -514,6 +537,9 @@ def run_full_scan(target_id, domain, scan_id=None):
     logger.info("Target: %s", domain)
     logger.info("=" * 60)
 
+    # Register for cancellation monitoring
+    register_target(domain)
+
     # ── Check for resumable phases ───────────────────────
     completed_phases_db = get_completed_phases(scan_id)
     is_resuming = len(completed_phases_db) > 0
@@ -569,6 +595,7 @@ def run_full_scan(target_id, domain, scan_id=None):
             mark_all_http_assets_old(target_id)
             mark_all_vulns_old(target_id)
             mark_all_emails_old(target_id)
+            mark_all_endpoints_old(target_id)
 
         # ── Pre-scan snapshot for change detection ───────
         before_state = {
@@ -592,6 +619,10 @@ def run_full_scan(target_id, domain, scan_id=None):
         # PHASE 0: PASSIVE RECON (SHODAN + CENSYS + WHOIS)
         # ═════════════════════════════════════════════════
         if "passive_recon" not in completed_phases_db:
+            if is_cancelled(domain):
+                logger.warning(f"[ABORT] Scan cancelled for {domain} before Phase 0")
+                return {"success": False, "status": "cancelled"}
+
             _progress(
                 scan_id, "passive_recon", 2,
                 f"Running passive recon on {domain}..."
@@ -787,12 +818,85 @@ def run_full_scan(target_id, domain, scan_id=None):
             )
 
             try:
-                subs_result = scan_subdomains(domain)
-                subdomain_list = subs_result.get(
-                    "subdomains", []
+                # ── Parallel: Subfinder + Amass ───────
+                # Both are passive OSINT tools querying
+                # independent sources. Running in parallel
+                # cuts Phase 1 time by 30-60 seconds.
+                from concurrent.futures import (
+                    ThreadPoolExecutor, as_completed,
                 )
 
-                # Merge with passive recon subdomains
+                amass_subs = set()
+                amass_is_ready = False
+
+                try:
+                    from core.amass import (
+                        run_amass,
+                        is_available as amass_available,
+                    )
+                    amass_is_ready = amass_available()
+                except Exception:
+                    amass_is_ready = False
+
+                if amass_is_ready:
+                    logger.info(
+                        "Phase 1: Running Subfinder + Amass "
+                        "in parallel..."
+                    )
+                    _progress(
+                        scan_id, "subdomain_discovery", 12,
+                        "Running Subfinder + Amass in "
+                        "parallel..."
+                    )
+
+                    with ThreadPoolExecutor(
+                        max_workers=2
+                    ) as pool:
+                        sf_future = pool.submit(
+                            scan_subdomains, domain
+                        )
+                        am_future = pool.submit(
+                            run_amass, domain
+                        )
+
+                        subs_result = sf_future.result()
+                        amass_result = am_future.result()
+
+                    subfinder_subs = set(
+                        subs_result.get("subdomains", [])
+                    )
+
+                    if amass_result.get("success"):
+                        amass_subs = set(
+                            amass_result.get(
+                                "subdomains", []
+                            )
+                        )
+                        logger.info(
+                            "Phase 1: Amass found %d "
+                            "subdomains",
+                            len(amass_subs)
+                        )
+                    else:
+                        logger.warning(
+                            "Phase 1: Amass failed — %s",
+                            amass_result.get(
+                                "error", "unknown"
+                            )
+                        )
+                else:
+                    # Amass not available — run Subfinder
+                    # only (original behaviour)
+                    logger.info(
+                        "Phase 1: Amass not installed "
+                        "— running Subfinder only"
+                    )
+                    subs_result = scan_subdomains(domain)
+                    subfinder_subs = set(
+                        subs_result.get("subdomains", [])
+                    )
+
+                # ── Merge: Subfinder + Amass + Passive ─
                 passive_subs = set()
                 passive_subs.update(
                     shodan_result.get("subdomains", [])
@@ -801,25 +905,70 @@ def run_full_scan(target_id, domain, scan_id=None):
                     censys_result.get("subdomains", [])
                 )
 
-                if passive_subs:
-                    active_count = len(subdomain_list)
-                    merged = set(subdomain_list)
-                    merged.update(passive_subs)
-                    subdomain_list = sorted(merged)
-                    logger.info(
-                        "Merged: %d active + %d passive "
-                        "= %d total subdomains",
-                        active_count, len(passive_subs),
-                        len(subdomain_list)
-                    )
+                # Three-way merge with source tagging
+                all_subs = (
+                    subfinder_subs | amass_subs | passive_subs
+                )
+                subdomain_list = sorted(all_subs)
 
-                if (subs_result.get("success")
-                        and subdomain_list):
-                    add_subdomains_bulk(
-                        target_id, domain, subdomain_list,
-                        source="subfinder"
-                    )
+                # Determine overlap for confidence scoring
+                both_tools = subfinder_subs & amass_subs
+                only_subfinder = (
+                    subfinder_subs - amass_subs - passive_subs
+                )
+                only_amass = (
+                    amass_subs - subfinder_subs - passive_subs
+                )
 
+                logger.info(
+                    "Phase 1 merge: %d subfinder, "
+                    "%d amass, %d passive, "
+                    "%d merged (both tools), "
+                    "%d total unique",
+                    len(subfinder_subs),
+                    len(amass_subs),
+                    len(passive_subs),
+                    len(both_tools),
+                    len(subdomain_list),
+                )
+
+                # Persist with source attribution
+                if subdomain_list:
+                    # Subdomains found by both tools
+                    # (highest confidence)
+                    if both_tools:
+                        add_subdomains_bulk(
+                            target_id, domain,
+                            sorted(both_tools),
+                            source="merged"
+                        )
+
+                    # Subfinder-only
+                    if only_subfinder:
+                        add_subdomains_bulk(
+                            target_id, domain,
+                            sorted(only_subfinder),
+                            source="subfinder"
+                        )
+
+                    # Amass-only
+                    if only_amass:
+                        add_subdomains_bulk(
+                            target_id, domain,
+                            sorted(only_amass),
+                            source="amass"
+                        )
+
+                    # Passive-only subs
+                    # (already persisted in Phase 0)
+
+                subs_result = {
+                    "success": True,
+                    "subdomains": subdomain_list,
+                    "count": len(subdomain_list),
+                }
+
+                if subs_result.get("success"):
                     certs = subs_result.get(
                         "certificates", []
                     )
@@ -1089,6 +1238,120 @@ def run_full_scan(target_id, domain, scan_id=None):
                 "(already completed — %d assets loaded)",
                 http_result.get("count", 0)
             )
+        # ═════════════════════════════════════════════════
+        # PHASE 3.5: PARAMETER DISCOVERY (ARJUN)
+        #            Opt-in — only runs if enabled
+        # ═════════════════════════════════════════════════
+        if "parameter_discovery" not in completed_phases_db:
+            # Check opt-in gate — default is disabled
+            # because Arjun is an active/intrusive tool
+            enable_param_disc = Config.RUN_ARJUN
+            param_rate_limit = Config.ARJUN_RATE_LIMIT
+            try:
+                from database.targets_db import get_target
+                target_doc = get_target(target_id)
+                if target_doc:
+                    scan_cfg = target_doc.get(
+                        "scan_config", {}
+                    )
+                    if "enable_parameter_discovery" in scan_cfg:
+                        enable_param_disc = (
+                            Config.RUN_ARJUN and
+                            scan_cfg.get(
+                                "enable_parameter_discovery",
+                                False
+                            )
+                        )
+                    param_rate_limit = scan_cfg.get(
+                        "parameter_discovery_rate_limit",
+                        param_rate_limit
+                    )
+            except Exception:
+                pass
+
+            if enable_param_disc:
+                _progress(
+                    scan_id, "parameter_discovery", 50,
+                    "Discovering hidden HTTP parameters..."
+                )
+
+                try:
+                    from core.arjun_runner import (
+                        run_arjun,
+                        is_available as arjun_available,
+                    )
+
+                    if arjun_available():
+                        arjun_result = run_arjun(
+                            http_result,
+                            rate_limit=param_rate_limit,
+                            domain=domain,
+                        )
+
+                        if arjun_result.get("success"):
+                            endpoints = arjun_result.get(
+                                "endpoints", []
+                            )
+                            if endpoints:
+                                add_endpoints_bulk(
+                                    target_id, domain,
+                                    endpoints,
+                                )
+                            logger.info(
+                                "Phase 3.5 complete: "
+                                "%d endpoints with "
+                                "hidden parameters",
+                                len(endpoints)
+                            )
+                        else:
+                            logger.warning(
+                                "Phase 3.5: Arjun "
+                                "failed — %s",
+                                arjun_result.get(
+                                    "error", "unknown"
+                                )
+                            )
+                    else:
+                        logger.info(
+                            "Phase 3.5: Arjun not "
+                            "installed — skipping"
+                        )
+
+                    phases_completed.append(
+                        "parameter_discovery"
+                    )
+                    mark_phase_completed(
+                        scan_id, "parameter_discovery"
+                    )
+
+                except Exception as e:
+                    phases_failed.append({
+                        "phase": "parameter_discovery",
+                        "error": str(e)
+                    })
+                    logger.error(
+                        "Phase 3.5 failed: %s",
+                        e, exc_info=True
+                    )
+            else:
+                # Disabled — skip silently, no checkpoint
+                # needed (Phase 4 proceeds normally)
+                logger.info(
+                    "Phase 3.5: Parameter discovery "
+                    "disabled — skipping"
+                )
+                phases_completed.append(
+                    "parameter_discovery"
+                )
+                mark_phase_completed(
+                    scan_id, "parameter_discovery"
+                )
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 3.5: "
+                "parameter_discovery "
+                "(already completed)"
+            )
 
         # ═════════════════════════════════════════════════
         # PHASE 4: VULNERABILITY SCANNING
@@ -1319,43 +1582,7 @@ def run_full_scan(target_id, domain, scan_id=None):
                             vuln_scan_partial = True
 
 
-                    # ══════════════════════════════════════
-                    # TIER 2B: Header-Mined Scans
-                    # ══════════════════════════════════════
-                    header_targets = scan_plan.get(
-                        "tier2b_header_tags", {}
-                    )
-                    if header_targets:
-                        _progress(
-                            scan_id, "vuln_scanning", 73,
-                            f"Tier 2B: Header-informed "
-                            f"scan on "
-                            f"{len(header_targets)} "
-                            f"hosts..."
-                        )
 
-                        tag_groups = {}
-                        for host, tags in (
-                            header_targets.items()
-                        ):
-                            tag_key = ",".join(
-                                sorted(tags)
-                            )
-                            if tag_key not in tag_groups:
-                                tag_groups[tag_key] = []
-                            tag_groups[tag_key].append(
-                                host
-                            )
-
-                        for tags_str, hosts in (
-                            tag_groups.items()
-                        ):
-                            tags_list = tags_str.split(",")
-                            scan_targets = (
-                                _preferred_targets_for_hosts(
-                                    hosts, http_target_map
-                                )
-                            )
                     # ══════════════════════════════════════
                     # TIER 2B: Header-Mined Scans
                     # ══════════════════════════════════════
@@ -1391,7 +1618,7 @@ def run_full_scan(target_id, domain, scan_id=None):
                             "Tier 2C", catchall_hosts, http_target_map,
                             "broad_scan", target_id, domain,
                             all_vulns, persisted_vuln_keys,
-                            severity_override="critical,high"
+                            severity_override=Config.NUCLEI_TIER2C_SEVERITY
                         ):
                             vuln_scan_partial = True
 
@@ -1410,12 +1637,7 @@ def run_full_scan(target_id, domain, scan_id=None):
                             "Tier 2C-NET", non_web_hosts, None,
                             "network_scan", target_id, domain,
                             all_vulns, persisted_vuln_keys,
-                            custom_tags=[
-                                "network", "ssh", "ftp", "dns", "smtp", "snmp",
-                                "rdp", "vnc", "default-login", "mysql",
-                                "postgres", "mssql", "redis", "mongodb",
-                                "memcached", "ldap"
-                            ],
+                            custom_tags=NETWORK_SCAN_TAGS,
                             expand_http_schemes=False
                         ):
                             vuln_scan_partial = True
@@ -1740,6 +1962,14 @@ def run_full_scan(target_id, domain, scan_id=None):
 
         complete_scan(scan_id, results)
         _progress(scan_id, "done", 100, "Scan completed")
+        
+        # Final WebSocket announcement
+        emit_scan_completed(scan_id, {
+            "subdomains": subdomain_count,
+            "ports": port_count,
+            "vulns": vuln_count,
+            "risk": risk_score
+        })
 
         status = (
             "completed" if not phases_failed
@@ -1771,6 +2001,7 @@ def run_full_scan(target_id, domain, scan_id=None):
         )
         logger.info("=" * 60)
 
+        cleanup_signal(domain)
         return {
             "success": True,
             "status": status,
@@ -1784,6 +2015,7 @@ def run_full_scan(target_id, domain, scan_id=None):
             domain, e, exc_info=True
         )
         fail_scan(scan_id, str(e))
+        emit_scan_error(scan_id, "fatal", str(e))
         return {
             "success": False,
             "status": "failed",
@@ -1797,50 +2029,23 @@ def run_full_scan(target_id, domain, scan_id=None):
 # =========================================================================
 
 def _progress(scan_id, phase, percent, detail=""):
-    """Write progress to DB (non-fatal if fails)."""
+    """Write progress to DB and emit WebSocket event."""
     try:
         update_scan_progress(scan_id, {
             "current_phase": phase,
             "phase_detail": detail,
             "progress_percent": percent,
         })
-    except Exception:
-        pass
+        
+        # Also emit real-time update
+        phase_num = PHASE_MAP.get(phase, 0)
+        emit_scan_progress(
+            scan_id=scan_id,
+            phase_name=phase,
+            phase_number=phase_num,
+            progress_percent=percent,
+            message=detail
+        )
+    except Exception as e:
+        logger.error(f"Error updating progress: {e}")
 
-
-def _cvss_to_severity(cvss_score):
-    """Convert CVSS score to severity string."""
-    if cvss_score is None:
-        return "info"
-    try:
-        score = float(cvss_score)
-        if score >= 9.0:
-            return "critical"
-        elif score >= 7.0:
-            return "high"
-        elif score >= 4.0:
-            return "medium"
-        elif score >= 0.1:
-            return "low"
-        else:
-            return "info"
-    except (ValueError, TypeError):
-        return "info"
-
-
-def _cvss_to_priority(cvss_score):
-    """Convert CVSS score to remediation priority."""
-    if cvss_score is None:
-        return "medium_term"
-    try:
-        score = float(cvss_score)
-        if score >= 9.0:
-            return "immediate"
-        elif score >= 7.0:
-            return "short_term"
-        elif score >= 4.0:
-            return "medium_term"
-        else:
-            return "long_term"
-    except (ValueError, TypeError):
-        return "medium_term"

@@ -23,6 +23,7 @@ from utils.sanitize import (
     sanitize_string_optional
 )
 from utils.logger import logger
+from utils.cancellation import register_target, signal_cancel
 
 targets_bp = Blueprint("targets", __name__, url_prefix="/api/targets")
 
@@ -284,6 +285,9 @@ def add_target():
 
         logger.info("Added new target: %s (id: %s)", domain, target_id)
 
+        # Register for cancellation monitoring
+        register_target(domain)
+
         thread = threading.Thread(
             target=_harvest_emails_background,
             args=(target_id, domain),
@@ -482,6 +486,9 @@ def delete_target(domain):
 
         logger.info("Deleted target: %s", domain)
         logger.debug("Cascade cleanup: %s", deleted)
+
+        # Trigger stop signal for all background processes related to this domain
+        signal_cancel(domain)
 
         return jsonify({
             "success": True,

@@ -59,155 +59,135 @@ async function loadDashboardData() {
 
     if (targets.length === 0 || !hasScanned) {
         gradeEl.textContent = '-';
-        gradeEl.className = 'risk-grade text-muted fs-5 mt-2';
+        gradeEl.className = 'risk-grade text-white opacity-25 fs-5 mt-2';
         gradeEl.innerHTML = ' Run a scan first';
+        subscoreEl.className = 'risk-subscore text-white opacity-40 small text-uppercase fw-700 mt-2';
         subscoreEl.textContent = 'No scan data available';
     } else {
         var gradeInfo = riskScoreToGrade(riskScore);
         gradeEl.textContent = gradeInfo.grade;
         gradeEl.className = 'risk-grade ' + gradeInfo.cls;
+        subscoreEl.className = 'risk-subscore text-white opacity-40 small text-uppercase fw-700 mt-2';
         subscoreEl.textContent = riskScore + ' / 100 risk score';
     }
 
-    // Targets table
-    loadTargetsTable(targets);
+    // Passive Recon Summary
+    loadPassiveReconSummary();
+}
 
-    // ── Passive Recon source cards + Certificates ──────────
-    var passiveSection = document.getElementById('dashboard-passive-recon');
-    if (passiveSection && data.passive_recon) {
-        var pr = data.passive_recon;
-
-        // Fetch certificate stats asynchronously
-        var certData = { total_certificates: 0, summary: { expired: 0, expiring_soon: 0 } };
-        try {
-            var certResp = await api.get('/api/passive/certificates');
-            if (certResp.success) {
-                certData = certResp;
-            }
-        } catch (e) {
-            console.warn('Could not load certificate stats:', e);
+async function loadPassiveReconSummary() {
+    try {
+        const data = await api.get('/api/passive/');
+        if (!data.success) {
+            document.getElementById('pr-shodan-stat').textContent = 'No data';
+            document.getElementById('pr-censys-stat').textContent = 'No data';
+            document.getElementById('pr-whois-stat').textContent = 'No data';
+            document.getElementById('pr-cert-stat').textContent = 'No data';
+            return;
         }
 
-        var certTotal = certData.total_certificates || 0;
-        var certExpired = (certData.summary || {}).expired || 0;
-        var certExpiring = (certData.summary || {}).expiring_soon || 0;
-        var certRiskCount = certExpired + certExpiring;
+        const domains = data.domains || [];
 
-        passiveSection.innerHTML =
-            '<div class="row text-center">' +
+        // Aggregate per-source stats across all domains
+        let shodanHosts = 0, shodanCves = 0, shodanAvail = false;
+        let censysHosts = 0, censysServices = 0, censysAvail = false;
+        let whoisDomains = 0, whoisRisks = 0, whoisAvail = false;
 
-            // ── Shodan Card ──
-            '<div class="col-md-3 mb-3 mb-md-0">' +
-            '<div class="card h-100 border shadow-sm clickable-card" ' +
-            '     onclick="window.location.href=\'/recon?source=shodan\'" role="button">' +
-            '<div class="card-body">' +
-            '<h6 class="text-info mb-3">Shodan</h6>' +
-            '<div class="row">' +
-            '<div class="col"><h5 class="mb-0">' + formatNumber(pr.shodan_subdomains) + '</h5>' +
-            '<small class="text-muted">Subs</small></div>' +
-            '<div class="col"><h5 class="mb-0">' + formatNumber(pr.shodan_ports) + '</h5>' +
-            '<small class="text-muted">Ports</small></div>' +
-            '</div>' +
-            '<div class="mt-2"><small class="text-muted">' +
-            'View details</small></div>' +
-            '</div></div></div>' +
+        for (const d of domains) {
+            if (d.shodan && d.shodan.available) {
+                shodanAvail = true;
+                shodanHosts += d.shodan.hosts || 0;
+                shodanCves += d.shodan.cves || 0;
+            }
+            if (d.censys && d.censys.available) {
+                censysAvail = true;
+                censysHosts += d.censys.hosts || 0;
+                censysServices += d.censys.services || 0;
+            }
+            if (d.whois && d.whois.available) {
+                whoisAvail = true;
+                whoisDomains++;
+                whoisRisks += (d.whois.risk_flags || []).length;
+            }
+        }
 
-            // ── Censys Card ──
-            '<div class="col-md-3 mb-3 mb-md-0">' +
-            '<div class="card h-100 border shadow-sm clickable-card" ' +
-            '     onclick="window.location.href=\'/recon?source=censys\'" role="button">' +
-            '<div class="card-body">' +
-            '<h6 class="text-warning mb-3"> Censys</h6>' +
-            '<div class="row">' +
-            '<div class="col"><h5 class="mb-0">' + formatNumber(pr.censys_subdomains) + '</h5>' +
-            '<small class="text-muted">Subs</small></div>' +
-            '<div class="col"><h5 class="mb-0">' + formatNumber(pr.censys_ports) + '</h5>' +
-            '<small class="text-muted">Ports</small></div>' +
-            '</div>' +
-            '<div class="mt-2"><small class="text-muted">' +
-            'View details</small></div>' +
-            '</div></div></div>' +
+        document.getElementById('pr-shodan-stat').textContent = shodanAvail
+            ? `${shodanHosts} hosts, ${shodanCves} CVEs`
+            : 'Not collected';
+        document.getElementById('pr-censys-stat').textContent = censysAvail
+            ? `${censysHosts} hosts, ${censysServices} services`
+            : 'Not collected';
+        document.getElementById('pr-whois-stat').textContent = whoisAvail
+            ? `${whoisDomains} domains, ${whoisRisks} risks`
+            : 'Not collected';
 
-            // ── WHOIS Card ──
-            '<div class="col-md-3 mb-3 mb-md-0">' +
-            '<div class="card h-100 border shadow-sm clickable-card" ' +
-            '     onclick="window.location.href=\'/recon?source=whois\'" role="button">' +
-            '<div class="card-body">' +
-            '<h6 class="text-primary mb-3"> WHOIS</h6>' +
-            '<div class="row">' +
-            '<div class="col"><h5 class="mb-0">' + formatNumber(pr.whois_domains) + '</h5>' +
-            '<small class="text-muted">Domains</small></div>' +
-            '<div class="col"><h5 class="mb-0 ' +
-            (pr.whois_critical_risks > 0 ? 'text-danger' : 'text-success') + '">' +
-            formatNumber(pr.whois_total_risks) + '</h5>' +
-            '<small class="text-muted">Risks</small></div>' +
-            '</div>' +
-            '<div class="mt-2"><small class="text-muted">' +
-            'View details</small></div>' +
-            '</div></div></div>' +
+        // Certificate stats
+        document.getElementById('pr-cert-stat').textContent = (data.total_certificates || 0) > 0
+            ? `${data.total_certificates} certificates`
+            : 'Not collected';
 
-            // ── Certificates Card ──
-            '<div class="col-md-3">' +
-            '<div class="card h-100 border shadow-sm clickable-card" ' +
-            '     onclick="window.location.href=\'/recon?source=certificates\'" role="button">' +
-            '<div class="card-body">' +
-            '<h6 class="text-success mb-3"> Certificates</h6>' +
-            '<div class="row">' +
-            '<div class="col"><h5 class="mb-0">' + formatNumber(certTotal) + '</h5>' +
-            '<small class="text-muted">Certs</small></div>' +
-            '<div class="col"><h5 class="mb-0 ' +
-            (certRiskCount > 0 ? 'text-danger' : 'text-success') + '">' +
-            formatNumber(certRiskCount) + '</h5>' +
-            '<small class="text-muted">Issues</small></div>' +
-            '</div>' +
-            '<div class="mt-2"><small class="text-muted">' +
-            'View details</small></div>' +
-            '</div></div></div>' +
-
-            '</div>';
+    } catch (e) {
+        console.error('Passive recon summary error:', e);
+        document.getElementById('pr-shodan-stat').textContent = 'Error';
+        document.getElementById('pr-censys-stat').textContent = 'Error';
+        document.getElementById('pr-whois-stat').textContent = 'Error';
+        document.getElementById('pr-cert-stat').textContent = 'Error';
     }
 }
 
-/* ──────────────────────────────────────────────
-   Targets Table
-   ────────────────────────────────────────────── */
-
-function loadTargetsTable(targets) {
-    var tbody = document.getElementById('targets-table');
+// Targets table
+async function loadTargetsTable(targets) {
+    const tbody = document.getElementById('targets-table');
+    if (!tbody) return;
 
     if (targets.length === 0) {
-        tbody.innerHTML =
-            '<tr><td colspan="8" class="text-center text-muted">' +
-            'No targets. <a href="/targets">Add one!</a></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted small fw-800">NO MANAGED ASSETS DETECTED</td></tr>';
         return;
     }
 
-    tbody.innerHTML = targets.map(function (t) {
-        var domain = t.root_domain || t.domain || 'N/A';
-        var riskScore = t.risk_score || 0;
-        var gradeInfo = riskScoreToGrade(riskScore);
-        var gradeHTML = t.last_scan_at
-            ? '<span class="fw-bold ' + gradeInfo.cls + '">' + gradeInfo.grade + '</span>'
-            : '<span class="text-muted small">Run Scan</span>';
+    tbody.innerHTML = targets.slice(0, 10).map(t => {
+        const domain = t.root_domain || t.domain || 'N/A';
+        const gradeInfo = riskScoreToGrade(t.risk_score || 0);
 
-        return '<tr>' +
-            '<td><strong>' + domain + '</strong></td>' +
-            '<td>' + formatNumber(t.total_subdomains) + '</td>' +
-            '<td>' + formatNumber(t.total_http_assets) + '</td>' +
-            '<td>' + formatNumber(t.total_vulns) + '</td>' +
-            '<td>' + formatNumber(t.total_emails) + '</td>' +
-            '<td>' + gradeHTML + '</td>' +
-            '<td>' + (t.last_scan_at
-                ? formatDate(t.last_scan_at)
-                : '<span class="text-muted">Never</span>') + '</td>' +
-            '<td>' +
-            '<a href="/targets/' + domain + '" class="btn btn-sm btn-outline-secondary">' +
-            '<i class="bi bi-eye"></i></a></td>' +
-            '</tr>';
+        return `
+            <tr class="align-middle">
+                <td class="ps-4">
+                    <div class="fw-800 text-white text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">${domain}</div>
+                    <div class="text-muted fw-bold" style="font-size: 0.6rem; opacity: 0.5;">${(t.org_name || 'EXTERNAL').toUpperCase()}</div>
+                </td>
+                <td class="text-white fw-800 small">${formatNumber(t.total_subdomains || 0)}</td>
+                <td class="text-white fw-800 small">${formatNumber(t.http_assets || 0)}</td>
+                <td>
+                    <span class="badge bg-black ${t.total_vulns > 0 ? 'text-danger border-danger border-opacity-25' : 'text-secondary border-secondary border-opacity-10'} fw-800">
+                        ${t.total_vulns || 0}
+                    </span>
+                </td>
+                <td class="text-secondary fw-800 small">${formatNumber(t.emails || 0)}</td>
+                <td>
+                    <span class="badge bg-black border border-secondary border-opacity-25 fw-800 ${gradeInfo.cls}" style="font-size: 0.65rem;">
+                        ${gradeInfo.grade}
+                    </span>
+                </td>
+                <td class="text-muted fw-800 small" style="font-size: 0.65rem;">
+                    ${t.last_scan_at ? new Date(t.last_scan_at).toLocaleDateString().toUpperCase() : 'NEVER'}
+                </td>
+            </tr>
+        `;
     }).join('');
 }
 
-//Refresh//
+// Refresh logic
 async function refreshStats() {
+    const btn = document.querySelector('.btn-scan');
+    const originalContent = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> UPDATING...';
+    
     await loadDashboard();
+    
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+    }, 500);
 }

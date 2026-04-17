@@ -38,7 +38,7 @@ def get_all_changes():
     """GET /api/changes/ - List all changes"""
     try:
         db = get_db()
-        changes = _serialize_list(db[Config.CHANGES_COLLECTION].find().sort("detected_at", -1).limit(100))
+        changes = _serialize_list(db[Config.CHANGES_COLLECTION].find().sort("detected_at", -1).limit(1000))
         return jsonify({"success": True, "count": len(changes), "changes": changes})
     except Exception as error:
         return jsonify({"success": False, "error": str(error)}), 500
@@ -50,7 +50,7 @@ def get_changes_by_domain(domain):
     try:
         domain = sanitize_domain(domain)
         db = get_db()
-        changes = _serialize_list(db[Config.CHANGES_COLLECTION].find({"target_domain": domain}).sort("detected_at", -1).limit(50))
+        changes = _serialize_list(db[Config.CHANGES_COLLECTION].find({"target_domain": domain}).sort("detected_at", -1).limit(1000))
         return jsonify({"success": True, "domain": domain, "count": len(changes), "changes": changes})
     except ValueError as val_err:
         return jsonify({"success": False, "error": str(val_err)}), 400
