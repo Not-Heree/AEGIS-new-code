@@ -481,7 +481,7 @@ def run_whois_recon(domain: str) -> Dict[str, Any]:
     if risk_flags:
         for flag in risk_flags:
             print(
-                f"[WHOIS]     ⚠ {flag['severity'].upper()}: "
+                f"[WHOIS]      {flag['severity'].upper()}: "
                 f"{flag['detail']}"
             )
 
@@ -498,7 +498,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if not is_available():
-        print("\n❌ python-whois not installed")
+        print("\n python-whois not installed")
         print("Run: pip install python-whois")
     else:
         domain = input(

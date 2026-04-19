@@ -201,6 +201,10 @@ def _build_remediation_item(vuln: Dict[str, Any]) -> Dict[str, Any]:
     # ── Enrich with threat intelligence ───────────────────────
     enrichment = enrich_vulnerability(vuln)
 
+    # NEW: Propagate Smart Brief and Research Data (MITRE/CWE)
+    smart_brief = enrichment.get("smart_brief", {})
+    research_data = enrichment.get("research_data", {})
+
     cve_enrichment = enrichment.get("cve_enrichment")
     remediation = _canonicalize_remediation(
         enrichment.get("detailed_remediation") or {}
@@ -257,6 +261,11 @@ def _build_remediation_item(vuln: Dict[str, Any]) -> Dict[str, Any]:
         "is_kev": is_kev,
         "kev_info": kev_info,
         "epss": epss_info,
+
+        # New: Propagate Smart Brief & Research Data
+        "smart_brief": smart_brief,
+        "mitre_attack": research_data.get("mitre_attack"),
+        "cwe_guidance": research_data.get("cwe_guidance"),
 
         # Priority
         "priority_score": enrichment["priority_score"],
@@ -354,25 +363,25 @@ def _generate_summary_message(total_vulns, kev_count, priorities):
     parts = []
 
     if kev_count > 0:
-        parts.append(f"🔥 Found {kev_count} known-exploited vulnerabilities (KEV).")
+        parts.append(f"Found {kev_count} known-exploited vulnerabilities (KEV).")
 
     immediate = priorities.get("fix_immediately", 0)
     if immediate > 0:
         parts.append(
-            f"🔴 {immediate} findings require "
+            f"{immediate} findings require "
             f"immediate attention (within 48 hours)."
         )
 
     week = priorities.get("fix_this_week", 0)
     if week > 0:
         parts.append(
-            f"🟠 {week} should be fixed this week."
+            f"{week} should be fixed this week."
         )
 
     month = priorities.get("fix_this_month", 0)
     if month > 0:
         parts.append(
-            f"🟡 {month} should be fixed this month."
+            f"{month} should be fixed this month."
         )
 
     if not parts:
@@ -382,7 +391,7 @@ def _generate_summary_message(total_vulns, kev_count, priorities):
                 f"None require immediate action."
             )
         else:
-            parts.append("No open vulnerabilities found. Looking good! 🎉")
+            parts.append("No open vulnerabilities found. Looking good! ")
 
     return " ".join(parts)
 
@@ -458,7 +467,7 @@ def update_remediation_status(vuln_id: str,
             status_messages = {
                 "open": "Vulnerability marked as open",
                 "in_progress": "Vulnerability marked as in progress — good luck fixing it!",
-                "resolved": "Vulnerability marked as resolved — great job! 🎉",
+                "resolved": "Vulnerability marked as resolved — great job! ",
                 "false_positive": "Vulnerability marked as false positive — excluded from future reports"
             }
             return {

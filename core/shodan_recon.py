@@ -481,7 +481,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if not is_available():
-        print("\n❌ Shodan API not configured")
+        print("\n Shodan API not configured")
         print("Set SHODAN_API_KEY in your .env file")
         print("Get a free key at: https://account.shodan.io")
     else:

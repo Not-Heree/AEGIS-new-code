@@ -2144,17 +2144,19 @@ def enrich_vulnerability(vuln: Dict[str, Any]) -> Dict[str, Any]:
                 enrichment["threat_indicators"].extend(
                     research["threat_indicators"]
                 )
-            # Propagate KEV/EPSS from CVE enrichment to top level
-            cve = enrichment.get("cve_enrichment") or {}
-            if cve.get("kev", {}).get("is_known_exploited"):
-                enrichment["kev_status"] = {"actively_exploited": True}
-            else:
-                enrichment["kev_status"] = {"actively_exploited": False}
-            epss = cve.get("epss")
-            if epss:
-                enrichment["epss"] = epss
     except Exception as e:
         logger.warning("[ENRICHER] ThreatResearcher failed: %s", e)
+
+    # ── Propagate KEV/EPSS from CVE enrichment to top level ─────
+    cve = enrichment.get("cve_enrichment") or {}
+    if cve.get("kev", {}).get("is_known_exploited"):
+        enrichment["kev_status"] = {"actively_exploited": True}
+    else:
+        enrichment["kev_status"] = {"actively_exploited": False}
+        
+    epss = cve.get("epss")
+    if epss:
+        enrichment["epss"] = epss
 
     remediation = generate_detailed_remediation(vuln, enrichment)
     if not remediation.get("business_impact") and enrichment.get("business_impact"):
@@ -2412,18 +2414,6 @@ def _score_to_timeline(score: int) -> str:
         return "90 days"
     else:
         return "As resources allow"
-
-
-
-    if results:
-        logger.info(
-            "[ENRICHER] Batch complete. Top priority: %s",
-            results[0]["enrichment"]["priority_label"]
-        )
-    else:
-        logger.info("[ENRICHER] No results")
-
-    return results
 
 
 # =============================================================================
@@ -2853,16 +2843,4 @@ if __name__ == "__main__":
             for url in nvd.get("patch_urls", [])[:3]:
                 print(f"   → {url}")
 
-    # Test CWE lookup
-    print(f"\n{'='*60}")
-    test_cwe = input("Enter CWE ID (e.g., CWE-79): ").strip()
-    if test_cwe:
-        cwe_data = get_cwe_remediation(test_cwe)
-        if cwe_data:
-            print(f"CWE: {cwe_data['name']}")
-            print(f"Impact: {cwe_data['impact']}")
-            print(f"Fix Steps:")
-            for step in cwe_data.get("fix_steps", []):
-                print(f"   • {step}")
-        else:
-            print(f"No data found for {test_cwe}")
+

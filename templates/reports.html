@@ -21,18 +21,7 @@
                     </select>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Report Type</label>
-                    <select class="form-select" id="report-type">
-                        <option value="full"> Full PDF Report</option>
-                        <option value="json"> JSON Report</option>
-                        <option value="summary"> Executive Summary</option>
-                        <option value="remediation"> Remediation Report</option>
-                    </select>
-                    <small class="text-muted" id="report-type-desc">
-                        Complete security assessment with all findings
-                    </small>
-                </div>
+
 
                 <button class="btn btn-primary w-100" onclick="generateReport()" id="generate-btn">
                     Generate Report
@@ -42,25 +31,7 @@
             </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0"> Quick Actions</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <button class="btn btn-outline-primary btn-sm" onclick="viewJSON()">
-                        View JSON Report
-                    </button>
-                    <button class="btn btn-outline-info btn-sm" onclick="viewSummary()">
-                        View Executive Summary
-                    </button>
-                    <button class="btn btn-outline-warning btn-sm" onclick="viewRemediation()">
-                        View Remediation Plan
-                    </button>
-                </div>
-            </div>
-        </div>
+
     </div>
 
     <!-- Reports List Panel -->
@@ -96,17 +67,7 @@
 
 {% block extra_js %}
 <script>
-    // ─── Report Type Descriptions ───────────────────────────────────
-    const reportDescriptions = {
-        'full': 'Complete security assessment PDF with all findings, charts, and remediation',
-        'json': 'Machine-readable JSON format with all scan data',
-        'summary': 'Brief executive overview with risk score and key metrics',
-        'remediation': 'Vulnerability fixes grouped by priority with step-by-step actions'
-    };
 
-    document.getElementById('report-type').addEventListener('change', function () {
-        document.getElementById('report-type-desc').textContent = reportDescriptions[this.value] || '';
-    });
 
     // ─── Load Targets ───────────────────────────────────────────────
     async function loadTargets() {
@@ -190,10 +151,10 @@
     // ─── Generate Report ────────────────────────────────────────────
     async function generateReport() {
         const domain = document.getElementById('report-target').value;
-        const reportType = document.getElementById('report-type').value;
+        const reportType = 'full';
 
         if (!domain) {
-            alert('Please select a target first');
+            toast.warning('Please select a target first');
             return;
         }
 
@@ -233,30 +194,6 @@
                             <i class="bi bi-x-circle-fill"></i> Error: ${result.error || 'Generation failed'}
                         </div>`;
                 }
-
-            } else if (reportType === 'json') {
-                result = await api.get(`/api/reports/json/${domain}`);
-                showPreview(result);
-                statusDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> JSON report loaded — see preview below
-                    </div>`;
-
-            } else if (reportType === 'summary') {
-                result = await api.get(`/api/reports/summary/${domain}`);
-                showPreview(result);
-                statusDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> Executive summary loaded — see preview below
-                    </div>`;
-
-            } else if (reportType === 'remediation') {
-                result = await api.get(`/api/reports/remediation/${domain}`);
-                showPreview(result);
-                statusDiv.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i> Remediation report loaded — see preview below
-                    </div>`;
             }
 
         } catch (error) {
@@ -277,49 +214,14 @@
             domain = document.getElementById('report-target').value;
         }
         if (!domain) {
-            alert('Select a target first');
+            toast.warning('Select a target first');
             return;
         }
         // Trigger browser download
         window.open(`/api/reports/download/${domain}`, '_blank');
     }
 
-    // ─── Quick Action Handlers ──────────────────────────────────────
-    async function viewJSON() {
-        const domain = document.getElementById('report-target').value;
-        if (!domain) { alert('Select a target first'); return; }
 
-        try {
-            const data = await api.get(`/api/reports/json/${domain}`);
-            showPreview(data);
-        } catch (error) {
-            alert('Error loading JSON report');
-        }
-    }
-
-    async function viewSummary() {
-        const domain = document.getElementById('report-target').value;
-        if (!domain) { alert('Select a target first'); return; }
-
-        try {
-            const data = await api.get(`/api/reports/summary/${domain}`);
-            showPreview(data);
-        } catch (error) {
-            alert('Error loading summary');
-        }
-    }
-
-    async function viewRemediation() {
-        const domain = document.getElementById('report-target').value;
-        if (!domain) { alert('Select a target first'); return; }
-
-        try {
-            const data = await api.get(`/api/reports/remediation/${domain}`);
-            showPreview(data);
-        } catch (error) {
-            alert('Error loading remediation report');
-        }
-    }
 
     // ─── Preview Panel ──────────────────────────────────────────────
     function showPreview(data) {
@@ -342,7 +244,7 @@
             const data = await api.get(`/api/reports/json/${domain}`);
             showPreview(data);
         } catch (error) {
-            alert('Error loading preview');
+            toast.error('Error loading report preview');
         }
     }
 

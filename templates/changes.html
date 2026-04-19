@@ -172,8 +172,11 @@
     async function ackChange(changeId) {
         try {
             await api.patch('/api/changes/acknowledge/' + changeId);
+            toast.success('Change acknowledged');
             loadChanges();
-        } catch (e) { alert('Error acknowledging change'); }
+        } catch (e) { 
+            toast.error('Error acknowledging change'); 
+        }
     }
 
     function escapeHtml(text) {

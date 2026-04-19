@@ -437,7 +437,7 @@ def _generate_domain_pdf(report_data):
     vulns_by_sev     = report_data.get("vulns_by_severity", {})
     emails           = report_data.get("emails", [])
     changes          = report_data.get("changes", [])
-    technologies     = report_data.get("technologies", [])
+    technologies     = report_data.get("tech", report_data.get("technologies", []))
     whois_data       = report_data.get("whois") or {}
     shodan_data      = report_data.get("shodan") or {}
     censys_data      = report_data.get("censys") or {}

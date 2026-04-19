@@ -125,15 +125,15 @@
             tbody.innerHTML = data.targets.map(t => {
                 const domain = t.root_domain || t.domain || 'N/A';
                 return `
-            <tr>
-                <td><a href="/targets/${domain}" class="text-decoration-none"><strong>${domain}</strong></a></td>
+            <tr onclick="window.location.href='/targets/${domain}'" style="cursor: pointer;" class="align-middle">
+                <td><strong>${domain}</strong></td>
                 <td>${t.org_name || '-'}</td>
                 <td><span class="badge bg-success">${t.status || 'active'}</span></td>
                 <td>${t.total_subdomains || 0}</td>
                 <td>${t.total_vulns || 0}</td>
                 <td>${t.risk_score || 0}/100</td>
                 <td>${t.last_scan_at ? new Date(t.last_scan_at).toLocaleDateString() : 'Never'}</td>
-                <td>
+                <td onclick="event.stopPropagation()">
                     <button class="btn btn-sm btn-success" onclick="runScan('${domain}')"><i class="bi bi-play"></i></button>
                     <button class="btn btn-sm btn-danger" onclick="deleteTarget('${domain}')"><i class="bi bi-trash"></i></button>
                 </td>
@@ -150,45 +150,70 @@
         const domain = document.getElementById('domain').value.trim();
         const org_name = document.getElementById('org_name').value.trim();
         const description = document.getElementById('description').value.trim();
-        if (!domain) { alert('Domain required!'); return; }
+        if (!domain) { 
+            toast.error('Domain required!'); 
+            return; 
+        }
 
         try {
             const result = await api.post('/api/targets/', { domain, org_name, description });
             if (result.success) {
+                toast.success('Target added successfully!');
                 bootstrap.Modal.getInstance(document.getElementById('addTargetModal')).hide();
                 document.getElementById('addTargetForm').reset();
                 loadTargets();
             } else {
-                alert('Error: ' + (result.error || 'Unknown'));
+                toast.error('Error: ' + (result.error || 'Unknown'));
             }
         } catch (e) {
-            alert('Error adding target');
+            toast.error('Error adding target');
         }
     }
 
     async function runScan(domain) {
-        if (!confirm('Run full scan on ' + domain + '? This will start in the background.')) return;
+        const confirmed = await toast.confirm({
+            title: 'Run Analysis',
+            message: `Start a full intelligence scan for ${domain}?`,
+            confirmText: 'Start Scan',
+            type: 'primary'
+        });
+        
+        if (!confirmed) return;
 
         try {
             const result = await api.post('/api/scans/full/' + domain);
             if (result.success) {
-                alert('Scan started for ' + domain + '! Check the Scans page for progress.');
+                toast.success(`Scan initiated for ${domain}`);
                 loadTargets();
             } else {
-                alert('Error: ' + (result.error || 'Unknown'));
+                toast.error('Error: ' + (result.error || 'Unknown'));
             }
         } catch (e) {
-            alert('Scan failed to start');
+            toast.error('Scan failed to start');
         }
     }
 
     async function deleteTarget(domain) {
-        if (!confirm('Delete ' + domain + ' and ALL data?')) return;
+        const confirmed = await toast.confirm({
+            title: 'Delete Target',
+            message: `Permanently delete ${domain} and all associated intelligence data?`,
+            confirmText: 'Delete Everything',
+            type: 'danger'
+        });
+        
+        if (!confirmed) return;
+        
         try {
             const result = await api.delete('/api/targets/' + domain);
-            alert(result.success ? 'Deleted!' : 'Error: ' + result.error);
-            loadTargets();
-        } catch (e) { alert('Delete failed'); }
+            if (result.success) {
+                toast.success('Target and data deleted');
+                loadTargets();
+            } else {
+                toast.error('Error: ' + result.error);
+            }
+        } catch (e) { 
+            toast.error('Delete operation failed'); 
+        }
     }
 
     loadTargets();

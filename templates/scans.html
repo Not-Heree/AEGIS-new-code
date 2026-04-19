@@ -120,7 +120,7 @@
         const domain = document.getElementById('scan-target').value;
 
         if (!domain) {
-            alert('Select a target first');
+            toast.warning('Select a target first');
             return;
         }
 
@@ -390,7 +390,7 @@
         const timeOfDay = document.getElementById('schedule-time').value;
 
         if (!domain) {
-            alert('Select a target for the schedule');
+            toast.warning('Select a target for the schedule');
             return;
         }
 
@@ -404,35 +404,46 @@
             });
 
             if (result.success) {
+                toast.success(`Schedule created for ${domain}`);
                 loadSchedules();
                 document.getElementById('schedule-target').value = '';
             } else {
-                alert(result.error || 'Failed to create schedule');
+                toast.error(result.error || 'Failed to create schedule');
             }
         } catch (e) {
             console.error('Error creating schedule:', e);
-            alert('Failed to create schedule');
+            toast.error('Failed to create schedule');
         }
     }
 
     async function toggleSchedule(scheduleId, enabled) {
         try {
             await api.put('/api/schedules/' + scheduleId, { enabled: enabled });
+            toast.success(`Schedule ${enabled ? 'enabled' : 'disabled'}`);
             loadSchedules();
         } catch (e) {
             console.error('Error toggling schedule:', e);
-            alert('Failed to update schedule');
+            toast.error('Failed to update schedule');
         }
     }
 
     async function deleteScheduleItem(scheduleId) {
-        if (!confirm('Delete this scan schedule?')) return;
+        const confirmed = await toast.confirm({
+            title: 'Delete Schedule',
+            message: 'Permanently remove this automated scan schedule?',
+            confirmText: 'Delete Schedule',
+            type: 'danger'
+        });
+        
+        if (!confirmed) return;
+
         try {
             await api.delete('/api/schedules/' + scheduleId);
+            toast.success('Schedule deleted');
             loadSchedules();
         } catch (e) {
             console.error('Error deleting schedule:', e);
-            alert('Failed to delete schedule');
+            toast.error('Failed to delete schedule');
         }
     }
 

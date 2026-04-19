@@ -4,27 +4,44 @@
 
 // ── Constants ────────────────────────────────────────────────────────────
 
-var MAX_CHART_BARS = 20;
-
-var SEVERITY_COLORS = {
-    critical: '#ff3333',
-    high: '#ff6600',
-    medium: '#ffcc00',
-    low: '#888888'
+const TIER_BADGES = {
+    "Critical Infrastructure": { label: "Critical",        color: "#E24B4A" },
+    "High Value":               { label: "High Value",      color: "#EF9F27" },
+    "Customer Surface":         { label: "Customer Surface",color: "#378ADD" },
+    "Exposed Development":      { label: "Exposed Dev",     color: "#FAC775" },
+    "Standard":                 { label: "Standard",        color: "#888780" },
+    "Legacy / Deprecated":      { label: "Legacy",          color: "#7F77DD" },
 };
 
-var TIER_BADGES = {
-    critical: '<span class="badge bg-black text-danger border border-danger border-opacity-25 fw-800">CRITICAL</span>',
-    high: '<span class="badge bg-black text-warning border border-warning border-opacity-25 fw-800">HIGH VALUE</span>',
-    standard: '<span class="badge bg-black text-secondary border border-secondary border-opacity-25 fw-800">STANDARD</span>',
-    low: '<span class="badge bg-black text-muted border border-secondary border-opacity-10 fw-800">DEV / TEST</span>'
-};
+function renderTierBadge(tier, isLegacy) {
+    const badge = TIER_BADGES[tier] || TIER_BADGES["Standard"];
+    let html = `<span class="badge"
+        style="background-color:${badge.color};
+               color:#fff;
+               font-size:0.72rem;
+               padding:2px 8px;
+               border-radius:4px;">
+        ${badge.label}
+    </span>`;
+
+    if (isLegacy && tier !== "Legacy / Deprecated") {
+        html += ` <span class="badge"
+            style="background-color:#7F77DD;
+                   color:#fff;
+                   font-size:0.65rem;
+                   padding:2px 6px;
+                   border-radius:4px;
+                   margin-left:4px;">
+            Legacy
+        </span>`;
+    }
+    return html;
+}
 
 // ── Global State ─────────────────────────────────────────────────────────
 
 var allAssets = [];
 var filteredAssets = [];
-var towerChart = null;
 
 // ── Initialization ───────────────────────────────────────────────────────
 
@@ -94,21 +111,21 @@ function showEmptyState(show) {
     var emptyState = document.getElementById('empty-state');
     var tierCards = document.getElementById('tier-cards');
     var filtersCard = document.getElementById('filters-card');
-    var chartCard = document.getElementById('chart-card');
     var tableCard = document.getElementById('table-card');
+    var endpointsCard = document.getElementById('endpoints-card');
 
     if (show) {
         if (emptyState) emptyState.style.display = '';
         if (tierCards) tierCards.style.display = 'none';
         if (filtersCard) filtersCard.style.display = 'none';
-        if (chartCard) chartCard.style.display = 'none';
         if (tableCard) tableCard.style.display = 'none';
+        if (endpointsCard) endpointsCard.style.display = 'none';
     } else {
         if (emptyState) emptyState.style.display = 'none';
         if (tierCards) tierCards.style.display = '';
         if (filtersCard) filtersCard.style.display = '';
-        if (chartCard) chartCard.style.display = '';
         if (tableCard) tableCard.style.display = '';
+        if (endpointsCard) endpointsCard.style.display = '';
     }
 }
 
@@ -123,7 +140,7 @@ async function loadAssetBreakdown() {
 
         if (!data || !data.success) {
             document.getElementById('asset-table-body').innerHTML =
-                '<tr><td colspan="9" class="text-center text-danger">' +
+                '<tr><td colspan="11" class="text-center text-danger">' +
                 'Failed to load asset data</td></tr>';
             return;
         }
@@ -132,18 +149,31 @@ async function loadAssetBreakdown() {
 
         // Update tier summary cards
         var ts = data.tier_summary || {};
-        document.getElementById('tier-critical').textContent = ts.critical || 0;
-        document.getElementById('tier-high').textContent = ts.high || 0;
-        document.getElementById('tier-standard').textContent = ts.standard || 0;
-        document.getElementById('tier-low').textContent = ts.low || 0;
+        const getTs = (key) => ts[key] || 0;
+        
+        var elCrit = document.getElementById('tier-critical');
+        if (elCrit) elCrit.textContent = getTs("Critical Infrastructure");
+        var elHigh = document.getElementById('tier-high');
+        if (elHigh) elHigh.textContent = getTs("High Value");
+        var elCust = document.getElementById('tier-customer');
+        if (elCust) elCust.textContent = getTs("Customer Surface");
+        var elExp = document.getElementById('tier-exposed');
+        if (elExp) elExp.textContent = getTs("Exposed Development");
+        var elStd = document.getElementById('tier-standard');
+        if (elStd) elStd.textContent = getTs("Standard");
+        var elLeg = document.getElementById('tier-legacy');
+        if (elLeg) elLeg.textContent = getTs("Legacy / Deprecated");
 
         // Apply initial (no) filters
         applyFilters();
+        
+        // Also load endpoints card below
+        loadEndpoints();
 
     } catch (err) {
         console.error('Asset breakdown load error:', err);
         document.getElementById('asset-table-body').innerHTML =
-            '<tr><td colspan="9" class="text-center text-danger">' +
+            '<tr><td colspan="11" class="text-center text-danger">' +
             'Error loading data</td></tr>';
     }
 }
@@ -192,8 +222,7 @@ function applyFilters() {
     document.getElementById('showing-count').textContent =
         DOMAIN + ' — ' + filteredAssets.length + ' of ' + allAssets.length + ' assets';
 
-    // Re-render chart and table
-    renderChart(filteredAssets);
+    // Re-render table
     renderTable(filteredAssets);
 }
 
@@ -215,158 +244,26 @@ function filterByTier(tier) {
     }
 
     // Update tier card visual state
-    ['critical', 'high', 'standard', 'low'].forEach(function (t) {
+    ['critical', 'high', 'customer', 'exposed', 'standard', 'legacy'].forEach(function (t) {
         var card = document.getElementById('tier-card-' + t);
         if (card) card.classList.remove('active-filter');
     });
 
     if (tierDropdown.value !== 'all') {
-        var activeCard = document.getElementById('tier-card-' + tierDropdown.value);
+        var idMap = {
+            "Critical Infrastructure": "critical",
+            "High Value": "high",
+            "Customer Surface": "customer",
+            "Exposed Development": "exposed",
+            "Standard": "standard",
+            "Legacy / Deprecated": "legacy"
+        };
+        var activeCard = document.getElementById('tier-card-' + idMap[tierDropdown.value]);
         if (activeCard) activeCard.classList.add('active-filter');
     }
 
     applyFilters();
 }
-// ── Tower Chart ──────────────────────────────────────────────────────────
-
-function renderChart(assets) {
-    var canvas = document.getElementById('tower-chart');
-    if (!canvas) return;
-    var ctx = canvas.getContext('2d');
-
-    // Destroy old chart if exists
-    if (towerChart) {
-        towerChart.destroy();
-        towerChart = null;
-    }
-
-    // Nothing to show
-    if (assets.length === 0) {
-        document.getElementById('chart-note').textContent =
-            'No assets match the current filters.';
-        return;
-    }
-
-    // Only show assets with vulns in chart (cleaner)
-    var assetsWithVulns = assets.filter(function (a) {
-        return a.total_vulns > 0;
-    });
-
-    if (assetsWithVulns.length === 0) {
-        document.getElementById('chart-note').textContent =
-            'No vulnerabilities found on any asset. All clean!';
-        return;
-    }
-
-    // Limit bars for readability
-    var chartAssets = assetsWithVulns.slice(0, MAX_CHART_BARS);
-    var chartNote = '';
-    if (assetsWithVulns.length > MAX_CHART_BARS) {
-        chartNote = 'Showing top ' + MAX_CHART_BARS +
-            ' of ' + assetsWithVulns.length +
-            ' assets with vulnerabilities. See table for all.';
-    }
-    document.getElementById('chart-note').textContent = chartNote;
-
-    // Build labels (truncate long hostnames)
-    var labels = chartAssets.map(function (a) {
-        return truncateLabel(a.host, 25);
-    });
-
-    // Full hostnames for tooltips
-    var fullHostnames = chartAssets.map(function (a) {
-        return a.host;
-    });
-
-    towerChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Critical',
-                    data: chartAssets.map(function (a) { return a.vuln_counts.critical; }),
-                    backgroundColor: SEVERITY_COLORS.critical
-                },
-                {
-                    label: 'High',
-                    data: chartAssets.map(function (a) { return a.vuln_counts.high; }),
-                    backgroundColor: SEVERITY_COLORS.high
-                },
-                {
-                    label: 'Medium',
-                    data: chartAssets.map(function (a) { return a.vuln_counts.medium; }),
-                    backgroundColor: SEVERITY_COLORS.medium
-                },
-                {
-                    label: 'Low',
-                    data: chartAssets.map(function (a) { return a.vuln_counts.low; }),
-                    backgroundColor: SEVERITY_COLORS.low
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 20
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        title: function (items) {
-                            var idx = items[0].dataIndex;
-                            return fullHostnames[idx];
-                        },
-                        afterBody: function (items) {
-                            var idx = items[0].dataIndex;
-                            var asset = chartAssets[idx];
-                            return [
-                                '',
-                                'Tier: ' + asset.tier.toUpperCase(),
-                                'Ports: ' + asset.port_count,
-                                'Total vulns: ' + asset.total_vulns
-                            ];
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    stacked: true,
-                    ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
-                        font: { size: 11 }
-                    },
-                    grid: { display: false }
-                },
-                y: {
-                    stacked: true,
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Vulnerability Count',
-                        font: { size: 13 }
-                    },
-                    ticks: {
-                        stepSize: 1,
-                        precision: 0
-                    }
-                }
-            }
-        }
-    });
-}
-
 
 // ── Asset Table ──────────────────────────────────────────────────────────
 
@@ -376,7 +273,7 @@ function renderTable(assets) {
 
     if (assets.length === 0) {
         tbody.innerHTML =
-            '<tr><td colspan="9" class="text-center text-muted py-4">' +
+            '<tr><td colspan="11" class="text-center text-muted py-4">' +
             'No assets match the current filters.</td></tr>';
         tableCount.textContent = '0 assets';
         return;
@@ -385,7 +282,7 @@ function renderTable(assets) {
     tableCount.textContent = assets.length + ' assets';
 
     tbody.innerHTML = assets.map(function (a) {
-        var tierBadge = TIER_BADGES[a.tier] || TIER_BADGES.standard;
+        var tierBadge = renderTierBadge(a.tier, a.is_legacy);
 
         var critBadge = vulnBadge(a.vuln_counts.critical, 'critical');
         var highBadge = vulnBadge(a.vuln_counts.high, 'high');
@@ -399,14 +296,10 @@ function renderTable(assets) {
         // Technology list
         var techStr = '';
         if (a.tech && a.tech.length > 0) {
-            techStr = a.tech.slice(0, 3).map(function (t) {
+            techStr = a.tech.map(function (t) {
                 return '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle me-1" style="font-size:0.65rem">' +
                     escapeHtml(t) + '</span>';
             }).join('');
-            if (a.tech.length > 3) {
-                techStr += ' <span class="text-muted">+' +
-                    (a.tech.length - 3) + '</span>';
-            }
         } else if (a.web_server) {
             techStr = '<small class="text-muted">' +
                 escapeHtml(a.web_server) + '</small>';
@@ -414,16 +307,36 @@ function renderTable(assets) {
             techStr = '<small class="text-muted">—</small>';
         }
 
-        var portStr = a.port_count > 0
-            ? a.port_count.toString()
+        var portList = (a.ports || []).sort((x, y) => x - y);
+        var portStr = portList.length > 0
+            ? portList.map(p => '<span class="badge bg-dark border border-secondary text-secondary me-1" style="font-size:0.65rem">' + p + '</span>').join('')
+            : '<span class="text-muted small">—</span>';
+
+        var statusCode = a.status_code || 0;
+        var statusBadge = '';
+        if (statusCode > 0) {
+            var statusClass = statusCode < 300 ? 'bg-success'
+                : statusCode < 400 ? 'bg-info'
+                : statusCode < 500 ? 'bg-warning text-dark' : 'bg-danger';
+            statusBadge = '<span class="badge ' + statusClass + '">' + statusCode + '</span>';
+        } else {
+            statusBadge = '<span class="badge bg-secondary">-</span>';
+        }
+
+        var titleStr = a.title 
+            ? '<small class="text-muted">' + escapeHtml(a.title) + '</small>' 
+            : '<span class="text-muted">-</span>';
+
+        // Endpoint badge (informational, not clickable anymore as we have a card below)
+        var endpointStr = a.endpoint_count > 0
+            ? `<span class="badge bg-dark border border-info-subtle text-info">${a.endpoint_count}</span>`
             : '<span class="text-muted">0</span>';
 
-        return '<tr>' +
+        let htmlRow = '<tr>' +
             '<td>' + tierBadge + '</td>' +
-            '<td><code>' + escapeHtml(a.host) + '</code>' +
-            (a.title ? '<br><small class="text-muted">' +
-                escapeHtml(a.title) + '</small>' : '') +
-            '</td>' +
+            '<td><code>' + escapeHtml(a.host) + '</code></td>' +
+            '<td>' + statusBadge + '</td>' +
+            '<td>' + titleStr + '</td>' +
             '<td class="text-center">' + critBadge + '</td>' +
             '<td class="text-center">' + highBadge + '</td>' +
             '<td class="text-center">' + medBadge + '</td>' +
@@ -432,7 +345,79 @@ function renderTable(assets) {
             '<td class="text-center">' + portStr + '</td>' +
             '<td>' + techStr + '</td>' +
             '</tr>';
+            
+        if (a.tier === "Exposed Development") {
+            htmlRow += `<tr>
+                <td colspan="11" style="
+                    padding: 4px 12px 8px 12px;
+                    font-size: 0.78rem;
+                    color: #FAC775;
+                    border-bottom: 1px solid rgba(250,199,117,0.2);">
+                    ⚠ Publicly reachable development environment
+                    — verify this exposure is intentional.
+                </td>
+            </tr>`;
+        }
+        return htmlRow;
     }).join('');
+}
+
+
+// ── Discovered Endpoints (Arjun) ──────────────────────────────────────────
+
+async function loadEndpoints() {
+    var listEl = document.getElementById('endpoints-list');
+    var countEl = document.getElementById('endpoint-count');
+    if (!listEl) return;
+
+    try {
+        var data = await api.get('/api/assets/endpoints/' + DOMAIN);
+        var endpoints = data.endpoints || [];
+
+        countEl.textContent = endpoints.length;
+
+        if (endpoints.length === 0) {
+            listEl.innerHTML = '<div class="text-center py-4"><p class="text-muted">No hidden endpoints discovered yet. Run a scan with Parameter Discovery enabled.</p></div>';
+            return;
+        }
+
+        let html = `
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 100px;">Method</th>
+                        <th>URL</th>
+                        <th>Discovered Parameters</th>
+                        <th style="width: 120px;">Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        html += endpoints.map(e => {
+            const params = (e.parameters || []).map(p => 
+                `<span class="badge bg-secondary-subtle text-light border border-secondary me-1 mb-1" style="font-size:0.7rem">${escapeHtml(p)}</span>`
+            ).join('');
+            
+            const sourceColor = e.source === 'arjun_smart' ? 'bg-info' : 'bg-secondary';
+
+            return `
+                <tr>
+                    <td><span class="badge bg-primary">${escapeHtml(e.method || 'GET')}</span></td>
+                    <td><small><code>${escapeHtml(e.url)}</code></small></td>
+                    <td style="white-space:normal;">${params || '<span class="text-muted small">None</span>'}</td>
+                    <td><span class="badge ${sourceColor} text-dark" style="font-size:0.65rem">${escapeHtml(e.source || 'arjun')}</span></td>
+                </tr>
+            `;
+        }).join('');
+
+        html += '</tbody></table>';
+        listEl.innerHTML = html;
+
+    } catch (err) {
+        console.error('Endpoints load error:', err);
+        listEl.innerHTML = '<p class="text-danger text-center py-3">Error loading discovered endpoints.</p>';
+    }
 }
 
 

@@ -96,7 +96,7 @@
 <!-- Stats Cards -->
 <div class="row mb-4">
     <div class="col-md-3">
-        <div class="card stat-card">
+        <div class="card stat-card filter-card" onclick="cardFilter('total')" style="cursor: pointer;">
             <div class="stat-value stat-total" id="stat-total">-</div>
             <div class="stat-label">Total Emails</div>
         </div>
@@ -114,7 +114,7 @@
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card stat-card">
+        <div class="card stat-card filter-card" onclick="cardFilter('passwords')" style="cursor: pointer;">
             <div class="stat-value stat-breached" id="stat-passwords">-</div>
             <div class="stat-label">Password Leaks</div>
         </div>
@@ -132,6 +132,7 @@
                 <option value="breached"> Breached Only</option>
                 <option value="clean"> Clean Only</option>
                 <option value="unknown"> Unchecked</option>
+                <option value="passwords"> Password Leaks</option>
             </select>
         </div>
     </div>
@@ -216,9 +217,13 @@
             const filter = document.getElementById('filter-breach').value;
             let filtered = allEmails;
             if (filter) {
-                filtered = allEmails.filter(
-                    e => e.breach_status === filter
-                );
+                if (filter === 'passwords') {
+                    filtered = allEmails.filter(e => e.password_leaked === true);
+                } else {
+                    filtered = allEmails.filter(
+                        e => e.breach_status === filter
+                    );
+                }
             }
 
             renderTable(filtered);
@@ -315,7 +320,7 @@
     async function runHarvest() {
         const domain = document.getElementById('email-domain').value;
         if (!domain) {
-            alert('Select a domain first');
+            toast.warning('Select a domain first');
             return;
         }
 
@@ -348,14 +353,18 @@
     async function recheckBreaches() {
         const domain = document.getElementById('email-domain').value;
         if (!domain) {
-            alert('Select a domain first');
+            toast.warning('Select a domain first');
             return;
         }
 
-        if (!confirm(
-            'Re-check all emails against HaveIBeenPwned?\n' +
-            'This requires an API key and may take a while.'
-        )) return;
+        const confirmed = await toast.confirm({
+            title: 'Verify Breaches',
+            message: 'Re-check all discovered emails against commercial breach databases? This requires a configured HIBP/LeakCheck key.',
+            confirmText: 'Start Verification',
+            type: 'warning'
+        });
+        
+        if (!confirmed) return;
 
         const statusDiv = document.getElementById('harvest-status');
         statusDiv.innerHTML =
@@ -389,12 +398,23 @@
 
     // ─── Delete Email ────────────────────────────────────────
     async function deleteEmail(emailId) {
-        if (!emailId || !confirm('Delete this email record?')) return;
+        if (!emailId) return;
+        
+        const confirmed = await toast.confirm({
+            title: 'Delete Email',
+            message: 'Remove this email record from the intelligence database?',
+            confirmText: 'Delete Record',
+            type: 'danger'
+        });
+        
+        if (!confirmed) return;
+
         try {
             await api.delete(`/api/emails/${emailId}`);
+            toast.success('Email record removed');
             loadEmails();
         } catch (e) {
-            alert('Delete failed');
+            toast.error('Delete failed');
         }
     }
 
@@ -409,17 +429,23 @@
     // ─── Initialize ──────────────────────────────────────────
     function cardFilter(status) {
         const select = document.getElementById('filter-breach');
-        select.value = status;
         
-        // Remove active class from all filter cards
-        document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('active-filter'));
-        
-        // Add active class to clicked card
-        if (status === 'breached') {
-            document.querySelector('.stat-breached').parentElement.classList.add('active-filter');
-        } else if (status === 'clean') {
-            document.querySelector('.stat-clean').parentElement.classList.add('active-filter');
+        // Handle "Total Emails" card click to show "All"
+        if (status === 'total') {
+            select.value = "";
+        } else {
+            select.value = status;
         }
+        
+        // Handle active visual state
+        document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('active-filter', 'border-primary'));
+        
+        // Find the card element and add focus-like border
+        const cards = document.querySelectorAll('.filter-card');
+        if (status === 'total') cards[0].classList.add('active-filter', 'border-primary');
+        if (status === 'breached') cards[1].classList.add('active-filter', 'border-primary');
+        if (status === 'clean') cards[2].classList.add('active-filter', 'border-primary');
+        if (status === 'passwords') cards[3].classList.add('active-filter', 'border-primary');
         
         loadEmails();
     }

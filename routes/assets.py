@@ -108,9 +108,9 @@ def get_asset_stats(domain):
         # Count by technology
         tech_pipeline = [
             {"$match": {"target_domain": domain}},
-            {"$unwind": "$technologies"},
+            {"$unwind": "$tech"},
             {"$group": {
-                "_id": "$technologies",
+                "_id": "$tech",
                 "count": {"$sum": 1}
             }},
             {"$sort": {"count": -1}},
@@ -275,8 +275,20 @@ def get_asset_breakdown(domain):
                     asset["status_code"]
                 )
 
+        # ── Aggregate endpoints by host ──────────────
+        endpoint_agg = list(db[Config.ENDPOINTS_COLLECTION].aggregate([
+            {"$match": {"target_domain": domain}},
+            {
+                "$group": {
+                    "_id": "$host",
+                    "count": {"$sum": 1}
+                }
+            }
+        ]))
+        endpoint_by_host = {entry["_id"]: entry["count"] for entry in endpoint_agg}
+
         # ── Build combined result ────────────────────
-        from utils.asset_classifier import classify_host
+        from utils.asset_classifier import classify_asset_tier, TIER_UI
 
         default_vulns = {
             "critical": 0, "high": 0,
@@ -295,7 +307,7 @@ def get_asset_breakdown(domain):
             })
 
             total_vulns = sum(vulns.values())
-            tier = classify_host(host)
+            tier, is_legacy = classify_asset_tier(host)
 
             # Determine risk level from worst severity
             if vulns["critical"] > 0:
@@ -317,6 +329,9 @@ def get_asset_breakdown(domain):
             assets.append({
                 "host": host,
                 "tier": tier,
+                "tier_label": TIER_UI[tier]["label"],
+                "tier_color": TIER_UI[tier]["color"],
+                "is_legacy": is_legacy,
                 "risk_level": risk_level,
                 "vuln_counts": vulns,
                 "total_vulns": total_vulns,
@@ -325,7 +340,8 @@ def get_asset_breakdown(domain):
                 "tech": tech_list,
                 "title": http.get("title", ""),
                 "web_server": http.get("web_server", ""),
-                "status_code": http.get("status_code", 0)
+                "status_code": http.get("status_code", 0),
+                "endpoint_count": endpoint_by_host.get(host, 0)
             })
 
         # Sort by total vulns descending
@@ -334,10 +350,19 @@ def get_asset_breakdown(domain):
             reverse=True
         )
 
+        from utils.asset_classifier import (
+            TIER_CROWN_JEWELS, TIER_CORE_INFRA, TIER_CUSTOMER,
+            TIER_EXPOSED_DEV, TIER_STANDARD, TIER_LEGACY
+        )
+
         # Tier summary
         tier_summary = {
-            "critical": 0, "high": 0,
-            "standard": 0, "low": 0
+            TIER_CROWN_JEWELS: 0,
+            TIER_CORE_INFRA:   0,
+            TIER_CUSTOMER:     0,
+            TIER_EXPOSED_DEV:  0,
+            TIER_STANDARD:     0,
+            TIER_LEGACY:       0,
         }
         for a in assets:
             tier_summary[a["tier"]] += 1
@@ -354,6 +379,28 @@ def get_asset_breakdown(domain):
         return jsonify({
             "success": False, "error": str(e)
         }), 500
+
+
+# ─── GET Discovered Endpoints (Arjun) ────────────────────────────────────
+
+@assets_bp.route("/endpoints/<domain>", methods=["GET"])
+def get_endpoints_by_domain(domain):
+    """GET /api/assets/endpoints/<domain> - Get discovered endpoints & parameters"""
+    try:
+        db = get_db()
+        endpoints = _serialize_list(
+            db[Config.ENDPOINTS_COLLECTION].find(
+                {"target_domain": domain}
+            ).sort("discovered_at", -1)
+        )
+        return jsonify({
+            "success": True,
+            "domain": domain,
+            "count": len(endpoints),
+            "endpoints": endpoints
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 # ─── DELETE Asset ────────────────────────────────────────────────────────
 
 @assets_bp.route("/<asset_id>", methods=["DELETE"])

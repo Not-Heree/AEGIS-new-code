@@ -77,6 +77,145 @@
         font-size: 0.9rem;
     }
 
+    /* ── From Prompt ───────────────────── */
+    .api-features {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin: 6px 0;
+    }
+    .feature-pill {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 99px;
+        background: rgba(255,255,255,0.07);
+        color: #a0a4b0;
+        border: 0.5px solid rgba(255,255,255,0.1);
+    }
+    .api-importance-label {
+        font-size: 0.65rem;
+        padding: 1px 7px;
+        border-radius: 99px;
+        font-weight: 500;
+        margin-left: 6px;
+    }
+    .api-importance-label.required {
+        background: rgba(226,75,74,0.15);
+        color: #E24B4A;
+    }
+    .api-importance-label.optional {
+        background: rgba(136,135,128,0.15);
+        color: #888780;
+    }
+    .info-banner {
+        background: #f8f9fa;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        margin-bottom: 24px;
+        overflow: hidden;
+    }
+    .info-banner-header {
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .info-banner-body {
+        padding: 0 16px 16px;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+    .info-banner-body p:last-child {
+        margin-bottom: 0;
+    }
+    .api-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 10px;
+        padding: 16px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .api-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .api-card-title {
+        display: flex;
+        align-items: center;
+    }
+    .api-service-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    .api-card-desc {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin-bottom: 8px;
+    }
+    .api-key-meta {
+        font-size: 0.8rem;
+        background: #f8f9fa;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .key-source {
+        color: var(--text-secondary);
+    }
+    .api-input-area {
+        margin-top: auto;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+    .api-input-area input {
+        flex: 1;
+        padding: 6px 12px;
+        border: 1px solid var(--card-border);
+        border-radius: 6px;
+        font-size: 0.9rem;
+    }
+    .api-card-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+    }
+    .api-btn-group {
+        display: flex;
+        gap: 6px;
+    }
+    .censys-dual {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .censys-field-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .censys-field-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        width: 75px;
+    }
+    .censys-hint {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin: 4px 0 0 0;
+    }
+
     @media (max-width: 767.98px) {
         .key-actions .btn {
             flex-basis: 100%;
@@ -118,8 +257,14 @@
     </div>
     <div class="col-md-4 mb-3 mb-md-0">
         <div class="card stat-card">
-            <div class="stat-value">{{ keys_total - keys_configured }}</div>
-            <div class="stat-label">Optional Gaps</div>
+            {% if (keys_total - keys_configured) > 0 %}
+            <div class="stat-value" style="color: #EF9F27;">
+            {% else %}
+            <div class="stat-value" style="color: #888780;">
+            {% endif %}
+                {{ keys_total - keys_configured }}
+            </div>
+            <div class="stat-label">Unconfigured</div>
             <div class="stat-icon"><i class="bi bi-sliders"></i></div>
         </div>
     </div>
@@ -132,198 +277,266 @@
     </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-info-circle"></i> How This Page Works</h5>
-    </div>
-    <div class="card-body">
-        <div class="row g-3">
-            <div class="col-lg-4">
-                <div class="summary-muted">Hunter.io and IntelX support email discovery. LeakCheck adds fallback breach lookups. Shodan and Censys power passive infrastructure recon.</div>
-            </div>
-            <div class="col-lg-4">
-                <div class="summary-muted">Configured keys may come from the database or directly from environment variables, and the page shows the current source for each active credential.</div>
-            </div>
-            <div class="col-lg-4">
-                <div class="summary-muted">Testing is optional before save, but it is useful for catching invalid credentials before a scan or harvest job depends on them.</div>
-            </div>
-        </div>
-    </div>
+<div class="info-banner" id="how-it-works-banner">
+  <div class="info-banner-header" onclick="toggleBanner()">
+    <span>How this page works</span>
+    <span id="banner-chevron">▸</span>
+  </div>
+  <div class="info-banner-body" id="banner-body" style="display:none;">
+    <p>Hunter.io and IntelX support email discovery. LeakCheck adds fallback breach lookups. Shodan and Censys power passive infrastructure recon.</p>
+    <p>Configured keys may come from the database or directly from environment variables. The page shows the current source for each active credential.</p>
+    <p>Testing is optional before save, but validates credentials before a scan or harvest job depends on them.</p>
+  </div>
 </div>
 
 <div class="row g-4">
     {% for key_name, status in keys_status.items() %}
+    {% set service_id = 'hunter' if key_name == 'HUNTER_API_KEY' else 'censys' if key_name == 'CENSYS_PAT' else 'intelx' if key_name == 'INTELX_API_KEY' else 'leakcheck' if key_name == 'LEAKCHECK_API_KEY' else 'shodan' %}
+    {% set req_class = 'required' if service_id in ['hunter', 'shodan', 'censys'] else 'optional' %}
+    {% set req_label = 'Required' if req_class == 'required' else 'Optional' %}
     <div class="col-xl-6">
-        <div class="card key-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div>
-                    <h5 class="mb-1">{{ status.name }}</h5>
-                    <small class="text-muted">{{ status.description }}</small>
+        <div class="api-card" id="card-{{ service_id }}">
+
+            <!-- Header Row -->
+            <div class="api-card-header">
+                <div class="api-card-title">
+                    <span class="api-service-name">{{ status.name }}</span>
+                    <span class="api-importance-label {{ req_class }}">{{ req_label }}</span>
                 </div>
                 <span class="badge key-status-pill {% if status.configured %}configured{% else %}missing{% endif %}">
                     {% if status.configured %}Configured{% else %}Not Configured{% endif %}
                 </span>
             </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <div class="fw-semibold mb-2">Features</div>
-                    <ul class="feature-list">
-                        {% for feature in status.features %}
-                        <li>{{ feature }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
 
-                {% if status.configured %}
-                <div class="key-meta mb-3">
-                    <div class="mb-1"><span class="fw-semibold">Current Key:</span> <code>{{ status.masked_value }}</code></div>
-                    <small class="text-muted">Source: {{ status.source }}</small>
+            <!-- Description -->
+            <p class="api-card-desc">{{ status.description }}</p>
+
+            <!-- Features -->
+            <div class="api-features">
+                {% for feature in status.features %}
+                <span class="feature-pill">{{ feature }}</span>
+                {% endfor %}
+            </div>
+
+            <!-- Meta details (key preview, source, last tested) -->
+            {% if status.configured %}
+            <div class="api-key-meta">
+                <span class="key-preview">{{ status.masked_value }}</span>
+                <span class="key-source">via {{ status.source }}</span>
+                <span class="key-last-tested" id="last-tested-{{ service_id }}">Never tested</span>
+            </div>
+            {% endif %}
+
+            <!-- Form Wrapper -->
+            <!-- Note: We keep the form action but prevent default to handle native submission cleanly or via the buttons -->
+            <form method="POST" action="{{ url_for('api_keys.save_key') }}" id="form-{{ service_id }}" data-key-name="{{ key_name }}">
+                <input type="hidden" name="key_name" value="{{ key_name }}">
+                
+                {% if key_name == 'CENSYS_PAT' %}
+                <!-- Censys Dual-Input -->
+                <div class="api-input-area censys-dual">
+                    <div class="censys-field-group">
+                        <label class="censys-field-label">API ID</label>
+                        <input type="password" id="censys-api-id" placeholder="Your Censys API ID" autocomplete="off" />
+                    </div>
+                    <div class="censys-field-group">
+                        <label class="censys-field-label">API Secret</label>
+                        <input type="password" id="censys-api-secret" placeholder="Your Censys API Secret" autocomplete="off" />
+                    </div>
+                    <!-- Hidden field to capture the joined token for the backend natively -->
+                    <input type="hidden" id="key-input-censys" name="key_value" value="">
+                    
+                    <p class="censys-hint">
+                        Both fields are required. They will be joined as <code>API_ID:API_SECRET</code> for Basic Auth.
+                    </p>
+                    <a href="{{ status.docs }}" target="_blank" class="docs-link d-inline-block mt-1" style="font-size:0.8rem;">Docs ↗</a>
+                </div>
+                {% else %}
+                <!-- Standard Input -->
+                <div class="api-input-area">
+                    <input type="password" id="key-input-{{ service_id }}" name="key_value" placeholder="Enter your {{ status.name }} key" autocomplete="off" />
+                    <a href="{{ status.docs }}" target="_blank" class="docs-link" style="font-size:0.8rem; margin-left: auto;">Docs ↗</a>
                 </div>
                 {% endif %}
 
-                <form method="POST" action="{{ url_for('api_keys.save_key') }}" class="key-form" data-key-name="{{ key_name }}">
-                    <input type="hidden" name="key_name" value="{{ key_name }}">
-
-                    <div class="mb-3">
-                        <label for="key_value_{{ key_name }}" class="form-label">API Key</label>
-                        <input
-                            type="password"
-                            class="form-control"
-                            id="key_value_{{ key_name }}"
-                            name="key_value"
-                            placeholder="Enter your {{ status.name }}"
-                            autocomplete="off"
-                        >
-                        <div class="form-text">
-                            Docs:
-                            <a href="{{ status.docs }}" target="_blank" rel="noopener noreferrer">{{ status.docs }}</a>
-                        </div>
-                    </div>
-
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" name="test_first" id="test_{{ key_name }}" checked>
-                        <label class="form-check-label" for="test_{{ key_name }}">
-                            Test key before saving
-                        </label>
-                    </div>
-
-                    <div class="key-actions">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-save"></i> Save Key
-                        </button>
-                        <button type="button" class="btn btn-outline-primary test-key-btn" data-key-name="{{ key_name }}">
-                            <i class="bi bi-beaker"></i> Test
-                        </button>
+                <!-- Action Row -->
+                <div class="api-card-actions">
+                    <label class="toggle-label d-flex align-items-center gap-2 m-0" style="font-size:0.85rem;">
+                        <input type="checkbox" name="test_first" id="test-before-save-{{ service_id }}" checked />
+                        <span>Test before saving</span>
+                    </label>
+                    <div class="api-btn-group">
+                        <!-- Buttons bound natively via Javascript below -->
+                        <button type="button" class="btn btn-sm btn-outline-primary btn-test" onclick="testKey('{{ service_id }}')">Test</button>
+                        <button type="button" class="btn btn-sm btn-primary btn-save" onclick="saveKey('{{ service_id }}')">Save</button>
                         {% if status.configured %}
-                        <button type="button" class="btn btn-outline-danger delete-key-btn" data-key-name="{{ key_name }}">
-                            <i class="bi bi-trash"></i> Delete
-                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete" onclick="deleteKey('{{ key_name }}')">Delete</button>
                         {% endif %}
                     </div>
+                </div>
 
-                    <div class="mt-3 test-result d-none" id="test_result_{{ key_name }}"></div>
-                </form>
-            </div>
+                <!-- Test Result -->
+                <div class="api-test-result" id="test-result-{{ service_id }}" style="display:none; margin-top:8px;"></div>
+            </form>
         </div>
     </div>
     {% endfor %}
 </div>
 
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteModalLabel">Delete API Key</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="mb-2">Remove this stored key from the encrypted database?</p>
-                <p class="text-danger mb-0">Any feature depending on it will fall back to the environment value or stop working if no fallback exists.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" action="{{ url_for('api_keys.delete_key') }}" id="deleteForm">
-                    <input type="hidden" name="key_name" id="delete_key_name">
-                    <button type="submit" class="btn btn-danger">Delete Key</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    const deleteModalElement = document.getElementById('deleteModal');
-    const deleteModal = deleteModalElement ? new bootstrap.Modal(deleteModalElement) : null;
 
-    document.querySelectorAll('.test-key-btn').forEach(btn => {
-        btn.addEventListener('click', async function () {
-            const keyName = this.dataset.keyName;
-            const keyValue = document.getElementById(`key_value_${keyName}`).value;
-            const resultDiv = document.getElementById(`test_result_${keyName}`);
+    // --- Info Banner Toggle
+    function toggleBanner() {
+        const body = document.getElementById('banner-body');
+        const chevron = document.getElementById('banner-chevron');
+        const visible = body.style.display !== 'none';
+        body.style.display = visible ? 'none' : 'block';
+        chevron.textContent = visible ? '▸' : '▾';
+    }
 
-            if (!keyValue) {
-                resultDiv.classList.remove('d-none');
-                resultDiv.innerHTML = '<div class="alert alert-warning">Enter an API key before testing.</div>';
-                return;
+    // --- Censys Dual Input Parser
+    function getCensysKey() {
+        const id = document.getElementById('censys-api-id').value.trim();
+        const secret = document.getElementById('censys-api-secret').value.trim();
+        if (!id || !secret) {
+            showTestResult('censys', false, 'Both API ID and API Secret are required.');
+            return null;
+        }
+        return `${id}:${secret}`;
+    }
+
+    // --- Save Button Flow
+    async function saveKey(serviceId) {
+        let keyValue;
+        if (serviceId === 'censys') {
+            keyValue = getCensysKey();
+            if (!keyValue) return; // Validation failed
+            document.getElementById('key-input-censys').value = keyValue;
+        } else {
+            keyValue = document.getElementById(`key-input-${serviceId}`).value.trim();
+        }
+
+        if (!keyValue) {
+            toast.warning('Please enter an API key before saving.');
+            return;
+        }
+
+        // Submit natively via form ID
+        document.getElementById(`form-${serviceId}`).submit();
+    }
+
+    // --- Testing Real-time Feedback
+    async function testKey(serviceId) {
+        const btn = document.querySelector(`#card-${serviceId} .btn-test`);
+        const resultEl = document.getElementById(`test-result-${serviceId}`);
+        const form = document.getElementById(`form-${serviceId}`);
+        const keyName = form.getAttribute('data-key-name');
+        
+        const keyValue = serviceId === 'censys' 
+            ? getCensysKey() 
+            : document.getElementById(`key-input-${serviceId}`).value.trim();
+
+        if (!keyValue) {
+            showTestResult(serviceId, false, 'Please enter a key before testing.');
+            return;
+        }
+
+        // Loading state
+        btn.disabled = true;
+        btn.textContent = 'Testing...';
+        resultEl.style.display = 'none';
+
+        try {
+            // Adapted your prompt structure to fit our existing backend form data router
+            const formData = new FormData();
+            formData.append('key_value', keyValue);
+
+            const res = await fetch(`/settings/api-keys/test/${keyName}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                showTestResult(serviceId, true, data.message || 'Key is valid.');
+                saveLastTested(serviceId, true);
+                toast.success(`${serviceId.toUpperCase()} key is valid!`);
+            } else {
+                showTestResult(serviceId, false, data.message || data.error || 'Key is invalid.');
+                saveLastTested(serviceId, false);
+                toast.error(`Invalid ${serviceId.toUpperCase()} key.`);
             }
+        } catch (err) {
+            showTestResult(serviceId, false, 'Request failed.');
+            toast.error('Connection error during testing');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Test';
+        }
+    }
 
-            resultDiv.classList.remove('d-none');
-            resultDiv.innerHTML = '<div class="alert alert-info">Testing API key...</div>';
+    function showTestResult(serviceId, success, message) {
+        const el = document.getElementById(`test-result-${serviceId}`);
+        el.style.display = 'block';
+        el.style.color = success ? '#5DCAA5' : '#E24B4A';
+        el.style.fontSize = '0.78rem';
+        el.style.padding = '5px 0 2px 0';
+        el.textContent = success ? `✓ ${message}` : `✗ ${message}`;
+    }
 
-            try {
-                const formData = new FormData();
-                formData.append('key_value', keyValue);
-
-                const response = await fetch(`/settings/api-keys/test/${keyName}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    let detailsHtml = '';
-                    if (result.details) {
-                        const details = Object.entries(result.details).map(([key, value]) => {
-                            const label = key.replace(/_/g, ' ');
-                            return `<li><span class="text-capitalize">${label}</span>: ${value}</li>`;
-                        }).join('');
-                        detailsHtml = `<ul class="mb-0 mt-2">${details}</ul>`;
-                    }
-
-                    resultDiv.innerHTML = `
-                        <div class="alert alert-success">
-                            <strong>Test passed.</strong> ${result.message}
-                            ${detailsHtml}
-                        </div>
-                    `;
-                } else {
-                    resultDiv.innerHTML = `
-                        <div class="alert alert-danger">
-                            <strong>Test failed.</strong> ${result.error}
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                resultDiv.innerHTML = `
-                    <div class="alert alert-danger">
-                        <strong>Error:</strong> ${error.message}
-                    </div>
-                `;
-            }
+    // --- Delete Flow
+    async function deleteKey(keyName) {
+        const confirmed = await toast.confirm({
+            title: 'Remove API Key',
+            message: `Permanently remove the stored key for ${keyName}? This will disable dependent scanners until a new key is provided.`,
+            confirmText: 'Delete Key',
+            type: 'danger'
         });
-    });
+        
+        if (!confirmed) return;
 
-    document.querySelectorAll('.delete-key-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            document.getElementById('delete_key_name').value = this.dataset.keyName;
-            if (deleteModal) {
-                deleteModal.show();
-            }
+        document.getElementById('delete_key_name').value = keyName;
+        document.getElementById('deleteForm').submit();
+    }
+
+    // --- Local Storage Timestamps
+    function saveLastTested(serviceId, passed) {
+        const record = {
+            timestamp: Date.now(),
+            passed: passed
+        };
+        localStorage.setItem(`aegis_last_tested_${serviceId}`, JSON.stringify(record));
+        renderLastTested(serviceId, record);
+    }
+
+    function renderLastTested(serviceId, record) {
+        const el = document.getElementById(`last-tested-${serviceId}`);
+        if (!el || !record) return;
+        const color = record.passed ? '#5DCAA5' : '#E24B4A';
+        const icon = record.passed ? '✓' : '✗';
+        el.innerHTML = `<span style="color:${color};font-size:0.7rem;">${icon} Last tested ${timeAgo(record.timestamp)}</span>`;
+    }
+
+    function timeAgo(ts) {
+        const diff = Math.floor((Date.now() - ts) / 1000);
+        if (diff < 60) return `${diff}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    }
+
+    function loadAllLastTested() {
+        ['hunter', 'intelx', 'leakcheck', 'shodan', 'censys'].forEach(id => {
+            const raw = localStorage.getItem(`aegis_last_tested_${id}`);
+            if (raw) renderLastTested(id, JSON.parse(raw));
         });
-    });
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAllLastTested);
 
     document.querySelectorAll('input[type="password"]').forEach(input => {
         input.addEventListener('dblclick', function () {

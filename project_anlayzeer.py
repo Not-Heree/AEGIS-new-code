@@ -8,30 +8,30 @@ class ComprehensiveProjectAnalyzer:
     def __init__(self, model='qwen2.5:3b'):
         self.model = model
         self.project_path = None
-        print(f"✅ Project Analyzer initialized with {model}\n")
+        print(f" Project Analyzer initialized with {model}\n")
     
     def analyze_entire_project(self, project_path):
         """Main function - Analyzes everything"""
         self.project_path = Path(project_path)
         
         if not self.project_path.exists():
-            print(f"❌ Error: Path does not exist: {project_path}")
+            print(f" Error: Path does not exist: {project_path}")
             return None
         
         print("="*80)
-        print("🔍 COMPREHENSIVE PROJECT ANALYSIS STARTING...")
+        print(" COMPREHENSIVE PROJECT ANALYSIS STARTING...")
         print("="*80)
-        print(f"📁 Project: {self.project_path}\n")
+        print(f" Project: {self.project_path}\n")
         
         # Collect all project data
-        print("📊 Step 1: Scanning project structure...")
+        print(" Step 1: Scanning project structure...")
         structure = self._get_project_structure()
         
-        print("📊 Step 2: Reading code files...")
+        print(" Step 2: Reading code files...")
         backend_code = self._collect_backend_files()
         frontend_code = self._collect_frontend_files()
         
-        print("📊 Step 3: Analyzing with AI (this may take a few minutes)...\n")
+        print(" Step 3: Analyzing with AI (this may take a few minutes)...\n")
         
         # Create comprehensive prompt
         full_analysis = self._analyze_everything(structure, backend_code, frontend_code)
@@ -144,7 +144,7 @@ COMPREHENSIVE ANALYSIS REQUIRED:
 Analyze EVERY sector and EVERY function of this project. Provide detailed findings for:
 
 ---
-1. 🏗️ PROJECT STRUCTURE & ORGANIZATION
+1. ️ PROJECT STRUCTURE & ORGANIZATION
 ---
 - Is the folder structure logical and maintainable?
 - Are files properly organized?
@@ -157,7 +157,7 @@ CRITICAL ISSUES:
 RECOMMENDATIONS:
 
 ---
-2. ⚙️ BACKEND CODE ANALYSIS
+2. ️ BACKEND CODE ANALYSIS
 ---
 For EACH Python file, analyze:
 
@@ -207,7 +207,7 @@ HIGH PRIORITY FIXES:
 MEDIUM PRIORITY IMPROVEMENTS:
 
 ---
-3. 🎨 FRONTEND ANALYSIS
+3.  FRONTEND ANALYSIS
 ---
 
 **HTML ANALYSIS:**
@@ -257,7 +257,7 @@ CRITICAL ISSUES:
 DESIGN IMPROVEMENTS:
 
 ---
-4. 🔒 SECURITY AUDIT
+4.  SECURITY AUDIT
 ---
 List ALL security vulnerabilities found:
 
@@ -286,7 +286,7 @@ OWASP Top 10 Coverage:
 - A10:2021 – SSRF: [Found/Not Found]
 
 ---
-5. 📊 OVERALL PROJECT HEALTH
+5.  OVERALL PROJECT HEALTH
 ---
 
 **STRENGTHS:**
@@ -302,7 +302,7 @@ OWASP Top 10 Coverage:
 - What's lacking?
 
 ---
-6. 🎯 ACTIONABLE RECOMMENDATIONS
+6.  ACTIONABLE RECOMMENDATIONS
 ---
 
 **IMMEDIATE FIXES (Do Today):**
@@ -326,7 +326,7 @@ OWASP Top 10 Coverage:
 3. 
 
 ---
-7. 🚀 MODERNIZATION & BEST PRACTICES
+7.  MODERNIZATION & BEST PRACTICES
 ---
 
 **Technologies to Adopt:**
@@ -342,7 +342,7 @@ OWASP Top 10 Coverage:
 - 
 
 ---
-8. 📈 IMPROVEMENT ROADMAP
+8.  IMPROVEMENT ROADMAP
 ---
 
 **Phase 1 (Week 1-2): Critical Fixes**
@@ -365,7 +365,7 @@ Be extremely detailed, specific, and actionable. Reference actual code, file nam
 """
 
         # Send to AI
-        print("🤖 Analyzing with AI...")
+        print(" Analyzing with AI...")
         response = ollama.chat(
             model=self.model,
             messages=[
@@ -392,7 +392,7 @@ Be extremely detailed, specific, and actionable. Reference actual code, file nam
             f.write("="*80 + "\n\n")
             f.write(analysis)
         
-        print(f"\n💾 Report saved to: {output_path}")
+        print(f"\n Report saved to: {output_path}")
         return output_path
 
 
@@ -411,7 +411,7 @@ def main():
     """)
     
     # Get project path
-    print("📁 Enter the path to your project folder:")
+    print(" Enter the path to your project folder:")
     print("   (Press Enter to use current directory)\n")
     
     project_path = input("Project Path: ").strip()
@@ -419,13 +419,13 @@ def main():
     if not project_path:
         project_path = os.getcwd()
     
-    print(f"\n📂 Selected: {project_path}\n")
+    print(f"\n Selected: {project_path}\n")
     
     # Confirm
     confirm = input("Start analysis? (y/n): ").strip().lower()
     
     if confirm != 'y':
-        print("❌ Analysis cancelled.")
+        print(" Analysis cancelled.")
         return
     
     # Initialize analyzer
@@ -433,26 +433,26 @@ def main():
     
     # Run analysis
     print("\n⏳ This will take several minutes depending on project size...")
-    print("🔄 Please wait...\n")
+    print(" Please wait...\n")
     
     try:
         analysis_result = analyzer.analyze_entire_project(project_path)
         
         if not analysis_result:
-            print("❌ Analysis failed.")
+            print(" Analysis failed.")
             return
         
         print("\n" + "="*80)
-        print("✅ ANALYSIS COMPLETE!")
+        print(" ANALYSIS COMPLETE!")
         print("="*80)
         
         # Show results
-        print("\n📊 ANALYSIS RESULTS:\n")
+        print("\n ANALYSIS RESULTS:\n")
         print(analysis_result)
         
         # Save to file
         print("\n" + "="*80)
-        save = input("\n💾 Save report to file? (y/n): ").strip().lower()
+        save = input("\n Save report to file? (y/n): ").strip().lower()
         
         if save == 'y':
             filename = input("Filename (default: comprehensive_analysis.txt): ").strip()
@@ -460,13 +460,13 @@ def main():
                 filename = 'comprehensive_analysis.txt'
             
             saved_path = analyzer.save_report(analysis_result, filename)
-            print(f"✅ Report saved successfully!")
-            print(f"📄 Location: {saved_path}")
+            print(f" Report saved successfully!")
+            print(f" Location: {saved_path}")
         
-        print("\n🎉 All done! Review the analysis and start improving your project.\n")
+        print("\n All done! Review the analysis and start improving your project.\n")
         
     except Exception as e:
-        print(f"\n❌ Error during analysis: {e}")
+        print(f"\n Error during analysis: {e}")
         import traceback
         traceback.print_exc()
 

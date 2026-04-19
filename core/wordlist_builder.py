@@ -501,7 +501,7 @@ def extract_js_params(http_result: dict) -> Set[str]:
         js_files_analyzed += 1
         matches = param_pattern.findall(body)
         
-        # ✅ Enhanced filtering
+        #  Enhanced filtering
         valid_params = {
             m for m in matches 
             if m.lower() not in js_keywords 

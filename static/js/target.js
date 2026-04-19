@@ -107,7 +107,7 @@ async function pollScanProgress(scan_id, domain) {
                 // If scan is complete or failed, stop polling
                 if (scan.status === 'completed') {
                     clearInterval(poll_interval);
-                    showAlert('✅ Scan completed successfully!', 'success');
+                    showAlert(' Scan completed successfully!', 'success');
                     
                     // Reload target data to show new findings
                     setTimeout(() => {
@@ -119,7 +119,7 @@ async function pollScanProgress(scan_id, domain) {
                     
                 } else if (scan.status === 'failed') {
                     clearInterval(poll_interval);
-                    showAlert('❌ Scan failed: ' + (scan.error_message || 'Unknown error'), 'danger');
+                    showAlert(' Scan failed: ' + (scan.error_message || 'Unknown error'), 'danger');
                     loadTargets();
                 }
             }

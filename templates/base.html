@@ -408,6 +408,9 @@
     <!-- API Helper -->
     <script src="/static/js/api.js?v=2"></script>
 
+    <!-- Premium Notification System -->
+    <script src="/static/js/notifications.js?v=2"></script>
+
     <script>
         function showLoading(btn) {
             btn.disabled = true;
@@ -419,11 +422,35 @@
             btn.innerHTML = text;
         }
 
-        function showAlert(message, type) {
-            // Could be replaced with toast notifications
-            console.log('[' + type + '] ' + message);
+        function showAlert(message, type = 'info') {
+            if (window.toast) {
+                window.toast.show(message, type);
+            } else {
+                console.log('[' + type + '] ' + message);
+            }
         }
+    </script>
 
+    <!-- Premium Confirmation Modal -->
+    <div class="modal fade" id="premium-confirm-modal" tabindex="-1" aria-hidden="true" style="z-index: 100000;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+            <div class="modal-content border-0 shadow-lg" style="background: #15191e; color: #f1f5f9;">
+                <div class="modal-body p-4 text-center">
+                    <div id="p-confirm-icon-container" class="mb-3" style="font-size: 3rem; color: #ef4444;">
+                        <i id="p-confirm-icon" class="bi bi-exclamation-circle"></i>
+                    </div>
+                    <h5 id="p-confirm-title" class="fw-800 text-uppercase mb-2" style="font-size: 1rem; letter-spacing: 1px;">Confirm Action</h5>
+                    <p id="p-confirm-body" class="text-secondary small mb-4">Are you sure you want to proceed?</p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-dark flex-grow-1 border-0 fw-semibold" data-bs-dismiss="modal" style="background: #222a33;">Cancel</button>
+                        <button type="button" id="p-confirm-btn" class="btn btn-danger flex-grow-1 fw-semibold">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
         // ── Risk Grade Helper (global) ──────────────
         function scoreToGrade(score) {
             if (score >= 95) return { grade: 'A+', cls: 'grade-a' };

@@ -13,21 +13,21 @@ class TargetedCodeReviewer:
         self.reviews = {}
         self.current_file_index = 0
         self.files_to_review = []
-        print(f"✅ Targeted Code Reviewer initialized\n")
+        print(f" Targeted Code Reviewer initialized\n")
     
     def set_project(self, project_path):
         """Set project and collect files to review"""
         self.project_path = Path(project_path)
         
         if not self.project_path.exists():
-            print(f"❌ Path doesn't exist: {project_path}")
+            print(f" Path doesn't exist: {project_path}")
             return False
         
-        print(f"📁 Project: {self.project_path}\n")
+        print(f" Project: {self.project_path}\n")
         
         # Collect reviewable files
         self.files_to_review = self._collect_files()
-        print(f"📊 Found {len(self.files_to_review)} files to review\n")
+        print(f" Found {len(self.files_to_review)} files to review\n")
         
         return True
     
@@ -212,7 +212,7 @@ IMPORTANT RULES
 ================================================================================
 """
 
-        print(f"\n🔍 Reviewing: {relative_path}")
+        print(f"\n Reviewing: {relative_path}")
         print(f"   Type: {file_info['type']}")
         print(f"   Lines: {line_count}")
         print("   Analyzing with AI...\n")
@@ -247,38 +247,38 @@ IMPORTANT RULES
         total_files = len(self.files_to_review)
         
         print("="*80)
-        print(f"🚀 Starting review of {total_files} files")
+        print(f" Starting review of {total_files} files")
         print("="*80 + "\n")
         
         for index, filepath in enumerate(self.files_to_review, 1):
             print(f"\n{'='*80}")
-            print(f"📄 File {index}/{total_files}")
+            print(f" File {index}/{total_files}")
             print(f"{'='*80}")
             
             review = self.review_file(filepath)
             
             # Display review
             print("\n" + "─"*80)
-            print("📊 REVIEW RESULTS")
+            print(" REVIEW RESULTS")
             print("─"*80)
             print(review)
             print("─"*80)
             
             if pause_between and index < total_files:
-                print(f"\n✅ Review {index}/{total_files} complete")
+                print(f"\n Review {index}/{total_files} complete")
                 
                 user_input = input("\n[Enter] Continue to next file | [s] Save & Exit | [q] Quit: ").strip().lower()
                 
                 if user_input == 's':
                     self.save_progress()
-                    print("\n💾 Progress saved. Run again to continue from here.")
+                    print("\n Progress saved. Run again to continue from here.")
                     return False
                 elif user_input == 'q':
-                    print("\n👋 Exiting without saving.")
+                    print("\n Exiting without saving.")
                     return False
         
         print("\n" + "="*80)
-        print("🎉 ALL FILES REVIEWED!")
+        print(" ALL FILES REVIEWED!")
         print("="*80)
         
         return True
@@ -292,7 +292,7 @@ IMPORTANT RULES
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(self.reviews, f, indent=2, ensure_ascii=False)
         
-        print(f"\n💾 Reviews saved to: {output_file}")
+        print(f"\n Reviews saved to: {output_file}")
         
         # Also create readable text version
         text_file = self.project_path / f"code_review_{timestamp}.txt"
@@ -336,13 +336,13 @@ IMPORTANT RULES
             for file_type, count in types.items():
                 f.write(f"  - {file_type}: {count}\n")
         
-        print(f"📄 Text report saved to: {output_file}")
+        print(f" Text report saved to: {output_file}")
     
     def generate_summary(self):
         """Generate executive summary of all reviews"""
         
         if not self.reviews:
-            print("❌ No reviews to summarize")
+            print(" No reviews to summarize")
             return
         
         all_reviews = "\n\n".join([
@@ -382,7 +382,7 @@ Provide an EXECUTIVE SUMMARY:
 Keep it concise and actionable.
 """
         
-        print("\n🎯 Generating executive summary...\n")
+        print("\n Generating executive summary...\n")
         
         response = ollama.chat(
             model=self.model,
@@ -407,11 +407,11 @@ Keep it concise and actionable.
             f.write(summary)
         
         print("="*80)
-        print("📊 EXECUTIVE SUMMARY")
+        print(" EXECUTIVE SUMMARY")
         print("="*80)
         print(summary)
         print("="*80)
-        print(f"\n💾 Summary saved to: {summary_file}\n")
+        print(f"\n Summary saved to: {summary_file}\n")
         
         return summary
 
@@ -425,16 +425,16 @@ def main():
 ║           TARGETED CODE REVIEWER                                 ║
 ║           Reviews Each File ONE AT A TIME                        ║
 ║                                                                  ║
-║  ✓ Accurate file-by-file analysis                              ║
-║  ✓ Specific line numbers                                       ║
-║  ✓ No hallucinations                                           ║
-║  ✓ Actionable recommendations                                  ║
+║   Accurate file-by-file analysis                              ║
+║   Specific line numbers                                       ║
+║   No hallucinations                                           ║
+║   Actionable recommendations                                  ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
     """)
     
     # Get project path
-    print("\n📁 Enter your project path:")
+    print("\n Enter your project path:")
     print("   (Press Enter for current directory)\n")
     
     project_path = input("Path: ").strip()
@@ -457,11 +457,11 @@ def main():
     print("-" * 80)
     
     # Confirm
-    print(f"\n📊 Total: {len(reviewer.files_to_review)} files")
+    print(f"\n Total: {len(reviewer.files_to_review)} files")
     confirm = input("\nStart review? (y/n): ").strip().lower()
     
     if confirm != 'y':
-        print("❌ Review cancelled")
+        print(" Review cancelled")
         return
     
     # Ask for pause mode
@@ -469,7 +469,7 @@ def main():
     pause = pause_mode != 'n'
     
     print("\n" + "="*80)
-    print("🚀 STARTING FILE-BY-FILE REVIEW")
+    print(" STARTING FILE-BY-FILE REVIEW")
     print("="*80)
     
     # Run reviews
@@ -477,7 +477,7 @@ def main():
     
     # Save results
     print("\n" + "="*80)
-    print("💾 Saving results...")
+    print(" Saving results...")
     reviewer.save_progress()
     
     # Generate summary
@@ -487,16 +487,16 @@ def main():
         reviewer.generate_summary()
     
     print("\n" + "="*80)
-    print("✅ REVIEW COMPLETE!")
+    print(" REVIEW COMPLETE!")
     print("="*80)
-    print(f"\n📁 Results saved in: {reviewer.project_path}")
+    print(f"\n Results saved in: {reviewer.project_path}")
     print("\nFiles generated:")
     print("  - code_review_[timestamp].json (machine-readable)")
     print("  - code_review_[timestamp].txt (human-readable)")
     if generate_summary == 'y':
         print("  - review_summary_[timestamp].txt (executive summary)")
     
-    print("\n🎉 All done! Review the reports and start fixing issues.\n")
+    print("\n All done! Review the reports and start fixing issues.\n")
 
 
 if __name__ == "__main__":

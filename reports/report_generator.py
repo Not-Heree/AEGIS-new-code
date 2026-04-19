@@ -269,6 +269,8 @@ def generate_report(domain, db=None):
         tech_list = asset.get(
             "tech", asset.get("technologies", [])
         )
+        if isinstance(tech_list, str):
+            tech_list = [t.strip() for t in tech_list.split(",") if t.strip()]
         for tech in tech_list:
             if tech:
                 technologies[tech] = (

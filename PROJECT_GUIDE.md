@@ -4,7 +4,7 @@ This document serves as the canonical map for the EASM AEGIS architecture, featu
 
 ---
 
-## 🏗️ CORE ARCHITECTURE
+## ️ CORE ARCHITECTURE
 
 The system follows a **Tiered Parallel Pipeline** architecture. Each scan phase enriches the target with increasing depth.
 
@@ -18,7 +18,7 @@ The system follows a **Tiered Parallel Pipeline** architecture. Each scan phase 
 
 ---
 
-## 📋 COMPLETE FEATURE LIST
+##  COMPLETE FEATURE LIST
 
 Feature Name | Files Involved | Status
 --- | --- | ---
@@ -41,7 +41,7 @@ Feature Name | Files Involved | Status
 
 ---
 
-## 🔗 DATA INTEGRITY MAP
+##  DATA INTEGRITY MAP
 
 | Collection | Purpose | Source Module |
 | :--- | :--- | :--- |
@@ -56,7 +56,7 @@ Feature Name | Files Involved | Status
 
 ---
 
-## 🛠️ EXTERNAL TOOL DEPENDENCIES
+## ️ EXTERNAL TOOL DEPENDENCIES
 
 The project invokes several Go binaries. Paths must be configured in `.env` or `config.py`.
 
@@ -69,7 +69,7 @@ The project invokes several Go binaries. Paths must be configured in `.env` or `
 
 ---
 
-## 🩹 CRITICAL MAINTENANCE LOG (AUDIT FINDINGS)
+##  CRITICAL MAINTENANCE LOG (AUDIT FINDINGS)
 
 ### 1. Dead Code Candidates (Delete for Maturity)
 - `core/remediation_engine.py` -> `_combine_remediation_sources()`

@@ -60,6 +60,12 @@
             <div class="stat-label">Changes</div>
         </div>
     </div>
+    <div class="col">
+        <div class="card stat-card">
+            <div class="stat-value" id="stat-endpoints">-</div>
+            <div class="stat-label">Endpoints</div>
+        </div>
+    </div>
 </div>
 
 <!-- Scan Progress (hidden by default, shown during scan) -->
@@ -181,7 +187,23 @@
     </div>
 </div>
 
-<!-- Row 5: Vulnerabilities -->
+<!-- Row 5: Discovered Endpoints & Parameters -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between">
+                <h5><i class="bi bi-diagram-2"></i> Discovered Endpoints (Arjun)</h5>
+                <span class="badge bg-primary" id="endpoint-count">0</span>
+            </div>
+            <div class="card-body" id="endpoints-list" style="max-height: 500px; overflow-y: auto;">
+                <p class="text-muted"><i class="bi bi-info-circle"></i> These endpoints were discovered during Phase 3.5 using context-aware wordlists and parameter discovery.</p>
+                <span class="text-muted">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 6: Vulnerabilities -->
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -228,9 +250,7 @@
                 <button class="btn btn-primary me-2" onclick="generateReport()">
                     <i class="bi bi-file-earmark-pdf"></i> PDF Report
                 </button>
-                <button class="btn btn-outline-primary me-2" onclick="downloadCSV()">
-                    <i class="bi bi-filetype-csv"></i> CSV Export
-                </button>
+
                 <button class="btn btn-danger float-end" onclick="deleteTarget()">
                     <i class="bi bi-trash"></i> Delete Target
                 </button>
@@ -299,6 +319,7 @@
         await loadPorts();
         await loadHTTPAssets();
         await loadVulns();
+        await loadEndpoints();
         await loadEmails();
         await loadChanges();
         await loadPassiveRecon();
@@ -457,6 +478,41 @@
         }
     }
 
+    // ── Discovered Endpoints & Parameters ───────────────
+    async function loadEndpoints() {
+        try {
+            var data = await api.get('/api/assets/endpoints/' + domain);
+            var el = document.getElementById('endpoints-list');
+            var endpoints = data.endpoints || [];
+            document.getElementById('endpoint-count').textContent = endpoints.length;
+            document.getElementById('stat-endpoints').textContent = endpoints.length;
+
+            if (endpoints.length === 0) {
+              el.innerHTML = '<p class="text-muted">No hidden endpoints discovered yet. Enable "Parameter Discovery" in target settings.</p>';
+              return;
+            }
+
+            el.innerHTML = '<table class="table table-sm table-hover mb-0"><thead><tr>' +
+                '<th>Method</th><th>URL</th><th>Parameters Discovered</th><th>Source</th></tr></thead><tbody>' +
+                endpoints.map(function (e) {
+                    var params = (e.parameters || []).map(function(p) {
+                      return '<span class="badge bg-dark me-1 mb-1" style="font-size:0.75rem">' + escHtml(p) + '</span>';
+                    }).join('');
+                    
+                    var sourceColor = e.source === 'arjun_smart' ? 'bg-info' : 'bg-secondary';
+                    
+                    return '<tr>' +
+                        '<td><span class="badge bg-primary">' + escHtml(e.method || 'GET') + '</span></td>' +
+                        '<td><small><code>' + escHtml(e.url) + '</code></small></td>' +
+                        '<td style="max-width: 400px; white-space: normal;">' + (params || '<span class="text-muted">-</span>') + '</td>' +
+                        '<td><span class="badge ' + sourceColor + '" style="font-size:0.65rem">' + escHtml(e.source || 'arjun') + '</span></td></tr>';
+                }).join('') + '</tbody></table>';
+        } catch (e) {
+            document.getElementById('endpoints-list').innerHTML =
+                '<p class="text-danger">Error loading endpoints</p>';
+        }
+    }
+
     // ── Vulnerabilities with CVE and confidence ─────────
     async function loadVulns() {
         try {
@@ -564,18 +620,18 @@
             }
 
             var icons = {
-                'new_subdomain': '🟢', 'subdomain_removed': '🔴',
-                'new_port': '🟡', 'port_closed': '⚪',
-                'new_vulnerability': '🔴', 'vulnerability_resolved': '✅',
-                'email_breached': '🔓', 'new_email': '📧',
-                'whois_nameserver_change': '🔄', 'whois_registrar_change': '⚠️',
-                'whois_dnssec_removed': '🔓', 'whois_dnssec_added': '🔒'
+                'new_subdomain': '', 'subdomain_removed': '',
+                'new_port': '', 'port_closed': '',
+                'new_vulnerability': '', 'vulnerability_resolved': '',
+                'email_breached': '', 'new_email': '',
+                'whois_nameserver_change': '', 'whois_registrar_change': '️',
+                'whois_dnssec_removed': '', 'whois_dnssec_added': ''
             };
 
             // Show last 10
             var recent = changes.slice(0, 10);
             el.innerHTML = recent.map(function (c) {
-                var icon = icons[c.change_type] || '🔵';
+                var icon = icons[c.change_type] || '';
                 var msg = (c.details || {}).message || c.change_type || '';
                 var sevClass = {
                     high: 'text-danger', medium: 'text-warning',
@@ -685,7 +741,14 @@
     var scanPollInterval = null;
 
     async function runFullScan() {
-        if (!confirm('Run full scan on ' + domain + '? This may take several minutes.')) return;
+        const confirmed = await toast.confirm({
+            title: 'Run Analysis',
+            message: `Start a full intelligence scan for ${domain}? This may take several minutes.`,
+            confirmText: 'Start Scan',
+            type: 'primary'
+        });
+        
+        if (!confirmed) return;
 
         var statusEl = document.getElementById('action-status');
         statusEl.innerHTML = '';
@@ -697,20 +760,24 @@
         try {
             var result = await api.post('/api/scans/full/' + domain);
             if (result.scan_id) {
+                toast.show(`Scan initiated for ${domain}`, 'info');
                 // Start polling for progress
                 scanPollInterval = setInterval(function () {
                     pollScanProgress(result.scan_id);
                 }, 2000);
             } else if (result.success) {
+                toast.success('Scan completed!');
                 progressCard.classList.add('d-none');
                 statusEl.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed!</div>';
                 loadDetails();
             } else {
+                toast.error(result.error || 'Scan failed');
                 progressCard.classList.add('d-none');
                 statusEl.innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ' +
                     escHtml(result.error || 'Scan failed') + '</div>';
             }
         } catch (e) {
+            toast.error('Scan request failed');
             progressCard.classList.add('d-none');
             statusEl.innerHTML = '<div class="alert alert-danger">Scan request failed</div>';
         }
@@ -741,9 +808,11 @@
                     progressCard.classList.add('d-none');
                     var statusEl = document.getElementById('action-status');
                     if (scan.status === 'failed') {
+                        toast.error('Scan failed');
                         statusEl.innerHTML = '<div class="alert alert-danger">Scan failed: ' +
                             escHtml(scan.error_message || 'Unknown error') + '</div>';
                     } else {
+                        toast.success('Intelligence scan completed');
                         statusEl.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Scan completed! New data loaded below.</div>';
                     }
                     loadDetails();
@@ -760,29 +829,37 @@
             '<div class="alert alert-info"><span class="spinner-border spinner-border-sm me-2"></span>Generating PDF...</div>';
         try {
             window.open('/api/reports/pdf/' + domain, '_blank');
+            toast.success('Report generation started');
             document.getElementById('action-status').innerHTML =
                 '<div class="alert alert-success">PDF report opened in new tab!</div>';
         } catch (e) {
+            toast.error('Report failed');
             document.getElementById('action-status').innerHTML =
                 '<div class="alert alert-danger">Report generation failed</div>';
         }
     }
 
-    async function downloadCSV() {
-        window.open('/api/reports/csv/' + domain, '_blank');
-    }
-
     async function deleteTarget() {
-        if (!confirm('DELETE ' + domain + ' and ALL its data? This cannot be undone!')) return;
+        const confirmed = await toast.confirm({
+            title: 'Delete Target',
+            message: `Permanently delete ${domain} and all associated intelligence data? This action is irreversible.`,
+            confirmText: 'Delete Forever',
+            type: 'danger'
+        });
+        
+        if (!confirmed) return;
+
         try {
             var result = await api.delete('/api/targets/' + domain);
             if (result.success) {
-                alert('Target deleted!');
-                window.location.href = '/targets';
+                toast.success('Target deleted');
+                setTimeout(() => { window.location.href = '/targets'; }, 1000);
             } else {
-                alert('Error: ' + (result.error || 'Unknown'));
+                toast.error('Error: ' + (result.error || 'Unknown'));
             }
-        } catch (e) { alert('Delete failed'); }
+        } catch (e) { 
+            toast.error('Delete operation failed'); 
+        }
     }
 
     // ── Initialize ──────────────────────────────────────

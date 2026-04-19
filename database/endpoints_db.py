@@ -40,7 +40,8 @@ def add_endpoint(
     target_domain: str,
     url: str,
     method: str,
-    parameters: list
+    parameters: list,
+    source: str = "arjun"
 ) -> dict:
     """
     Add or update an endpoint document.
@@ -54,6 +55,7 @@ def add_endpoint(
         url:           Full URL (e.g. "https://api.example.com/users")
         method:        HTTP method (GET, POST, JSON, XML)
         parameters:    List of discovered parameter names
+        source:        Source of the discovery (e.g. "arjun", "arjun_smart")
 
     Returns:
         {"inserted": bool, "updated": bool}
@@ -74,6 +76,7 @@ def add_endpoint(
         "url": url,
         "method": method.upper() if method else "GET",
         "parameters": sorted(set(parameters)) if parameters else [],
+        "source": source,
         "discovered_at": datetime.utcnow(),
         "status": "active",
     }
@@ -107,7 +110,7 @@ def add_endpoints_bulk(
     Args:
         target_id:     MongoDB target document ID
         target_domain: Root domain
-        endpoints:     List of dicts with url, method, parameters
+        endpoints:     List of dicts with url, method, parameters, source
 
     Returns:
         {"inserted": int, "updated": int}
@@ -122,6 +125,7 @@ def add_endpoints_bulk(
             url=ep.get("url", ""),
             method=ep.get("method", "GET"),
             parameters=ep.get("parameters", []),
+            source=ep.get("source", "arjun")
         )
 
         if result.get("inserted"):

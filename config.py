@@ -174,6 +174,27 @@ class Config(metaclass=ConfigMeta):
     ARJUN_MAX_PARAMS = int(
         os.getenv("ARJUN_MAX_PARAMS", "5000")
     )
+    
+    # Context-aware path rules and technology profiles
+    ARJUN_CONTEXT_RULES_PATH = os.getenv(
+        "ARJUN_CONTEXT_RULES_PATH", "data/context_rules.json"
+    )
+    
+    # Adaptive rate limiting profiles (requests per second per URL)
+    # WAF_DELAY: Base delay increase on WAF detection (seconds)
+    # JITTER: Random delay variation (0.0 to 1.0)
+    ARJUN_RATE_PROFILES = {
+        "stealth": {"rate": 2, "threads": 1, "waf_delay": 5.0, "jitter": 0.5},
+        "conservative": {"rate": 5, "threads": 2, "waf_delay": 2.0, "jitter": 0.3},
+        "normal": {"rate": 15, "threads": 5, "waf_delay": 1.0, "jitter": 0.2},
+        "aggressive": {"rate": 50, "threads": 10, "waf_delay": 0.5, "jitter": 0.1}
+    }
+    
+    # Default profile to use
+    ARJUN_DEFAULT_PROFILE = os.getenv("ARJUN_RATE_PROFILE", "conservative")
+    
+    # Circuit breaker: Auto-abort scan for a URL after X consecutive 403/429 errors
+    ARJUN_CIRCUIT_BREAKER_LIMIT = int(os.getenv("ARJUN_CIRCUIT_BREAKER_LIMIT", "3"))
 
     # ═══════════════════════════════════════════════════════════════
     # NAABU PORT SCANNER SETTINGS
@@ -234,6 +255,20 @@ class Config(metaclass=ConfigMeta):
     NUCLEI_TIMEOUT = int(
         os.getenv("NUCLEI_TIMEOUT", "1800")
     )
+
+    # Arjun-Nuclei Tier 7: Parameter-based fuzzing
+    # Enable automatically scanning discovered parameters
+    NUCLEI_TIER7_ENABLED = os.getenv("NUCLEI_TIER7_ENABLED", "True").lower() == "true"
+    
+    # Templates or tags specifically for parameter-based vulnerability discovery
+    # (SQLi, XSS, SSRF, LFI, Open Redirect)
+    NUCLEI_TIER7_TAGS = os.getenv(
+        "NUCLEI_TIER7_TAGS", 
+        "sqli,xss,ssrf,lfi,redirect,rce,fuzzing"
+    )
+    
+    # High-value endpoint threshold: Only scan endpoints with at least X parameters
+    NUCLEI_TIER7_MIN_PARAMS = int(os.getenv("NUCLEI_TIER7_MIN_PARAMS", "3"))
 
     # ═══════════════════════════════════════════════════════════════
     # HTTPX HTTP PROBER SETTINGS

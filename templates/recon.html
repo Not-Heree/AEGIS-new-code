@@ -178,8 +178,8 @@
                             <tbody>
                                 ${allHosts.slice(0, 150).map(h => {
                 const hostnames = (h.hostnames || []).slice(0, 2).map(hn => esc(hn)).join('<br>');
-                const ports = (h.ports || []).slice(0, 8).join(', ');
-                const extraPorts = (h.ports || []).length > 8 ? ` <small class="text-muted">+${h.ports.length - 8}</small>` : '';
+                const ports = (h.ports || []).join(', ');
+                const extraPorts = '';
                 const location = [h.city, h.country].filter(Boolean).join(', ') || '-';
                 const org = h.org || h.isp || '-';
                 const os = h.os ? `<span class="badge bg-light text-dark border">${esc(h.os)}</span>` : '<span class="text-muted">-</span>';
@@ -464,7 +464,7 @@
                     : '<span class="badge bg-light text-dark border">Standard</span>';
                 return `<tr>
                                 <td><strong>${esc(c.domain)}</strong></td>
-                                <td><code>${esc(c.common_name || '-')}</code>${c.san_count > 1 ? ` <small class="text-muted">+${c.san_count - 1} SANs</small>` : ''}</td>
+                                <td><code>${esc(c.common_name || '-')}</code>${(c.san || []).length > 0 ? `<br><small class="text-muted">${(c.san || []).join(', ')}</small>` : ''}</td>
                                 <td>${esc(c.issuer_org || '-')}</td>
                                 <td>${fmtDate(c.not_before)}</td>
                                 <td>${fmtDate(c.not_after)}</td>
@@ -569,7 +569,7 @@
         const censys = d.censys || {};
         const whois = d.whois || {};
         const certs = d.certificates || {};
-        const products = (d.products || []).slice(0, 8);
+        const products = d.products || [];
         const cves = d.cve_count_by_severity || {};
 
         const sources = [];
@@ -624,9 +624,6 @@
         let productsHtml = products.map(p =>
             `<span class="badge bg-light text-dark me-1 mb-1">${esc(p)}</span>`
         ).join('');
-        if ((d.products || []).length > 8) {
-            productsHtml += `<small class="text-muted">+${d.products.length - 8} more</small>`;
-        }
 
         // Header badges
         let headerBadges = `

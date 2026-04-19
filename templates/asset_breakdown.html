@@ -43,35 +43,51 @@
 
 <!-- Tier Summary Cards (Clickable — act as filters) -->
 <div class="row mb-4" id="tier-cards" style="display: none;">
-    <div class="col-md-3">
-        <div class="card filter-card border-danger" id="tier-card-critical" onclick="filterByTier('critical')">
+    <div class="col-md-2">
+        <div class="card filter-card" id="tier-card-critical" onclick="filterByTier('Critical Infrastructure')" style="border-color: #E24B4A;">
             <div class="card-body text-center py-2">
-                <h4 class="mb-0 text-danger" id="tier-critical">0</h4>
-                <small class="text-muted">Critical Infra</small>
+                <h4 class="mb-0" id="tier-critical" style="color: #E24B4A;">0</h4>
+                <small class="text-muted" style="font-size: 0.70rem;">Critical</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card filter-card border-warning" id="tier-card-high" onclick="filterByTier('high')">
+    <div class="col-md-2">
+        <div class="card filter-card" id="tier-card-high" onclick="filterByTier('High Value')" style="border-color: #EF9F27;">
             <div class="card-body text-center py-2">
-                <h4 class="mb-0 text-warning" id="tier-high">0</h4>
-                <small class="text-muted">High Value</small>
+                <h4 class="mb-0" id="tier-high" style="color: #EF9F27;">0</h4>
+                <small class="text-muted" style="font-size: 0.70rem;">High Value</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card filter-card border-secondary" id="tier-card-standard" onclick="filterByTier('standard')">
+    <div class="col-md-2">
+        <div class="card filter-card" id="tier-card-customer" onclick="filterByTier('Customer Surface')" style="border-color: #378ADD;">
             <div class="card-body text-center py-2">
-                <h4 class="mb-0 text-secondary" id="tier-standard">0</h4>
-                <small class="text-muted">Standard</small>
+                <h4 class="mb-0" id="tier-customer" style="color: #378ADD;">0</h4>
+                <small class="text-muted" style="font-size: 0.70rem;">Customer Surface</small>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card filter-card border-success" id="tier-card-low" onclick="filterByTier('low')">
+    <div class="col-md-2">
+        <div class="card filter-card" id="tier-card-exposed" onclick="filterByTier('Exposed Development')" style="border-color: #FAC775;">
             <div class="card-body text-center py-2">
-                <h4 class="mb-0 text-success" id="tier-low">0</h4>
-                <small class="text-muted">Dev / Test</small>
+                <h4 class="mb-0" id="tier-exposed" style="color: #FAC775;">0</h4>
+                <small class="text-muted" style="font-size: 0.70rem;">Exposed Dev</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card filter-card" id="tier-card-standard" onclick="filterByTier('Standard')" style="border-color: #888780;">
+            <div class="card-body text-center py-2">
+                <h4 class="mb-0" id="tier-standard" style="color: #888780;">0</h4>
+                <small class="text-muted" style="font-size: 0.70rem;">Standard</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card filter-card" id="tier-card-legacy" onclick="filterByTier('Legacy / Deprecated')" style="border-color: #7F77DD;">
+            <div class="card-body text-center py-2">
+                <h4 class="mb-0" id="tier-legacy" style="color: #7F77DD;">0</h4>
+                <small class="text-muted" style="font-size: 0.70rem;">Legacy</small>
             </div>
         </div>
     </div>
@@ -88,10 +104,12 @@
                 <label class="form-label small fw-bold">Asset Tier</label>
                 <select id="filter-tier" class="form-select form-select-sm">
                     <option value="all">All Tiers</option>
-                    <option value="critical">Critical Infrastructure</option>
-                    <option value="high">High Value</option>
-                    <option value="standard">Standard</option>
-                    <option value="low">Dev / Test</option>
+                    <option value="Critical Infrastructure">Critical</option>
+                    <option value="High Value">High Value</option>
+                    <option value="Customer Surface">Customer Surface</option>
+                    <option value="Exposed Development">Exposed Dev</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Legacy / Deprecated">Legacy</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -119,20 +137,7 @@
     </div>
 </div>
 
-<!-- Tower Graph -->
-<div class="card mb-4" id="chart-card" style="display: none;">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Vulnerability Tower Graph</h5>
-    </div>
-    <div class="card-body">
-        <div id="chart-container" style="position: relative; height: 400px;">
-            <canvas id="tower-chart"></canvas>
-        </div>
-        <div class="text-center mt-2">
-            <small class="text-muted" id="chart-note"></small>
-        </div>
-    </div>
-</div>
+
 
 <!-- Asset Table -->
 <div class="card" id="table-card" style="display: none;">
@@ -150,6 +155,8 @@
                     <tr>
                         <th>Tier</th>
                         <th>Host</th>
+                        <th>Status</th>
+                        <th>Title</th>
                         <th class="text-center">Critical</th>
                         <th class="text-center">High</th>
                         <th class="text-center">Medium</th>
@@ -171,6 +178,20 @@
     <i class="bi bi-diagram-3" style="font-size: 4rem; color: #ccc;"></i>
     <h4 class="text-muted mt-3">Select a Domain</h4>
     <p class="text-muted">Choose a target domain above to view the per-asset vulnerability breakdown.</p>
+</div>
+
+<!-- Discovered Endpoints Card (Persistent) -->
+<div class="card mt-4" id="endpoints-card" style="display: none;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-diagram-2"></i> Discovered Endpoints & Parameters (Arjun)</h5>
+        <span class="badge bg-primary" id="endpoint-count">0</span>
+    </div>
+    <div class="card-body" id="endpoints-list" style="max-height: 500px; overflow-y: auto;">
+        <div class="text-center py-4 loading-spinner">
+            <div class="spinner-border text-info"></div>
+            <p class="text-muted mt-2">Fetching discovered parameters...</p>
+        </div>
+    </div>
 </div>
 {% endblock %}
 

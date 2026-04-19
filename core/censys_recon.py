@@ -386,7 +386,7 @@ def run_passive_recon(domain):
             "ips": [],
             "open_ports": [],
             "subdomains": [],
-            "technologies": [],
+            "tech": [],
             "cves": []
         }
 
@@ -478,7 +478,7 @@ def run_passive_recon(domain):
         "subdomain_count": len(all_hostnames),
 
         # Technology/label intelligence
-        "technologies": sorted(list(all_technologies)),
+        "tech": sorted(list(all_technologies)),
 
         # CVE intelligence
         "cves": all_cves,

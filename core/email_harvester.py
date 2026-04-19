@@ -1235,7 +1235,7 @@ def harvest_emails(domain):
     logger.info("\n[EMAIL] Harvest complete:")
     logger.info("[EMAIL] Total unique emails: %d", len(final_emails))
     for source, stats in source_stats.items():
-        status = "✓" if stats["success"] else "✗"
+        status = "" if stats["success"] else ""
         logger.info("  [%s] %s: %d emails", status, source, stats["count"])
 
     return {

@@ -73,6 +73,9 @@ async function loadDashboardData() {
 
     // Passive Recon Summary
     loadPassiveReconSummary();
+
+    // Population Targets Table
+    loadTargetsTable(targets);
 }
 
 async function loadPassiveReconSummary() {
@@ -146,25 +149,27 @@ async function loadTargetsTable(targets) {
     }
 
     tbody.innerHTML = targets.slice(0, 10).map(t => {
-        const domain = t.root_domain || t.domain || 'N/A';
+        const domain = (t.root_domain || t.domain || 'N/A').toLowerCase();
         const gradeInfo = riskScoreToGrade(t.risk_score || 0);
 
         return `
-            <tr class="align-middle">
+            <tr class="align-middle clickable-row" 
+                style="cursor: pointer;" 
+                onclick="window.location='/targets/${domain}'">
                 <td class="ps-4">
-                    <div class="fw-800 text-white text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">${domain}</div>
+                    <div class="fw-800 text-dark" style="font-size: 0.75rem; letter-spacing: 0.5px;">${domain}</div>
                     <div class="text-muted fw-bold" style="font-size: 0.6rem; opacity: 0.5;">${(t.org_name || 'EXTERNAL').toUpperCase()}</div>
                 </td>
-                <td class="text-white fw-800 small">${formatNumber(t.total_subdomains || 0)}</td>
-                <td class="text-white fw-800 small">${formatNumber(t.http_assets || 0)}</td>
+                <td class="text-dark fw-800 small">${formatNumber(t.total_subdomains || 0)}</td>
+                <td class="text-dark fw-800 small">${formatNumber(t.http_assets || 0)}</td>
                 <td>
-                    <span class="badge bg-black ${t.total_vulns > 0 ? 'text-danger border-danger border-opacity-25' : 'text-secondary border-secondary border-opacity-10'} fw-800">
+                    <span class="badge bg-dark ${t.total_vulns > 0 ? 'text-danger border-danger border-opacity-25' : 'text-secondary border-secondary border-opacity-10'} fw-800">
                         ${t.total_vulns || 0}
                     </span>
                 </td>
                 <td class="text-secondary fw-800 small">${formatNumber(t.emails || 0)}</td>
                 <td>
-                    <span class="badge bg-black border border-secondary border-opacity-25 fw-800 ${gradeInfo.cls}" style="font-size: 0.65rem;">
+                    <span class="badge bg-dark border border-secondary border-opacity-25 fw-800 ${gradeInfo.cls}" style="font-size: 0.65rem;">
                         ${gradeInfo.grade}
                     </span>
                 </td>

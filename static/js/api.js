@@ -68,11 +68,11 @@ const api = {
 
 // Utility Functions
 function showAlert(message, type = 'info') {
-    if (typeof showToast === 'function') {
-        showToast(message, type);
+    if (window.toast) {
+        window.toast.show(message, type);
     } else {
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.className = `alert alert-${type === 'danger' ? 'danger' : type} alert-dismissible fade show`;
         alertDiv.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>

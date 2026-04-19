@@ -1282,16 +1282,15 @@ def run_full_scan(target_id, domain, scan_id=None):
                     )
 
                     if arjun_available():
+                        # Use the new enriched Arjun runner with adaptive throttling
                         arjun_result = run_arjun(
                             http_result,
-                            rate_limit=param_rate_limit,
+                            profile=target_doc.get("scan_config", {}).get("arjun_profile"),
                             domain=domain,
                         )
 
                         if arjun_result.get("success"):
-                            endpoints = arjun_result.get(
-                                "endpoints", []
-                            )
+                            endpoints = arjun_result.get("endpoints", [])
                             if endpoints:
                                 add_endpoints_bulk(
                                     target_id, domain,
@@ -1300,7 +1299,7 @@ def run_full_scan(target_id, domain, scan_id=None):
                             logger.info(
                                 "Phase 3.5 complete: "
                                 "%d endpoints with "
-                                "hidden parameters",
+                                "discovered parameters (Context-Aware)",
                                 len(endpoints)
                             )
                         else:
@@ -1641,6 +1640,65 @@ def run_full_scan(target_id, domain, scan_id=None):
                             expand_http_schemes=False
                         ):
                             vuln_scan_partial = True
+
+                    # ══════════════════════════════════════
+                    # TIER 7: Parameter-Based Fuzzing
+                    #   Targeting Arjun-discovered params
+                    # ══════════════════════════════════════
+                    if getattr(Config, 'NUCLEI_TIER7_ENABLED', True):
+                        from database.endpoints_db import get_endpoints_by_target
+                        endpoints = get_endpoints_by_target(target_id)
+                        
+                        # Filter high-value endpoints for fuzzing
+                        fuzz_targets = []
+                        for ep in endpoints:
+                            url = ep.get("url")
+                            params = ep.get("parameters", [])
+                            method = ep.get("method", "GET")
+                            
+                            if len(params) >= getattr(Config, 'NUCLEI_TIER7_MIN_PARAMS', 3):
+                                # Build fuzz URL (e.g. url?p1=FUZZ&p2=FUZZ)
+                                # Nuclei handles parameter fuzzing well with tags
+                                # but we can provide the base URL with discovered params
+                                if "?" in url:
+                                    base = url.split("?")[0]
+                                else:
+                                    base = url
+                                
+                                # For GET, we append as query params
+                                if method == "GET":
+                                    query = "&".join([f"{p}=FUZZ" for p in params])
+                                    fuzz_targets.append(f"{base}?{query}")
+                                else:
+                                    fuzz_targets.append(url)
+
+                        if fuzz_targets:
+                            _progress(
+                                scan_id, "vuln_scanning", 88,
+                                f"Tier 7: Parameter fuzzing on {len(fuzz_targets)} endpoints..."
+                            )
+                            logger.info("  Tier 7: Fuzzing %d high-value endpoints", len(fuzz_targets))
+                            
+                            tier7_result = run_nuclei(
+                                fuzz_targets,
+                                custom_tags=Config.NUCLEI_TIER7_TAGS.split(","),
+                                expand_http_schemes=False
+                            )
+                            
+                            if tier7_result.get("success"):
+                                annotated = []
+                                for v in tier7_result.get("vulnerabilities", []):
+                                    v["verification_source"] = "arjun_enriched_fuzzing"
+                                    v["confidence"] = "high"
+                                    v["arjun_enriched"] = True
+                                    annotated.append(v)
+                                _persist_vulnerability_batch(
+                                    target_id, domain, annotated,
+                                    all_vulns, persisted_vuln_keys
+                                )
+                            
+                            if tier7_result.get("partial"):
+                                vuln_scan_partial = True
 
 
                     # ── Build final vuln_result ───────────

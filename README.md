@@ -4,7 +4,7 @@
 
 > Built with Flask (Python 3.9+), MongoDB, and a pipeline of specialized reconnaissance tools.
 >
-> **Project Status**: Core pipeline and intelligence engine are **Production-Ready**. Dashboard analytics for passive recon are currently undergoing maintenance.
+> **Project Status**: **Production-Ready**. Core pipeline, intelligence-driven scanning, and automated remediation engine are fully operational.
 
 ---
 
@@ -461,18 +461,18 @@ CWE-ID arrives
     │
     ├── Tier 1: Static Database (110 exact entries)
     │           Source: data/cwe_remediation.json
-    │           Quality: ★★★★★ (curated fix steps + code examples)
+    │           Quality:  (curated fix steps + code examples)
     │
     ├── Tier 2: Category Inheritance (322 mapped CWEs → 20 category templates)
     │           Source: CATEGORY_REMEDIATION in cve_enricher.py
-    │           Quality: ★★★★☆ (category-appropriate universal guidance)
+    │           Quality:  (category-appropriate universal guidance)
     │
     ├── Tier 3: NVD/MITRE API Fallback (for unmapped CWEs)
     │           Source: Live API call (cached 24h)
-    │           Quality: ★★★☆☆ (fetched description + generic steps)
+    │           Quality:  (fetched description + generic steps)
     │
     └── Tier 4: Generic Template (last resort)
-                Quality: ★★☆☆☆ (boilerplate)
+                Quality:  (boilerplate)
 ```
 
 ### Categories Covered by Tier 2

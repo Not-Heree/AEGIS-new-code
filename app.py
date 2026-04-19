@@ -28,6 +28,23 @@ app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
+@app.template_filter('format_ts')
+def format_ts(s):
+    """Format raw ISO timestamps into human-readable strings."""
+    if not s: return "N/A"
+    try:
+        # Handle cases where s might be a datetime object already
+        if hasattr(s, 'strftime'):
+            return s.strftime('%b %d, %Y %I:%M %p')
+        
+        from datetime import datetime
+        # Clean up the string and parse
+        s_clean = str(s).split('.')[0].replace('T', ' ').replace('Z', '')
+        dt = datetime.strptime(s_clean, '%Y-%m-%d %H:%M:%S')
+        return dt.strftime('%b %d, %Y %I:%M %p')
+    except Exception:
+        return s
+
 
 def initialize_app():
     """Initialize the EASM application and verify database connection."""

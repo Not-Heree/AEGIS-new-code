@@ -68,7 +68,7 @@ def _is_cached_enrichment_fresh(vuln):
     if not cache or not cached_at:
         return False
 
-    # 🚨 FORCE RE-ENRICHMENT if high-precision intel is missing
+    #  FORCE RE-ENRICHMENT if high-precision intel is missing
     # We check for research_data/technical_details to ensure 'Zero-Noise' logic is populated
     if not cache.get("research_data") or "technical_details" not in cache.get("research_data", {}):
         logger.info("[VULN] Forcing re-enrichment for %s (missing high-precision narratives)", vuln.get("template_id"))
@@ -373,7 +373,7 @@ def show_vuln_detail(vuln_id):
     """
     Show detailed view of a single vulnerability with enrichment.
     
-    ✅ Enrichment happens HERE, on-demand, not during storage
+     Enrichment happens HERE, on-demand, not during storage
     
     GET /vulns/<vuln_id>/show
     """

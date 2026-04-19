@@ -18268,3 +18268,1165 @@ jinja2.exceptions.TemplateSyntaxError: Unexpected end of template. Jinja was loo
 2026-04-17 20:40:38 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
 2026-04-17 20:40:59 [INFO    ] easm-aegis: Risk score: 5/100 (vulns: 0 [C:0 H:0 M:0 L:0], exposure: 5, email: 0, whois: 0) [18 subs, 47 ports, 0/498 breached emails, 0 whois flags]
 2026-04-17 20:41:01 [INFO    ] easm-aegis: Risk score: 16/100 (vulns: 11 [C:0 H:1 M:0 L:0], exposure: 5, email: 0, whois: 0) [18 subs, 47 ports, 0/498 breached emails, 0 whois flags]
+2026-04-17 21:15:16 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-17 21:15:16 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-17 21:15:16 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-17 21:15:16 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-17 21:15:17 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-17 21:15:17 [INFO    ] easm-aegis: Database: easm_db
+2026-04-17 21:15:17 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-17 21:15:17 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-17 21:15:17 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-17 21:15:17 [INFO    ] easm-aegis: Application initialized
+2026-04-17 21:15:17 [INFO    ] easm-aegis: Reports directory ready
+2026-04-17 21:15:17 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-17 21:41:12 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-17 21:41:12 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-17 21:41:12 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-17 21:41:12 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-17 21:41:13 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-17 21:41:13 [INFO    ] easm-aegis: Database: easm_db
+2026-04-17 21:41:13 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-17 21:41:13 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-17 21:41:13 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-17 21:41:13 [INFO    ] easm-aegis: Application initialized
+2026-04-17 21:41:13 [INFO    ] easm-aegis: Reports directory ready
+2026-04-17 21:41:13 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-17 21:42:46 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-17 21:42:46 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-17 21:42:46 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-17 21:42:46 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-17 21:42:46 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-17 21:42:46 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-17 21:42:46 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-17 21:42:46 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-17 21:42:46 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-17 21:44:10 [INFO    ] easm-aegis: User 'admin' logged out
+2026-04-17 21:44:24 [INFO    ] easm-aegis: User 'admin' logged in
+2026-04-18 12:24:29 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 12:24:29 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 12:24:29 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 12:24:29 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 12:24:30 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 12:24:30 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 12:24:30 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 12:24:30 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 12:24:30 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 12:24:30 [INFO    ] easm-aegis: Application initialized
+2026-04-18 12:24:30 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 12:24:30 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 12:24:36 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-18 12:24:36 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-18 12:24:36 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 12:24:36 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 12:24:36 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-18 12:24:36 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:02:03 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:02:03 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:02:03 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:02:03 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:02:04 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 13:02:04 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 13:02:04 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 13:02:04 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 13:02:04 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 13:02:04 [INFO    ] easm-aegis: Application initialized
+2026-04-18 13:02:04 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 13:02:04 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 13:02:09 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-18 13:02:09 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-18 13:02:09 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:02:09 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:02:09 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-18 13:02:09 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:07:42 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:07:42 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:07:42 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:07:42 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:07:42 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 13:07:42 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 13:07:42 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 13:07:42 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 13:07:42 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 13:07:42 [INFO    ] easm-aegis: Application initialized
+2026-04-18 13:07:42 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 13:07:42 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 13:07:48 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-18 13:07:48 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-18 13:07:48 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:07:48 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:07:48 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-18 13:07:48 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:08:23 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 13:08:23 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:08:23 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:08:23 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:08:23 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:08:23 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:08:23 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:08:23 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 13:08:23 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 13:13:36 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:13:36 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:13:36 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:13:36 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:13:37 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 13:13:37 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 13:13:37 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 13:13:37 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 13:13:37 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 13:13:37 [INFO    ] easm-aegis: Application initialized
+2026-04-18 13:13:37 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 13:13:37 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 13:13:46 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-18 13:13:46 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-18 13:13:46 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:13:46 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:13:46 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-18 13:13:46 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:14:31 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:14:31 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:14:31 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:14:31 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:14:32 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 13:14:32 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 13:14:32 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 13:14:32 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 13:14:32 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 13:14:32 [INFO    ] easm-aegis: Application initialized
+2026-04-18 13:14:32 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 13:14:32 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 13:14:40 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 13:14:40 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:14:40 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:14:40 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:14:40 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:14:40 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:14:40 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:14:40 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 13:14:40 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 13:14:45 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-18 13:14:45 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-18 13:14:45 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:14:45 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:14:45 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-18 13:14:45 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:16:24 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 13:16:24 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 13:16:24 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 13:16:24 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 13:16:24 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 13:16:24 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:16:24 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 13:16:24 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 13:16:24 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 22:18:13 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 22:18:13 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 22:18:13 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 22:18:13 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 22:18:15 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 22:18:15 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 22:18:15 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 22:18:15 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 22:18:15 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 22:18:15 [INFO    ] easm-aegis: Application initialized
+2026-04-18 22:18:15 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 22:18:15 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 22:18:23 [INFO    ] easm-aegis: User 'admin' logged in
+2026-04-18 22:18:37 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 22:18:37 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 22:18:37 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 22:18:37 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 22:18:37 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 22:18:37 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:18:37 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:18:37 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 22:18:37 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 22:20:43 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 22:20:44 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 22:20:44 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 22:20:44 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 22:20:44 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-18 22:20:44 [INFO    ] easm-aegis: Database: easm_db
+2026-04-18 22:20:44 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-18 22:20:44 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-18 22:20:44 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-18 22:20:44 [INFO    ] easm-aegis: Application initialized
+2026-04-18 22:20:44 [INFO    ] easm-aegis: Reports directory ready
+2026-04-18 22:20:44 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-18 22:20:48 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 22:20:48 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 22:20:48 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 22:20:48 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 22:20:48 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 22:20:48 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:20:48 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:20:48 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 22:20:48 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 22:24:43 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 22:24:43 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 22:24:43 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 22:24:43 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 22:24:43 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 22:24:43 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:24:43 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:24:43 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 22:24:43 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 22:27:33 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-18 22:27:33 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-18 22:27:34 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-18 22:27:34 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-18 22:27:34 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-18 22:27:34 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:27:34 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-18 22:27:34 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-18 22:27:34 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-18 22:28:05 [INFO    ] easm-aegis: Risk score: 16/100 (vulns: 11 [C:0 H:1 M:0 L:0], exposure: 5, email: 0, whois: 0) [18 subs, 47 ports, 0/498 breached emails, 0 whois flags]
+2026-04-18 22:28:08 [INFO    ] easm-aegis: Risk score: 16/100 (vulns: 11 [C:0 H:1 M:0 L:0], exposure: 5, email: 0, whois: 0) [18 subs, 47 ports, 0/498 breached emails, 0 whois flags]
+2026-04-19 09:45:39 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 09:45:39 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 09:45:39 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 09:45:39 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 09:45:40 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 09:45:40 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 09:45:40 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 09:45:40 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 09:45:40 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 09:45:40 [INFO    ] easm-aegis: Application initialized
+2026-04-19 09:45:40 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 09:45:40 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 09:45:45 [INFO    ] easm-aegis: ============================================================
+2026-04-19 09:45:45 [INFO    ] easm-aegis: Full scan starting for: hackerone.com (scan_id: 69e4536df4f491a7c093363c)
+2026-04-19 09:45:45 [INFO    ] easm-aegis: ============================================================
+2026-04-19 09:45:45 [INFO    ] easm-aegis: ============================================================
+2026-04-19 09:45:45 [INFO    ] easm-aegis: Starting full scan — ID: 69e4536df4f491a7c093363c
+2026-04-19 09:45:45 [INFO    ] easm-aegis: Target: hackerone.com
+2026-04-19 09:45:45 [INFO    ] easm-aegis: ============================================================
+2026-04-19 09:45:45 [DEBUG   ] easm-aegis: Emitted scan progress: scan=69e4536df4f491a7c093363c, phase=0, progress=2%
+2026-04-19 09:45:48 [DEBUG   ] easm-aegis: Emitted scan progress: scan=69e4536df4f491a7c093363c, phase=0, progress=3%
+2026-04-19 09:45:48 [INFO    ] easm-aegis: [SHODAN] Discovering subdomains for {domain}...
+2026-04-19 09:45:51 [INFO    ] easm-aegis: [SHODAN] Searching for hosts matching {domain}...
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [SHODAN] Found 25 results
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [SHODAN]   Subdomains: 11
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [SHODAN]   IPs: 2
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [SHODAN]   Ports: 14
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [SHODAN]   CVEs: 0
+2026-04-19 09:45:52 [INFO    ] easm-aegis: Phase 0a: Shodan — 11 subs, 14 ports, 0 CVEs
+2026-04-19 09:45:52 [DEBUG   ] easm-aegis: Emitted scan progress: scan=69e4536df4f491a7c093363c, phase=0, progress=5%
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [CENSYS] Starting passive recon for: hackerone.com
+2026-04-19 09:45:52 [DEBUG   ] easm-aegis: [CENSYS] Using PAT authentication
+2026-04-19 09:45:52 [INFO    ] easm-aegis: [CENSYS] Phase 1: Searching hosts...
+2026-04-19 09:49:24 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 09:49:24 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 09:49:24 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 09:49:24 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 09:49:24 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 09:49:24 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 09:49:24 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 09:49:24 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 09:49:24 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 09:49:24 [INFO    ] easm-aegis: Cleaned up 1 stale scans
+2026-04-19 09:49:24 [INFO    ] easm-aegis: Application initialized
+2026-04-19 09:49:24 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 09:49:24 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 09:55:59 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 09:55:59 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 09:55:59 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 09:55:59 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 09:56:00 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 09:56:00 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 09:56:00 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 09:56:00 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 09:56:00 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 09:56:00 [INFO    ] easm-aegis: Application initialized
+2026-04-19 09:56:00 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 09:56:00 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 09:57:28 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 09:57:28 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 09:57:28 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 09:57:28 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 09:57:28 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 09:57:28 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 09:57:28 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 09:57:28 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 09:57:28 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 09:57:28 [INFO    ] easm-aegis: Application initialized
+2026-04-19 09:57:28 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 09:57:28 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:13:43 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:13:43 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:13:43 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:13:43 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:13:44 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:13:44 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:13:44 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:13:44 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:13:44 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:13:44 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:13:44 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:13:44 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:16:16 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:16:16 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:16:16 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:16:16 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:16:17 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:16:17 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:16:17 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:16:17 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:16:17 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:16:17 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:16:17 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:16:17 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:25:21 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:25:21 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:25:21 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:25:21 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:25:22 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:25:22 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:25:22 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:25:22 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:25:22 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:25:22 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:25:22 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:25:22 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:27:10 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:27:10 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:27:10 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:27:10 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:27:10 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:27:10 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:27:10 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:27:10 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:27:10 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:27:10 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:27:10 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:27:10 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:30:06 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:30:06 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:30:06 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:30:06 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:30:07 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:30:07 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:30:07 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:30:07 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:30:07 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:30:07 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:30:07 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:30:07 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:31:20 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:31:20 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:31:20 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:31:20 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:31:20 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:31:20 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:31:21 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:31:21 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:31:21 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:31:21 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:31:21 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:31:21 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:33:04 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:33:04 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:33:04 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:33:04 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:33:04 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:33:04 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:33:04 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:33:04 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:33:04 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:33:04 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:33:04 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:33:04 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:33:59 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:33:59 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:33:59 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:33:59 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:33:59 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:33:59 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:33:59 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:33:59 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:33:59 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:33:59 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:33:59 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:33:59 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:34:57 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:34:57 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:34:57 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:34:57 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:34:58 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:34:58 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:34:58 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:34:58 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:34:58 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:34:58 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:34:58 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:34:58 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:37:40 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:37:40 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:37:40 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:37:40 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:37:41 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:37:41 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:37:41 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:37:41 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:37:41 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:37:41 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:37:41 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:37:41 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:38:52 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:38:52 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:38:52 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:38:52 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:38:53 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:38:53 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:38:53 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:38:53 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:38:53 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:38:53 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:38:53 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:38:53 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:40:59 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:40:59 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:40:59 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:40:59 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:41:00 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:41:00 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:41:00 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:41:00 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:41:00 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:41:00 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:41:00 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:41:00 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 10:43:18 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 10:43:18 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 10:43:18 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 10:43:18 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 10:43:19 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 10:43:19 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 10:43:19 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 10:43:19 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 10:43:19 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 10:43:19 [INFO    ] easm-aegis: Application initialized
+2026-04-19 10:43:19 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 10:43:19 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 11:03:08 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 11:03:08 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 11:03:08 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 11:03:08 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 11:03:09 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 11:03:09 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 11:03:09 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 11:03:09 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 11:03:09 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 11:03:09 [INFO    ] easm-aegis: Application initialized
+2026-04-19 11:03:09 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 11:03:09 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 11:06:13 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 11:06:13 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 11:06:13 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 11:06:13 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 11:06:13 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 11:06:13 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 11:06:13 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 11:06:13 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 11:06:13 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 11:06:13 [INFO    ] easm-aegis: Application initialized
+2026-04-19 11:06:13 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 11:06:13 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 11:18:27 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 11:18:27 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 11:18:27 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 11:18:27 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 11:18:28 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 11:18:28 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 11:18:28 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 11:18:28 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 11:18:28 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 11:18:28 [INFO    ] easm-aegis: Application initialized
+2026-04-19 11:18:28 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 11:18:28 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 11:21:41 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 11:21:41 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 11:21:41 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 11:21:41 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 11:21:42 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 11:21:42 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 11:21:42 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 11:21:42 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 11:21:42 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 11:21:42 [INFO    ] easm-aegis: Application initialized
+2026-04-19 11:21:42 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 11:21:42 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 11:39:49 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 11:39:49 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 11:39:49 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 11:39:49 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 11:39:50 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 11:39:50 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 11:39:50 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 11:39:50 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 11:39:50 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 11:39:50 [INFO    ] easm-aegis: Application initialized
+2026-04-19 11:39:50 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 11:39:50 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 13:24:19 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 13:24:19 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 13:24:19 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 13:24:19 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 13:24:21 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 13:24:21 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 13:24:21 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 13:24:21 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 13:24:21 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 13:24:21 [INFO    ] easm-aegis: Application initialized
+2026-04-19 13:24:21 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 13:24:21 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 13:29:36 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-19 13:29:36 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-19 13:29:36 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:29:36 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:29:36 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-19 13:29:36 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:31:17 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-19 13:31:17 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 13:31:17 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 13:31:17 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 13:31:17 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 13:31:17 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:31:17 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:31:17 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-19 13:31:17 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-19 13:41:07 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 13:41:07 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 13:41:07 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 13:41:07 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 13:41:08 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 13:41:08 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 13:41:08 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 13:41:08 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 13:41:08 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 13:41:08 [INFO    ] easm-aegis: Application initialized
+2026-04-19 13:41:08 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 13:41:08 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 13:41:19 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-19 13:41:19 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-19 13:41:19 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:41:19 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:41:19 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-19 13:41:19 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:44:41 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 13:44:41 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 13:44:41 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 13:44:41 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 13:44:41 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 13:44:41 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 13:44:42 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 13:44:42 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 13:44:42 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 13:44:42 [INFO    ] easm-aegis: Application initialized
+2026-04-19 13:44:42 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 13:44:42 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 13:44:44 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-19 13:44:44 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-19 13:44:44 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:44:44 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:44:44 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-19 13:44:44 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:01 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 13:51:01 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 13:51:01 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 13:51:01 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 13:51:01 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 13:51:01 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 13:51:01 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 13:51:01 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 13:51:01 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 13:51:01 [INFO    ] easm-aegis: Application initialized
+2026-04-19 13:51:01 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 13:51:01 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 13:51:04 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-19 13:51:04 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-19 13:51:04 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:04 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:04 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-19 13:51:04 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:07 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-19 13:51:07 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-19 13:51:07 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:07 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:07 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-19 13:51:07 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:14 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-19 13:51:14 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-19 13:51:14 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:14 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 13:51:14 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-19 13:51:14 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-19 21:24:56 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 21:24:56 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 21:24:56 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 21:24:56 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 21:24:57 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 21:24:57 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 21:24:57 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 21:24:57 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 21:24:57 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 21:24:57 [INFO    ] easm-aegis: Application initialized
+2026-04-19 21:24:57 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 21:24:57 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 23:34:58 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 23:34:58 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 23:34:58 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 23:34:58 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 23:34:59 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 23:34:59 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 23:34:59 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 23:34:59 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 23:34:59 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 23:34:59 [INFO    ] easm-aegis: Application initialized
+2026-04-19 23:34:59 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 23:34:59 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 23:42:11 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 23:42:11 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 23:42:11 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 23:42:11 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 23:42:12 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 23:42:12 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 23:42:12 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 23:42:12 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 23:42:12 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 23:42:12 [INFO    ] easm-aegis: Application initialized
+2026-04-19 23:42:12 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 23:42:12 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-19 23:45:00 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-19 23:45:00 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-19 23:45:00 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-19 23:45:00 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-19 23:45:00 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-19 23:45:00 [INFO    ] easm-aegis: Database: easm_db
+2026-04-19 23:45:00 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-19 23:45:00 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-19 23:45:00 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-19 23:45:00 [INFO    ] easm-aegis: Application initialized
+2026-04-19 23:45:00 [INFO    ] easm-aegis: Reports directory ready
+2026-04-19 23:45:00 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:06:11 [DEBUG   ] easm-aegis: [WORDLIST] Path matches for https://example.com/admin/login: authentication, administration
+2026-04-20 00:06:11 [INFO    ] easm-aegis: [WORDLIST] Generated 46 context-aware params for https://example.com/admin/login
+2026-04-20 00:06:11 [DEBUG   ] easm-aegis: [WORDLIST] Path matches for https://example.com/api/v1/users: api_endpoints
+2026-04-20 00:06:11 [INFO    ] easm-aegis: [WORDLIST] Generated 46 context-aware params for https://example.com/api/v1/users
+2026-04-20 00:06:11 [DEBUG   ] easm-aegis: [WORDLIST] Tech match: wordpress (+20 params)
+2026-04-20 00:06:11 [INFO    ] easm-aegis: [WORDLIST] Generated 17 context-aware params for https://example.com/
+2026-04-20 00:06:11 [INFO    ] easm-aegis: [RATE LIMIT] Initialized with profile 'stealth' (Base Rate: 2 req/s)
+2026-04-20 00:06:11 [WARNING ] easm-aegis: [RATE LIMIT] WAF Detection (403)! Increasing delay from 0.50s to 5.50s (Consecutive: 1)
+2026-04-20 00:06:11 [WARNING ] easm-aegis: [RATE LIMIT] WAF Detection (403)! Increasing delay from 5.50s to 10.50s (Consecutive: 2)
+2026-04-20 00:06:11 [WARNING ] easm-aegis: [RATE LIMIT] WAF Detection (403)! Increasing delay from 10.50s to 15.50s (Consecutive: 3)
+2026-04-20 00:06:11 [CRITICAL] easm-aegis: [RATE LIMIT] Circuit Breaker Tripped! 3 consecutive WAF errors. Aborting...
+2026-04-20 00:06:11 [WARNING ] easm-aegis: [RATE LIMIT] WAF Detection (403)! Increasing delay from 15.50s to 20.50s (Consecutive: 4)
+2026-04-20 00:06:11 [CRITICAL] easm-aegis: [RATE LIMIT] Circuit Breaker Tripped! 4 consecutive WAF errors. Aborting...
+2026-04-20 00:10:25 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:10:25 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:10:25 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:10:25 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:10:25 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:10:25 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:10:25 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:10:25 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:10:25 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:10:25 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:10:25 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:10:25 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:17:22 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:17:22 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:17:22 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:17:22 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:17:23 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:17:23 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:17:23 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:17:23 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:17:23 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:17:23 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:17:23 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:17:23 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:20:53 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:20:53 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:20:53 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:20:53 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:20:54 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:20:54 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:20:54 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:20:54 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:20:54 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:20:54 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:20:54 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:20:54 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:22:07 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:22:07 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:22:07 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:22:07 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:22:08 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:22:08 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:22:08 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:22:08 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:22:08 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:22:08 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:22:08 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:22:08 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:23:18 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:23:18 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:23:18 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:23:18 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:23:19 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:23:19 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:23:19 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:23:19 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:23:19 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:23:19 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:23:19 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:23:19 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:24:23 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:24:23 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:24:23 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:24:23 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:24:24 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:24:24 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:24:24 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:24:24 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:24:24 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:24:24 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:24:24 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:24:24 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:28:23 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:28:23 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:28:23 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:28:23 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:28:23 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:28:23 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:28:23 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:28:23 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:28:23 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:28:23 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:28:23 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:28:23 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:29:42 [INFO    ] easm-aegis: [VULN] Loading enrichment for github-takeover
+2026-04-20 00:29:42 [INFO    ] easm-aegis: [VULN] Forcing re-enrichment for github-takeover (missing high-precision narratives)
+2026-04-20 00:29:42 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-20 00:29:42 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-20 00:29:42 [INFO    ] easm-aegis: [VULN] Enrichment ready: Priority=FIX THIS WEEK
+2026-04-20 00:29:42 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-20 00:29:53 [INFO    ] easm-aegis: Generating remediation plan for hackerone.com
+2026-04-20 00:29:53 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:29:53 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:29:53 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:29:53 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:29:53 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-20 00:29:53 [DEBUG   ] easm-aegis: [THREAT-RESEARCH] Keyword match: 'takeover' in 'github-takeover'
+2026-04-20 00:29:53 [INFO    ] easm-aegis: Plan generated: 1 items (KEV: 0, CVE: 0)
+2026-04-20 00:29:53 [INFO    ] easm-aegis: Priority breakdown: {'fix_immediately': 0, 'fix_this_week': 1, 'fix_this_month': 0, 'fix_next_quarter': 0, 'informational': 0}
+2026-04-20 00:30:17 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:30:17 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:30:17 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:30:17 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:30:17 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:30:17 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:30:17 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:30:17 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:30:17 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:30:17 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:30:17 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:30:17 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)
+2026-04-20 00:35:53 [INFO    ] easm-aegis: [ENRICHER] Initializing...
+2026-04-20 00:35:53 [INFO    ] easm-aegis: [KEV] Loaded 1529 known exploited vulnerabilities
+2026-04-20 00:35:53 [INFO    ] easm-aegis: [CWE] Loaded 920 CWE remediation entries
+2026-04-20 00:35:53 [INFO    ] easm-aegis: [ENRICHER] Ready
+2026-04-20 00:35:54 [INFO    ] easm-aegis: MongoDB connected: mongodb://localhost:27017
+2026-04-20 00:35:54 [INFO    ] easm-aegis: Database: easm_db
+2026-04-20 00:35:54 [INFO    ] easm-aegis: MongoDB connection is alive
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: targets indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: subdomains indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: ports_services indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: http_assets indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: vulnerabilities indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: changes indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: scan_history indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: email_exposures indexes created
+2026-04-20 00:35:54 [DEBUG   ] easm-aegis: passive_recon indexes created
+2026-04-20 00:35:54 [INFO    ] easm-aegis: All 9 collections initialized successfully
+2026-04-20 00:35:54 [INFO    ] easm-aegis: Application initialized
+2026-04-20 00:35:54 [INFO    ] easm-aegis: Reports directory ready
+2026-04-20 00:35:54 [INFO    ] easm-aegis: Starting AEGIS on port 5000 (debug=True)

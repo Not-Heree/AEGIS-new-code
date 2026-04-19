@@ -192,6 +192,9 @@ def summary(domain):
         change_count = db[Config.CHANGES_COLLECTION].count_documents(
             {"target_domain": domain}
         )
+        endpoint_count = db[Config.ENDPOINTS_COLLECTION].count_documents(
+            {"target_domain": domain}
+        )
 
         # Vuln breakdown by severity
         vuln_breakdown = {
@@ -228,7 +231,8 @@ def summary(domain):
                 "ports": port_count,
                 "http_assets": http_count,
                 "vulnerabilities": vuln_count,
-                "changes": change_count
+                "changes": change_count,
+                "endpoints": endpoint_count
             },
             "vuln_breakdown": vuln_breakdown
         })
@@ -281,6 +285,9 @@ def dashboard_target_detail(target_id):
         vuln_count = db[Config.VULNS_COLLECTION].count_documents(
             {"target_domain": domain}
         )
+        endpoint_count = db[Config.ENDPOINTS_COLLECTION].count_documents(
+            {"target_domain": domain}
+        )
 
         return jsonify({
             "success": True,
@@ -292,6 +299,7 @@ def dashboard_target_detail(target_id):
             "total_ports": port_count,
             "total_http_assets": http_count,
             "total_vulns": vuln_count,
+            "total_endpoints": endpoint_count,
             "last_scan": latest_scan,
             "unacknowledged_changes": unacknowledged,
             "vuln_stats": vuln_stats

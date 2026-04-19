@@ -4,9 +4,15 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2> Vulnerabilities</h2>
-    <button class="btn btn-scan" onclick="loadVulns()">
-        <i class="bi bi-arrow-clockwise"></i> Refresh
-    </button>
+    <div class="d-flex gap-2 align-items-center">
+        <select id="filter-domain" class="form-select form-select-sm" style="min-width: 200px;"
+            onchange="onDomainFilterChange()">
+            <option value="all">All Domains</option>
+        </select>
+        <button class="btn btn-scan btn-sm" onclick="loadVulns()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
 </div>
 
 <!-- Severity Filter Cards -->
@@ -58,6 +64,21 @@
     </span>
 </div>
 
+<!-- Tower Graph -->
+<div class="card mb-4" id="chart-card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Vulnerability Tower Graph</h5>
+    </div>
+    <div class="card-body">
+        <div id="chart-container" style="position: relative; height: 400px;">
+            <canvas id="tower-chart"></canvas>
+        </div>
+        <div class="text-center mt-2">
+            <small class="text-muted" id="chart-note"></small>
+        </div>
+    </div>
+</div>
+
 <!-- Vulns Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between">
@@ -88,13 +109,48 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
 <script>
     var allVulns = [];
     var activeFilter = 'all';
+    var activeDomainFilter = 'all';
+
+    var MAX_CHART_BARS = 20;
+    var SEVERITY_COLORS = {
+        critical: '#ff3333',
+        high: '#ff6600',
+        medium: '#ffcc00',
+        low: '#888888'
+    };
+    var towerChart = null;
 
     // Check URL params for pre-set filter (from dashboard cards)
     var urlParams = new URLSearchParams(window.location.search);
     var presetSeverity = urlParams.get('severity');
+
+    async function loadDomainSelector() {
+        try {
+            var data = await api.get('/api/targets/');
+            var select = document.getElementById('filter-domain');
+            var targets = data.targets || [];
+
+            targets.forEach(function (t) {
+                var domain = t.root_domain || t.domain;
+                if (!domain) return;
+                var opt = document.createElement('option');
+                opt.value = domain;
+                opt.textContent = domain;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Domain selector load error:', err);
+        }
+    }
+
+    function onDomainFilterChange() {
+        activeDomainFilter = document.getElementById('filter-domain').value;
+        renderFiltered();
+    }
 
     async function loadVulns() {
         try {
@@ -156,8 +212,15 @@
         var filtered = allVulns;
 
         if (activeFilter !== 'all') {
-            filtered = allVulns.filter(function (v) {
+            filtered = filtered.filter(function (v) {
                 return (v.severity || 'info').toLowerCase() === activeFilter;
+            });
+        }
+
+        if (activeDomainFilter !== 'all') {
+            filtered = filtered.filter(function (v) {
+                var d = v.target_domain || v.domain || '';
+                return d === activeDomainFilter;
             });
         }
 
@@ -169,6 +232,8 @@
 
         document.getElementById('showing-count').textContent =
             filtered.length + ' of ' + allVulns.length + ' findings';
+
+        renderChart(filtered);
 
         var tbody = document.getElementById('vulns-table');
 
@@ -197,7 +262,9 @@
                     ? '<span class="badge bg-success">Resolved</span>'
                     : '<span class="badge bg-secondary">False Positive</span>';
 
-            return '<tr>' +
+            var detailUrl = '/vulns/' + encodeURIComponent(vulnId) + '/show';
+
+            return '<tr onclick="window.location.href=\'' + detailUrl + '\'" style="cursor: pointer;">' +
                 '<td><span class="badge badge-' + sev + '">' + sev.toUpperCase() + '</span></td>' +
                 '<td>' +
                 '<strong>' + escapeHtml(name) + '</strong>' +
@@ -210,19 +277,15 @@
                 '<td>' + escapeHtml(domain) + '<br>' + statusBadge + '</td>' +
                 '<td>' +
                 '<div class="btn-group btn-group-sm">' +
-                '<a href="/vulns/' + encodeURIComponent(vulnId) + '/show" class="btn btn-outline-primary" title="View Details">' +
-                '<i class="bi bi-eye"></i></a>' +
-                '<a href="/remediation?vuln=' + encodeURIComponent(vulnId) + '" class="btn btn-outline-info" title="View Remediation">' +
+                '<a href="/remediation?vuln=' + encodeURIComponent(vulnId) + '" class="btn btn-outline-info" title="View Remediation" onclick="event.stopPropagation();">' +
                 '<i class="bi bi-tools"></i></a>' +
                 (status === 'open'
-                    ? '<button class="btn btn-outline-success" onclick="markVuln(\'' + vulnId + '\',\'resolved\')" title="Resolve">' +
+                    ? '<button class="btn btn-outline-success" onclick="event.stopPropagation(); markVuln(\'' + vulnId + '\',\'resolved\')" title="Resolve">' +
                     '<i class="bi bi-check-circle"></i></button>' +
-                    '<button class="btn btn-outline-secondary" onclick="markVuln(\'' + vulnId + '\',\'false_positive\')" title="False Positive">' +
+                    '<button class="btn btn-outline-secondary" onclick="event.stopPropagation(); markVuln(\'' + vulnId + '\',\'false_positive\')" title="False Positive">' +
                     '<i class="bi bi-x-circle"></i></button>'
-                    : '<button class="btn btn-outline-warning" onclick="markVuln(\'' + vulnId + '\',\'open\')" title="Reopen">' +
+                    : '<button class="btn btn-outline-warning" onclick="event.stopPropagation(); markVuln(\'' + vulnId + '\',\'open\')" title="Reopen">' +
                     '<i class="bi bi-arrow-counterclockwise"></i></button>') +
-                '<button class="btn btn-outline-danger" onclick="deleteVuln(\'' + vulnId + '\')" title="Delete">' +
-                '<i class="bi bi-trash"></i></button>' +
                 '</div>' +
                 '</td>' +
                 '</tr>';
@@ -240,18 +303,126 @@
         if (!vulnId) return;
         try {
             await api.patch('/api/vulns/' + vulnId + '/status', { status: status });
+            toast.success('Vulnerability status updated');
             loadVulns();
-        } catch (e) { alert('Error updating vulnerability'); }
+        } catch (e) { 
+            toast.error('Error updating vulnerability status'); 
+        }
     }
 
-    async function deleteVuln(vulnId) {
-        if (!vulnId || !confirm('Delete this vulnerability?')) return;
-        try {
-            await api.delete('/api/vulns/' + vulnId);
-            loadVulns();
-        } catch (e) { alert('Delete failed'); }
-    }
-
+    loadDomainSelector();
     loadVulns();
+
+    // ── Tower Chart ──────────────────────────────────────────────────────────
+
+    function renderChart(vulnsList) {
+        var canvas = document.getElementById('tower-chart');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+
+        if (towerChart) {
+            towerChart.destroy();
+            towerChart = null;
+        }
+
+        if (vulnsList.length === 0) {
+            document.getElementById('chart-note').textContent = 'No vulnerabilities match the current filters.';
+            return;
+        }
+
+        // Aggregate by host
+        var hostMap = {};
+        vulnsList.forEach(function (v) {
+            var host = v.host || 'Unknown';
+            var sev = (v.severity || 'info').toLowerCase();
+
+            if (!hostMap[host]) {
+                hostMap[host] = {
+                    host: host,
+                    total_vulns: 0,
+                    vuln_counts: { critical: 0, high: 0, medium: 0, low: 0 }
+                };
+            }
+
+            if (['critical', 'high', 'medium', 'low'].includes(sev)) {
+                hostMap[host].vuln_counts[sev]++;
+                hostMap[host].total_vulns++;
+            }
+        });
+
+        // Convert to array and filter out 0 total_vuln hosts
+        var chartAssets = Object.values(hostMap).filter(function (a) { return a.total_vulns > 0; });
+        chartAssets.sort(function (a, b) { return b.total_vulns - a.total_vulns; });
+
+        if (chartAssets.length === 0) {
+            document.getElementById('chart-note').textContent = 'No actionable vulnerabilities found.';
+            return;
+        }
+
+        var sliced = chartAssets.slice(0, MAX_CHART_BARS);
+        var chartNote = '';
+        if (chartAssets.length > MAX_CHART_BARS) {
+            chartNote = 'Showing top ' + MAX_CHART_BARS + ' of ' + chartAssets.length + ' affected hosts.';
+        }
+        document.getElementById('chart-note').textContent = chartNote;
+
+        var labels = sliced.map(function (a) {
+            var text = a.host;
+            return text.length > 25 ? text.substring(0, 25) + '…' : text;
+        });
+
+        towerChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Low',
+                        data: sliced.map(function (a) { return a.vuln_counts.low; }),
+                        backgroundColor: SEVERITY_COLORS.low
+                    },
+                    {
+                        label: 'Medium',
+                        data: sliced.map(function (a) { return a.vuln_counts.medium; }),
+                        backgroundColor: SEVERITY_COLORS.medium
+                    },
+                    {
+                        label: 'High',
+                        data: sliced.map(function (a) { return a.vuln_counts.high; }),
+                        backgroundColor: SEVERITY_COLORS.high
+                    },
+                    {
+                        label: 'Critical',
+                        data: sliced.map(function (a) { return a.vuln_counts.critical; }),
+                        backgroundColor: SEVERITY_COLORS.critical
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, padding: 20 } },
+                    tooltip: {
+                        callbacks: {
+                            title: function (items) {
+                                return sliced[items[0].dataIndex].host;
+                            },
+                            afterBody: function (items) {
+                                var a = sliced[items[0].dataIndex];
+                                return ['', 'Total vulns: ' + a.total_vulns];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true, ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } },
+                    y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    }
+
 </script>
 {% endblock %}

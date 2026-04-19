@@ -34,7 +34,7 @@ class MitreMapper:
             "technique": "N/A",
             "techniques": [],
             "description": "General vulnerability that may be leveraged in multiple attack phases.",
-            "icon": "🛡️",
+            "icon": "️",
             "color": "#6c757d",
             "confidence": 0.3
         }
@@ -46,24 +46,24 @@ class MitreMapper:
             
             # Map common tactics to IDs and icons
             tactic_map = {
-                "Initial Access": {"id": "TA0001", "icon": "🔓", "color": "#dc3545"},
-                "Execution": {"id": "TA0002", "icon": "⚙️", "color": "#fd7e14"},
-                "Persistence": {"id": "TA0003", "icon": "📌", "color": "#ffc107"},
-                "Privilege Escalation": {"id": "TA0004", "icon": "📈", "color": "#0d6efd"},
-                "Defense Evasion": {"id": "TA0005", "icon": "👻", "color": "#6610f2"},
-                "Credential Access": {"id": "TA0006", "icon": "🔑", "color": "#20c997"},
-                "Discovery": {"id": "TA0007", "icon": "🔍", "color": "#198754"},
-                "Lateral Movement": {"id": "TA0008", "icon": "🚶", "color": "#6f42c1"},
-                "Collection": {"id": "TA0009", "icon": "📥", "color": "#d63384"},
-                "Command and Control": {"id": "TA0011", "icon": "📡", "color": "#0dcaf0"},
-                "Exfiltration": {"id": "TA0010", "icon": "📤", "color": "#000000"},
-                "Impact": {"id": "TA0040", "icon": "💥", "color": "#b02a37"},
-                "Resource Development": {"id": "TA0042", "icon": "🏗️", "color": "#6c757d"}
+                "Initial Access": {"id": "TA0001", "icon": "", "color": "#dc3545"},
+                "Execution": {"id": "TA0002", "icon": "️", "color": "#fd7e14"},
+                "Persistence": {"id": "TA0003", "icon": "", "color": "#ffc107"},
+                "Privilege Escalation": {"id": "TA0004", "icon": "", "color": "#0d6efd"},
+                "Defense Evasion": {"id": "TA0005", "icon": "", "color": "#6610f2"},
+                "Credential Access": {"id": "TA0006", "icon": "", "color": "#20c997"},
+                "Discovery": {"id": "TA0007", "icon": "", "color": "#198754"},
+                "Lateral Movement": {"id": "TA0008", "icon": "", "color": "#6f42c1"},
+                "Collection": {"id": "TA0009", "icon": "", "color": "#d63384"},
+                "Command and Control": {"id": "TA0011", "icon": "", "color": "#0dcaf0"},
+                "Exfiltration": {"id": "TA0010", "icon": "", "color": "#000000"},
+                "Impact": {"id": "TA0040", "icon": "", "color": "#b02a37"},
+                "Resource Development": {"id": "TA0042", "icon": "️", "color": "#6c757d"}
             }
             
             t_info = tactic_map.get(mitre_data["tactic"], {})
             mitre_data["tactic_id"] = t_info.get("id", "TA0000")
-            mitre_data["icon"] = t_info.get("icon", "🛡️")
+            mitre_data["icon"] = t_info.get("icon", "️")
             mitre_data["color"] = t_info.get("color", "#6c757d")
             
             mitre_data["technique"] = attack.get("technique", "N/A")
