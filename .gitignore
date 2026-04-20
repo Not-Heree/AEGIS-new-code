@@ -1,17 +1,26 @@
-venv/
-.venv/
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+
+# Environments
 .env
-tools/*.exe
-tools/*.zip
-reports/*.pdf
+.venv
+env/
+venv/
+ENV/
+
+# Reports and generated data
+generated_reports/
+temp/
+logs/
+*.pdf
+*.log
+
+# External Tools
+tools/
+nuclei-templates/
+
+# OS files
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
-*.swp
-temp/
-data/
-*.egg-info/

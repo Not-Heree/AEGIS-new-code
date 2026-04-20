@@ -181,7 +181,7 @@
                 </div>
                 {% endif %}
 
-                <form method="POST" action="{{ url_for('api_keys.save_key') }}" class="key-form" data-key-name="{{ key_name }}">
+                <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}/"> action="{{ url_for('api_keys.save_key') }}" class="key-form" data-key-name="{{ key_name }}">
                     <input type="hidden" name="key_name" value="{{ key_name }}">
 
                     <div class="mb-3">
@@ -242,7 +242,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" action="{{ url_for('api_keys.delete_key') }}" id="deleteForm">
+                <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}/"> action="{{ url_for('api_keys.delete_key') }}" id="deleteForm">
                     <input type="hidden" name="key_name" id="delete_key_name">
                     <button type="submit" class="btn btn-danger">Delete Key</button>
                 </form>

@@ -22,6 +22,7 @@
         {% endif %}
 
         <form method="POST" action="/login" autocomplete="on">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
             <!-- Username -->
             <div class="mb-3">

@@ -3,6 +3,10 @@
 const API_BASE = '';
 
 const api = {
+    _getCsrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    },
+
     async get(url) {
         try {
             const response = await fetch(API_BASE + url);
@@ -17,7 +21,10 @@ const api = {
         try {
             const response = await fetch(API_BASE + url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this._getCsrfToken()
+                },
                 body: JSON.stringify(data)
             });
             return await response.json();
@@ -29,7 +36,12 @@ const api = {
 
     async delete(url) {
         try {
-            const response = await fetch(API_BASE + url, { method: 'DELETE' });
+            const response = await fetch(API_BASE + url, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRFToken': this._getCsrfToken()
+                }
+            });
             return await response.json();
         } catch (error) {
             console.error('API DELETE Error:', error);
@@ -41,7 +53,10 @@ const api = {
         try {
             const response = await fetch(API_BASE + url, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this._getCsrfToken()
+                },
                 body: JSON.stringify(data)
             });
             return await response.json();
@@ -55,7 +70,10 @@ const api = {
         try {
             const response = await fetch(API_BASE + url, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this._getCsrfToken()
+                },
                 body: JSON.stringify(data)
             });
             return await response.json();

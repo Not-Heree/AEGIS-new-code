@@ -2,6 +2,7 @@ from flask import (
     Flask, jsonify, render_template,
     request, session, redirect, url_for
 )
+from flask_wtf.csrf import CSRFProtect
 from functools import wraps
 from config import Config
 from database.connection import init_db, test_connection, get_db
@@ -26,7 +27,26 @@ from routes.scheduled_scans import schedules_bp
 # ─── Create Flask App ─────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = Config.SECRET_KEY
+csrf = CSRFProtect(app)
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
+
+# Security Headers Middleware
+@app.after_request
+def add_security_headers(response):
+    """Inject standard security headers into every response."""
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://code.jquery.com https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
+        "img-src 'self' data: https://*; "
+        "connect-src 'self' ws: wss:;"
+    )
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
 
 
 def initialize_app():

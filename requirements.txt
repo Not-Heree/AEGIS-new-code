@@ -4,6 +4,7 @@
 
 # ── Core Web Framework & Configuration ────────────────────────────────────
 Flask==3.0.0
+Flask-WTF==1.2.1        # CSRF protection
 python-dotenv==1.0.0
 Werkzeug==3.0.1
 python-socketio==5.10.0    # Real-time WebSocket support
