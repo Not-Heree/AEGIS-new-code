@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys - EASM Tool{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-hero {
+        margin-bottom: 1.5rem;
+    }
+
+    .settings-hero p {
+        max-width: 780px;
+    }
+
+    .key-card {
+        height: 100%;
+    }
+
+    .key-card .card-header {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .key-status-pill {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+    }
+
+    .key-status-pill.configured {
+        background: rgba(22, 163, 74, 0.12);
+        color: #15803d;
+    }
+
+    .key-status-pill.missing {
+        background: rgba(217, 119, 6, 0.14);
+        color: #b45309;
+    }
+
+    .feature-list {
+        padding-left: 1.1rem;
+        margin-bottom: 0;
+        color: var(--text-secondary);
+    }
+
+    .feature-list li + li {
+        margin-top: 0.3rem;
+    }
+
+    .key-meta {
+        background: #f8f9fa;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+    }
+
+    .key-meta code {
+        font-size: 0.9rem;
+    }
+
+    .key-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .key-actions .btn {
+        flex: 1 1 140px;
+    }
+
+    .test-result .alert {
+        margin-bottom: 0;
+    }
+
+    .summary-muted {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 767.98px) {
+        .key-actions .btn {
+            flex-basis: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-hero">
+    <h2><i class="bi bi-key"></i> API Keys</h2>
+    <p class="text-muted mb-0">
+        Manage the external service credentials used by AEGIS. Keys are encrypted in storage and loaded from the
+        environment when no saved value exists.
+    </p>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+{% set keys_total = total_keys|default(keys_status|length, true) %}
+{% set keys_configured = configured_count|default(0, true) %}
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3 mb-md-0">
+        <div class="card stat-card">
+            <div class="stat-value">{{ keys_configured }}</div>
+            <div class="stat-label">Configured Keys</div>
+            <div class="stat-icon"><i class="bi bi-shield-check"></i></div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3 mb-md-0">
+        <div class="card stat-card">
+            <div class="stat-value">{{ keys_total - keys_configured }}</div>
+            <div class="stat-label">Optional Gaps</div>
+            <div class="stat-icon"><i class="bi bi-sliders"></i></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-value">{{ keys_total }}</div>
+            <div class="stat-label">Supported Services</div>
+            <div class="stat-icon"><i class="bi bi-diagram-3"></i></div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle"></i> How This Page Works</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-lg-4">
+                <div class="summary-muted">Hunter.io and IntelX support email discovery. LeakCheck adds fallback breach lookups. Shodan and Censys power passive infrastructure recon.</div>
+            </div>
+            <div class="col-lg-4">
+                <div class="summary-muted">Configured keys may come from the database or directly from environment variables, and the page shows the current source for each active credential.</div>
+            </div>
+            <div class="col-lg-4">
+                <div class="summary-muted">Testing is optional before save, but it is useful for catching invalid credentials before a scan or harvest job depends on them.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    {% for key_name, status in keys_status.items() %}
+    <div class="col-xl-6">
+        <div class="card key-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1">{{ status.name }}</h5>
+                    <small class="text-muted">{{ status.description }}</small>
+                </div>
+                <span class="badge key-status-pill {% if status.configured %}configured{% else %}missing{% endif %}">
+                    {% if status.configured %}Configured{% else %}Not Configured{% endif %}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="fw-semibold mb-2">Features</div>
+                    <ul class="feature-list">
+                        {% for feature in status.features %}
+                        <li>{{ feature }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                {% if status.configured %}
+                <div class="key-meta mb-3">
+                    <div class="mb-1"><span class="fw-semibold">Current Key:</span> <code>{{ status.masked_value }}</code></div>
+                    <small class="text-muted">Source: {{ status.source }}</small>
+                </div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('api_keys.save_key') }}" class="key-form" data-key-name="{{ key_name }}">
+                    <input type="hidden" name="key_name" value="{{ key_name }}">
+
+                    <div class="mb-3">
+                        <label for="key_value_{{ key_name }}" class="form-label">API Key</label>
+                        <input
+                            type="password"
+                            class="form-control"
+                            id="key_value_{{ key_name }}"
+                            name="key_value"
+                            placeholder="Enter your {{ status.name }}"
+                            autocomplete="off"
+                        >
+                        <div class="form-text">
+                            Docs:
+                            <a href="{{ status.docs }}" target="_blank" rel="noopener noreferrer">{{ status.docs }}</a>
+                        </div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="test_first" id="test_{{ key_name }}" checked>
+                        <label class="form-check-label" for="test_{{ key_name }}">
+                            Test key before saving
+                        </label>
+                    </div>
+
+                    <div class="key-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Key
+                        </button>
+                        <button type="button" class="btn btn-outline-primary test-key-btn" data-key-name="{{ key_name }}">
+                            <i class="bi bi-beaker"></i> Test
+                        </button>
+                        {% if status.configured %}
+                        <button type="button" class="btn btn-outline-danger delete-key-btn" data-key-name="{{ key_name }}">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-3 test-result d-none" id="test_result_{{ key_name }}"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Delete API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Remove this stored key from the encrypted database?</p>
+                <p class="text-danger mb-0">Any feature depending on it will fall back to the environment value or stop working if no fallback exists.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('api_keys.delete_key') }}" id="deleteForm">
+                    <input type="hidden" name="key_name" id="delete_key_name">
+                    <button type="submit" class="btn btn-danger">Delete Key</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const deleteModalElement = document.getElementById('deleteModal');
+    const deleteModal = deleteModalElement ? new bootstrap.Modal(deleteModalElement) : null;
+
+    document.querySelectorAll('.test-key-btn').forEach(btn => {
+        btn.addEventListener('click', async function () {
+            const keyName = this.dataset.keyName;
+            const keyValue = document.getElementById(`key_value_${keyName}`).value;
+            const resultDiv = document.getElementById(`test_result_${keyName}`);
+
+            if (!keyValue) {
+                resultDiv.classList.remove('d-none');
+                resultDiv.innerHTML = '<div class="alert alert-warning">Enter an API key before testing.</div>';
+                return;
+            }
+
+            resultDiv.classList.remove('d-none');
+            resultDiv.innerHTML = '<div class="alert alert-info">Testing API key...</div>';
+
+            try {
+                const formData = new FormData();
+                formData.append('key_value', keyValue);
+
+                const response = await fetch(`/settings/api-keys/test/${keyName}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    let detailsHtml = '';
+                    if (result.details) {
+                        const details = Object.entries(result.details).map(([key, value]) => {
+                            const label = key.replace(/_/g, ' ');
+                            return `<li><span class="text-capitalize">${label}</span>: ${value}</li>`;
+                        }).join('');
+                        detailsHtml = `<ul class="mb-0 mt-2">${details}</ul>`;
+                    }
+
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>Test passed.</strong> ${result.message}
+                            ${detailsHtml}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <strong>Test failed.</strong> ${result.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        });
+    });
+
+    document.querySelectorAll('.delete-key-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.getElementById('delete_key_name').value = this.dataset.keyName;
+            if (deleteModal) {
+                deleteModal.show();
+            }
+        });
+    });
+
+    document.querySelectorAll('input[type="password"]').forEach(input => {
+        input.addEventListener('dblclick', function () {
+            this.type = this.type === 'password' ? 'text' : 'password';
+        });
+    });
+</script>
+{% endblock %}

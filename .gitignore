@@ -1,0 +1,17 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+tools/*.exe
+tools/*.zip
+reports/*.pdf
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+temp/
+data/
+*.egg-info/

@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Email Exposure - EASM Tool{% endblock %}
+
+{% block extra_css %}
+<style>
+    .breach-card {
+        border-left: 4px solid #dee2e6;
+        margin-bottom: 10px;
+    }
+
+    .breach-card.breached {
+        border-left-color: #e74c3c;
+    }
+
+    .breach-card.clean {
+        border-left-color: #27ae60;
+    }
+
+    .breach-card.unknown {
+        border-left-color: #f39c12;
+    }
+
+    .breach-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin: 1px;
+    }
+
+    .breach-tag.data-passwords {
+        background: #fde8e8;
+        color: #c0392b;
+    }
+
+    .breach-tag.data-email {
+        background: #fef3e2;
+        color: #e67e22;
+    }
+
+    .breach-tag.data-other {
+        background: #eaf2f8;
+        color: #2980b9;
+    }
+
+    .stat-breached {
+        color: #e74c3c;
+    }
+
+    .stat-clean {
+        color: #27ae60;
+    }
+
+    .stat-total {
+        color: #2c3e50;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2> Email Exposure</h2>
+    <div>
+        <button class="btn btn-warning me-2" onclick="recheckBreaches()">
+            Re-check Breaches
+        </button>
+        <button class="btn btn-primary" onclick="loadEmails()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Domain Selector -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Target Domain</label>
+                <select class="form-select" id="email-domain" onchange="loadEmails()">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary" onclick="runHarvest()">
+                    Harvest Emails
+                </button>
+            </div>
+            <div class="col-md-4 text-end">
+                <span id="harvest-status"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value stat-total" id="stat-total">-</div>
+            <div class="stat-label">Total Emails</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card filter-card" onclick="cardFilter('breached')" style="cursor: pointer;">
+            <div class="stat-value stat-breached" id="stat-breached">-</div>
+            <div class="stat-label">Breached</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card filter-card" onclick="cardFilter('clean')" style="cursor: pointer;">
+            <div class="stat-value stat-clean" id="stat-clean">-</div>
+            <div class="stat-label">Clean</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value stat-breached" id="stat-passwords">-</div>
+            <div class="stat-label">Password Leaks</div>
+        </div>
+    </div>
+</div>
+
+<!-- Email Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-table"></i> Discovered Emails</h5>
+        <div>
+            <select class="form-select form-select-sm d-inline-block" style="width: auto;" id="filter-breach"
+                onchange="loadEmails()">
+                <option value="">All</option>
+                <option value="breached"> Breached Only</option>
+                <option value="clean"> Clean Only</option>
+                <option value="unknown"> Unchecked</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Email</th>
+                        <th>Name / Position</th>
+                        <th>Sources</th>
+                        <th>Breaches</th>
+                        <th>Data Leaked</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="emails-table">
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            Select a domain and click Harvest Emails
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allEmails = [];
+
+    // ─── Load Targets ────────────────────────────────────────
+    async function loadTargets() {
+        try {
+            const data = await api.get('/api/targets/');
+            const select = document.getElementById('email-domain');
+            const targets = data.targets || [];
+
+            if (targets.length === 0) {
+                select.innerHTML =
+                    '<option value="">Add a target first</option>';
+                return;
+            }
+
+            select.innerHTML =
+                '<option value=""> Select Domain </option>' +
+                targets.map(t => {
+                    const d = t.root_domain || t.domain || '';
+                    const emails = t.total_emails || 0;
+                    return `<option value="${d}">${d} </option>`;
+                }).join('');
+        } catch (e) {
+            console.error('Error:', e);
+        }
+    }
+
+    // ─── Load Emails ─────────────────────────────────────────
+    async function loadEmails() {
+        const domain = document.getElementById('email-domain').value;
+        if (!domain) {
+            document.getElementById('emails-table').innerHTML =
+                '<tr><td colspan="7" class="text-center">Select a domain</td></tr>';
+            resetStats();
+            return;
+        }
+
+        try {
+            const data = await api.get(`/api/emails/${domain}`);
+            allEmails = data.emails || [];
+
+            // Update stats from the new summary object
+            const summary = data.summary || {};
+            document.getElementById('stat-total').textContent = summary.total || 0;
+            document.getElementById('stat-breached').textContent = summary.breached || 0;
+            document.getElementById('stat-clean').textContent = summary.clean || 0;
+            document.getElementById('stat-passwords').textContent = summary.password_leaks || 0;
+
+            // Apply filter
+            const filter = document.getElementById('filter-breach').value;
+            let filtered = allEmails;
+            if (filter) {
+                filtered = allEmails.filter(
+                    e => e.breach_status === filter
+                );
+            }
+
+            renderTable(filtered);
+        } catch (e) {
+            console.error('Error:', e);
+            document.getElementById('emails-table').innerHTML =
+                '<tr><td colspan="7" class="text-center text-danger">Error loading emails</td></tr>';
+        }
+    }
+
+    // ─── Render Table ────────────────────────────────────────
+    function renderTable(emails) {
+        const tbody = document.getElementById('emails-table');
+
+        if (!emails || emails.length === 0) {
+            tbody.innerHTML =
+                '<tr><td colspan="7" class="text-center text-muted">' +
+                'No emails found. Click "Harvest Emails" to discover them.' +
+                '</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = emails.map(e => {
+            // Status icon
+            const status = e.breach_status || 'unknown';
+            const bSources = (e.breach_sources || []).map(
+                s => `<span class="badge bg-info text-dark ms-1" style="font-size: 0.6rem;">${s}</span>`
+            ).join('');
+
+            const statusIcon = {
+                'breached': `<span class="badge bg-danger">Breached</span><br>${bSources}`,
+                'clean': `<span class="badge bg-success">Clean</span><br>${bSources}`,
+                'unknown': '<span class="badge bg-warning text-dark">Unchecked</span>'
+            }[status] || '<span class="badge bg-secondary">Unknown</span>';
+
+            // Name / Position
+            const name = [e.first_name, e.last_name]
+                .filter(Boolean).join(' ') || '-';
+            const position = e.position || '';
+            const nameHtml = position
+                ? `${name}<br><small class="text-muted">${position}</small>`
+                : name;
+
+            // Sources
+            const sources = (e.sources || []).map(
+                s => `<span class="badge bg-secondary me-1">${s}</span>`
+            ).join('');
+
+            // Breach count
+            const breachCount = e.breach_count || 0;
+            const breachHtml = breachCount > 0
+                ? `<span class="badge bg-danger">${breachCount} breaches</span>`
+                : '-';
+
+            // Data types leaked
+            let dataHtml = '-';
+            if (e.data_types_leaked && e.data_types_leaked.length > 0) {
+                dataHtml = e.data_types_leaked.slice(0, 4).map(dt => {
+                    const cls = dt === 'Passwords'
+                        ? 'data-passwords'
+                        : dt === 'Email addresses'
+                            ? 'data-email'
+                            : 'data-other';
+                    return `<span class="breach-tag ${cls}">${dt}</span>`;
+                }).join('');
+            }
+
+            const emailId = e._id || '';
+
+            return `
+            <tr class="${status === 'breached' ? 'table-danger' : ''}">
+                <td>${statusIcon}</td>
+                <td><strong>${e.email || '-'}</strong>
+                    ${e.password_leaked
+                    ? '<br><small class="text-danger">Password exposed</small>'
+                    : ''}
+                </td>
+                <td>${nameHtml}</td>
+                <td>${sources || '-'}</td>
+                <td>${breachHtml}</td>
+                <td>${dataHtml}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger"
+                            onclick="deleteEmail('${emailId}')"
+                            title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    // ─── Run Harvest ─────────────────────────────────────────
+    async function runHarvest() {
+        const domain = document.getElementById('email-domain').value;
+        if (!domain) {
+            alert('Select a domain first');
+            return;
+        }
+
+        const statusDiv = document.getElementById('harvest-status');
+        statusDiv.innerHTML =
+            '<span class="badge bg-primary">' +
+            '<span class="spinner-border spinner-border-sm"></span>' +
+            ' Harvesting emails' +
+            '</span>';
+
+        try {
+            const result = await api.post(`/api/emails/harvest/${domain}`);
+
+            if (result.success) {
+                statusDiv.innerHTML = '';
+                loadEmails();
+                loadTargets();  // Refresh target email counts
+            } else {
+                statusDiv.innerHTML =
+                    `<span class="badge bg-danger">` +
+                    ` ${result.error || 'Harvest failed'}</span>`;
+            }
+        } catch (e) {
+            statusDiv.innerHTML =
+                '<span class="badge bg-danger"> Harvest failed</span>';
+        }
+    }
+
+    // ─── Re-check Breaches ───────────────────────────────────
+    async function recheckBreaches() {
+        const domain = document.getElementById('email-domain').value;
+        if (!domain) {
+            alert('Select a domain first');
+            return;
+        }
+
+        if (!confirm(
+            'Re-check all emails against HaveIBeenPwned?\n' +
+            'This requires an API key and may take a while.'
+        )) return;
+
+        const statusDiv = document.getElementById('harvest-status');
+        statusDiv.innerHTML =
+            '<span class="badge bg-info">' +
+            '<span class="spinner-border spinner-border-sm"></span>' +
+            ' Checking breaches...' +
+            '</span>';
+
+        try {
+            const result = await api.post(
+                `/api/emails/${domain}/check-breaches`
+            );
+
+            if (result.success) {
+                const s = result.summary || {};
+                statusDiv.innerHTML =
+                    `<span class="badge bg-success">` +
+                    ` Checked ${result.checked || 0}, ` +
+                    `${s.breached || 0} breached</span>`;
+                loadEmails();
+            } else {
+                statusDiv.innerHTML =
+                    `<span class="badge bg-danger">` +
+                    ` ${result.error}</span>`;
+            }
+        } catch (e) {
+            statusDiv.innerHTML =
+                '<span class="badge bg-danger"> Check failed</span>';
+        }
+    }
+
+    // ─── Delete Email ────────────────────────────────────────
+    async function deleteEmail(emailId) {
+        if (!emailId || !confirm('Delete this email record?')) return;
+        try {
+            await api.delete(`/api/emails/${emailId}`);
+            loadEmails();
+        } catch (e) {
+            alert('Delete failed');
+        }
+    }
+
+    // ─── Reset Stats ─────────────────────────────────────────
+    function resetStats() {
+        ['stat-total', 'stat-breached', 'stat-clean', 'stat-passwords']
+            .forEach(id => {
+                document.getElementById(id).textContent = '-';
+            });
+    }
+
+    // ─── Initialize ──────────────────────────────────────────
+    function cardFilter(status) {
+        const select = document.getElementById('filter-breach');
+        select.value = status;
+
+        // Remove active class from all filter cards
+        document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('active-filter'));
+
+        // Add active class to clicked card
+        if (status === 'breached') {
+            document.querySelector('.stat-breached').parentElement.classList.add('active-filter');
+        } else if (status === 'clean') {
+            document.querySelector('.stat-clean').parentElement.classList.add('active-filter');
+        }
+
+        loadEmails();
+    }
+
+    loadTargets();
+</script>
+{% endblock %}

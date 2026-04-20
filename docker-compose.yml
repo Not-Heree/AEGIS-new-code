@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  aegis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aegis-easm
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/aegis_easm
+      - NUCLEI_PATH=/usr/local/bin/nuclei
+      - HTTPX_PATH=/usr/local/bin/httpx
+      - NAABU_PATH=/usr/local/bin/naabu
+      - SUBFINDER_PATH=/usr/local/bin/subfinder
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    volumes:
+      - nuclei-templates:/root/nuclei-templates
+    networks:
+      - aegis-network
+
+  mongo:
+    image: mongo:7
+    container_name: aegis-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - aegis-network
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: aegis-mongo-ui
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://mongo:27017
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - aegis-network
+
+volumes:
+  mongo-data:
+  nuclei-templates:
+
+
+networks:
+  aegis-network:
+    driver: bridge

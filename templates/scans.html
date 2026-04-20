@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block title %}Scans - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2><i class="bi bi-radar"></i> Scans</h2>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Run Scan</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Target</label>
+                    <select class="form-select" id="scan-target">
+                        <option>Loading...</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="runScan()">
+                    Start Full Scan
+                </button>
+                <div id="scan-status" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-calendar-check"></i> Scan Schedule</h5>
+            </div>
+            <div class="card-body">
+                <!-- Create Schedule Form -->
+                <div class="row g-2 mb-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Target</label>
+                        <select class="form-select form-select-sm" id="schedule-target">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Frequency</label>
+                        <select class="form-select form-select-sm" id="schedule-frequency">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">Time</label>
+                        <input type="time" class="form-control form-control-sm" id="schedule-time" value="02:00">
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-sm btn-primary w-100" onclick="createSchedule()">
+                            <i class="bi bi-plus-circle"></i> Add
+                        </button>
+                    </div>
+                </div>
+                <!-- Schedule Queue -->
+                <div id="schedule-queue">
+                    <div class="text-center text-muted small py-2">Loading schedules...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Scans (Full Width, Below) -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-clock-history"></i> Recent Scans</h5>
+            </div>
+            <div class="card-body" id="scan-history">Loading...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let activeScanId = null;
+    let pollInterval = null;
+
+    async function loadTargets() {
+        try {
+            const data = await api.get('/api/targets/');
+            const select = document.getElementById('scan-target');
+            const scheduleSelect = document.getElementById('schedule-target');
+            const targets = data.targets || [];
+
+            if (targets.length === 0) {
+                select.innerHTML = '<option value="">Add a target first</option>';
+                scheduleSelect.innerHTML = '<option value="">Add a target first</option>';
+                return;
+            }
+
+            const options = targets.map(t => {
+                const domain = t.root_domain || t.domain || '';
+                return `<option value="${domain}">${domain}</option>`;
+            }).join('');
+
+            select.innerHTML = options;
+            scheduleSelect.innerHTML = '<option value="">Select target</option>' + options;
+
+            loadHistory();
+            loadSchedules();
+
+        } catch (error) {
+            console.error('Error loading targets:', error);
+            document.getElementById('scan-target').innerHTML =
+                '<option value="">Error loading targets</option>';
+        }
+    }
+
+    async function runScan() {
+        const domain = document.getElementById('scan-target').value;
+
+        if (!domain) {
+            alert('Select a target first');
+            return;
+        }
+
+        const statusDiv = document.getElementById('scan-status');
+
+        statusDiv.innerHTML = `
+        <div class="card border-primary shadow-sm mb-3">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-primary fw-bold">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Scanning ${domain}...
+                    </h6>
+                    <span class="badge bg-primary text-uppercase" style="letter-spacing: 0.5px;">Running</span>
+                </div>
+                <div id="scan-phase" class="text-muted small mb-2 fw-medium">Initializing...</div>
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                         id="scan-progress" role="progressbar"
+                         style="width: 0%"></div>
+                </div>
+                <div class="text-end mt-1">
+                    <small id="scan-progress-text" class="text-muted fw-bold">0%</small>
+                </div>
+            </div>
+        </div>`;
+
+        try {
+            const result = await api.post(`/api/scans/full/${domain}`);
+
+            if (!result.success) {
+                statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> ${result.error}
+                </div>`;
+                return;
+            }
+
+            trackScan(result.scan_id, domain);
+
+        } catch (e) {
+            statusDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i> Error starting scan: ${e.message}
+            </div>`;
+        }
+    }
+
+    async function trackScan(scanId, domain) {
+        if (pollInterval) clearInterval(pollInterval);
+        activeScanId = scanId;
+
+        const statusDiv = document.getElementById('scan-status');
+
+        statusDiv.innerHTML = `
+        <div class="card border-primary shadow-sm mb-3">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-primary fw-bold">
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Scanning ${domain}...
+                    </h6>
+                    <span class="badge bg-primary text-uppercase" style="letter-spacing: 0.5px;">Running</span>
+                </div>
+                <div id="scan-phase" class="text-muted small mb-2 fw-medium">Loading status...</div>
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                         id="scan-progress" role="progressbar"
+                         style="width: 0%"></div>
+                </div>
+                <div class="text-end mt-1">
+                    <small id="scan-progress-text" class="text-muted fw-bold">0%</small>
+                </div>
+            </div>
+        </div>`;
+
+        pollInterval = setInterval(async () => {
+            try {
+                const status = await api.get(`/api/scans/status/${scanId}`);
+                const scan = status.scan || {};
+
+                const percent = scan.progress_percent || 0;
+                const bar = document.getElementById('scan-progress');
+                if (bar) {
+                    bar.style.width = percent + '%';
+                }
+                const pctText = document.getElementById('scan-progress-text');
+                if (pctText) {
+                    pctText.textContent = percent + '%';
+                }
+
+                const phaseEl = document.getElementById('scan-phase');
+                if (phaseEl) {
+                    phaseEl.textContent = scan.phase_detail || scan.current_phase || 'Processing...';
+                }
+
+                if (scan.status === 'completed') {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    activeScanId = null;
+                    const r = scan.results || {};
+                    statusDiv.innerHTML = `
+                    <div class="card border-success shadow-sm mb-3">
+                        <div class="card-body p-3 text-center">
+
+                            <h6 class="fw-bold text-success mb-2">Scan Complete</h6>
+                            <div class="d-flex justify-content-center flex-wrap gap-2">
+                                <span class="badge bg-light text-dark border">Subs: ${r.subdomains_found || 0}</span>
+                                <span class="badge bg-light text-dark border">Ports: ${r.ports_found || 0}</span>
+                                <span class="badge bg-light text-dark border">HTTP: ${r.http_assets_found || 0}</span>
+                                <span class="badge bg-light text-dark border">Vulns: ${r.vulns_found || 0}</span>
+                                <span class="badge bg-danger">Risk: ${r.risk_score || 0}/100</span>
+                            </div>
+                        </div>
+                    </div>`;
+                    loadHistory();
+                } else if (scan.status === 'failed') {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    activeScanId = null;
+                    statusDiv.innerHTML = `
+                    <div class="card border-danger shadow-sm mb-3">
+                        <div class="card-body p-3 text-center">
+                            <i class="bi bi-x-circle-fill text-danger fs-2 mb-2 d-block"></i>
+                            <h6 class="fw-bold text-danger mb-1">Scan Failed</h6>
+                            <p class="mb-0 text-muted small">${scan.error_message || 'Unknown error'}</p>
+                        </div>
+                    </div>`;
+                    loadHistory();
+                }
+            } catch (pollErr) {
+                console.error('Poll error - stopping tracker:', pollErr);
+                if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                    activeScanId = null;
+                }
+            }
+        }, 3000);
+    }
+
+    async function loadHistory() {
+        const domain = document.getElementById('scan-target').value;
+        const historyDiv = document.getElementById('scan-history');
+
+        if (!domain) {
+            historyDiv.innerHTML = '<p class="text-muted">Select a target to see scan history</p>';
+            return;
+        }
+
+        try {
+            const data = await api.get('/api/scans/history/' + domain);
+            const history = data.history || [];
+
+            if (history.length === 0) {
+                historyDiv.innerHTML = '<p class="text-muted">No scans yet. Run your first scan!</p>';
+                return;
+            }
+
+            const latest = history[0];
+            if (latest.status === 'running' && latest._id !== activeScanId) {
+                trackScan(latest._id, domain);
+            }
+
+            historyDiv.innerHTML = history.map(s => {
+                const statusBadge = {
+                    'completed': '<span class="badge bg-success">Completed</span>',
+                    'running': '<span class="badge bg-primary">Running</span>',
+                    'failed': '<span class="badge bg-danger">Failed</span>',
+                    'partial': '<span class="badge bg-warning text-dark">Partial</span>'
+                }[s.status] || `<span class="badge bg-secondary">${s.status || 'unknown'}</span>`;
+
+                const startedAt = s.started_at
+                    ? new Date(typeof s.started_at === 'string' && !s.started_at.endsWith('Z')
+                        ? s.started_at + 'Z' : s.started_at)
+                        .toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' })
+                    : 'Unknown';
+
+                let statsHtml = '';
+                if (s.stats) {
+                    const stats = s.stats;
+                    const parts = [];
+                    if (stats.subdomains_found) parts.push(`Subs: ${stats.subdomains_found}`);
+                    if (stats.ports_found) parts.push(`Ports: ${stats.ports_found}`);
+                    if (stats.http_assets_found) parts.push(`HTTP: ${stats.http_assets_found}`);
+                    if (stats.vulns_found) parts.push(`Vulns: ${stats.vulns_found}`);
+                    if (stats.risk_score !== undefined) parts.push(`Risk: ${stats.risk_score}/100`);
+
+                    if (parts.length > 0) {
+                        statsHtml = `<br><small class="text-muted">${parts.join(' | ')}</small>`;
+                    }
+                }
+
+                return `
+                    <div class="border-bottom py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <strong> Full Scan</strong>
+                            ${statusBadge}
+                        </div>
+                        <small class="text-muted">${startedAt}</small>
+                        ${statsHtml}
+                        ${s.error ? `<br><small class="text-danger">Error: ${s.error}</small>` : ''}
+                    </div>`;
+            }).join('');
+
+        } catch (error) {
+            console.error('Error loading history:', error);
+            historyDiv.innerHTML = '<p class="text-danger">Error loading scan history</p>';
+        }
+    }
+
+    // ═══════════════════════════════════════════════
+    // SCAN SCHEDULE MANAGEMENT
+    // ═══════════════════════════════════════════════
+
+    async function loadSchedules() {
+        const queueDiv = document.getElementById('schedule-queue');
+        try {
+            const data = await api.get('/api/schedules/');
+            const schedules = data.schedules || [];
+
+            if (schedules.length === 0) {
+                queueDiv.innerHTML = '<div class="text-center text-muted small py-2">No schedules configured yet.</div>';
+                return;
+            }
+
+            queueDiv.innerHTML = schedules.map(s => {
+                const enabledBadge = s.enabled
+                    ? '<span class="badge bg-success">Active</span>'
+                    : '<span class="badge bg-secondary">Disabled</span>';
+                const freqBadge = `<span class="badge bg-info text-dark">${(s.frequency || 'daily').toUpperCase()}</span>`;
+                const nextRun = s.next_run ? new Date(s.next_run).toLocaleString() : 'Pending';
+
+                return `
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <div>
+                        <strong class="small">${s.target_domain || 'Unknown'}</strong>
+                        <div class="d-flex gap-1 align-items-center mt-1">
+                            ${enabledBadge} ${freqBadge}
+                            <small class="text-muted ms-1">${s.time_of_day || '00:00'}</small>
+                        </div>
+                        <small class="text-muted d-block">Next: ${nextRun}</small>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-${s.enabled ? 'warning' : 'success'}"
+                                onclick="toggleSchedule('${s._id}', ${!s.enabled})"
+                                title="${s.enabled ? 'Disable' : 'Enable'}">
+                            <i class="bi bi-${s.enabled ? 'pause-circle' : 'play-circle'}"></i>
+                        </button>
+                        <button class="btn btn-outline-danger"
+                                onclick="deleteScheduleItem('${s._id}')"
+                                title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            console.error('Error loading schedules:', e);
+            queueDiv.innerHTML = '<div class="text-center text-danger small py-2">Error loading schedules</div>';
+        }
+    }
+
+    async function createSchedule() {
+        const domain = document.getElementById('schedule-target').value;
+        const frequency = document.getElementById('schedule-frequency').value;
+        const timeOfDay = document.getElementById('schedule-time').value;
+
+        if (!domain) {
+            alert('Select a target for the schedule');
+            return;
+        }
+
+        try {
+            const result = await api.post('/api/schedules/', {
+                domain: domain,
+                frequency: frequency,
+                time_of_day: timeOfDay,
+                scan_type: 'full',
+                enabled: true
+            });
+
+            if (result.success) {
+                loadSchedules();
+                document.getElementById('schedule-target').value = '';
+            } else {
+                alert(result.error || 'Failed to create schedule');
+            }
+        } catch (e) {
+            console.error('Error creating schedule:', e);
+            alert('Failed to create schedule');
+        }
+    }
+
+    async function toggleSchedule(scheduleId, enabled) {
+        try {
+            await api.put('/api/schedules/' + scheduleId, { enabled: enabled });
+            loadSchedules();
+        } catch (e) {
+            console.error('Error toggling schedule:', e);
+            alert('Failed to update schedule');
+        }
+    }
+
+    async function deleteScheduleItem(scheduleId) {
+        if (!confirm('Delete this scan schedule?')) return;
+        try {
+            await api.delete('/api/schedules/' + scheduleId);
+            loadSchedules();
+        } catch (e) {
+            console.error('Error deleting schedule:', e);
+            alert('Failed to delete schedule');
+        }
+    }
+
+    document.getElementById('scan-target').addEventListener('change', loadHistory);
+
+    loadTargets();
+</script>
+{% endblock %}
