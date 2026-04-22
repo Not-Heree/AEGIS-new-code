@@ -1,17 +1,39 @@
-venv/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-.env
-tools/*.exe
-tools/*.zip
-reports/*.pdf
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.swp
-temp/
-data/
-*.egg-info/
+# Ignore everything by default
+*
+
+# Explicitly un-ignore the requested directories and their contents
+!core/
+!core/**
+!routes/
+!routes/**
+!database/
+!database/**
+!data/
+!data/**
+!static/
+!static/**
+!templates/
+!templates/**
+!utils/
+!utils/**
+
+# Explicitly un-ignore the main root application files (code written by us)
+!app.py
+!config.py
+
+# Explicitly re-ignore unwanted things that might sneak into allowed directories
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.env
+**/.DS_Store
+**/Thumbs.db
+**/temp/
+**/*.swp
+
+# Explicitly ensure docker files and README are ignored (as requested)
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+*.md

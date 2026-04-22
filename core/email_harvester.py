@@ -972,21 +972,24 @@ def check_email_breach_multi_source(email):
       1. Try IntelX first (free, no daily limit on free.intelx.io)
       2. If IntelX rate-limited or fails, try LeakCheck
       3. Combine results from both sources
+      4. Mark as "unchecked" (None) if quota exceeded on all sources
     
     Args:
         email: Email address to check
     
     Returns:
-        Combined breach data from all available sources
+        Combined breach data from all available sources.
+        Returns breached=None if unable to check due to quota/API limits.
     """
     combined_result = {
         "email": email,
-        "breached": False,
+        "breached": None,  # None = unchecked, True/False = checked result
         "breach_count": 0,
         "breaches": [],
         "data_types_leaked": set(),
         "password_leaked": False,
-        "sources_checked": []
+        "sources_checked": [],
+        "unchecked_reason": None  # Reason if unable to check
     }
     
     # ── Source 1: IntelX (Primary) ──
@@ -994,19 +997,21 @@ def check_email_breach_multi_source(email):
     
     if intelx_result.get("success"):
         combined_result["sources_checked"].append("intelx")
+        combined_result["breached"] = intelx_result.get("breached", False)
         
         if intelx_result.get("breached"):
-            combined_result["breached"] = True
             combined_result["breach_count"] += intelx_result.get("breach_count", 0)
             combined_result["breaches"].extend(intelx_result.get("breaches", []))
             combined_result["data_types_leaked"].update(intelx_result.get("data_types_leaked", []))
             
             if intelx_result.get("password_leaked"):
                 combined_result["password_leaked"] = True
-    
-    # ── Source 2: LeakCheck (Fallback) ──
-    # Only use if IntelX was rate-limited or found nothing
-    if intelx_result.get("rate_limited") or not intelx_result.get("success"):
+    elif intelx_result.get("rate_limited"):
+        # IntelX quota exceeded - try fallback
+        combined_result["unchecked_reason"] = "IntelX quota exceeded"
+        logger.warning("[BREACH] IntelX quota exceeded for %s, trying fallback...", email)
+        
+        # ── Source 2: LeakCheck (Fallback) ──
         leakcheck_key = os.getenv("LEAKCHECK_API_KEY", "")
         
         if leakcheck_key:
@@ -1015,9 +1020,32 @@ def check_email_breach_multi_source(email):
             
             if leakcheck_result.get("breached") is not None:
                 combined_result["sources_checked"].append("leakcheck")
+                combined_result["breached"] = leakcheck_result.get("breached", False)
+                combined_result["unchecked_reason"] = None  # Successfully checked via fallback
                 
                 if leakcheck_result.get("breached"):
-                    combined_result["breached"] = True
+                    combined_result["breach_count"] += leakcheck_result.get("breach_count", 0)
+                    combined_result["breaches"].extend(leakcheck_result.get("breaches", []))
+                    combined_result["data_types_leaked"].update(leakcheck_result.get("data_types_leaked", []))
+                    
+                    if leakcheck_result.get("password_leaked"):
+                        combined_result["password_leaked"] = True
+            else:
+                # LeakCheck also failed or quota exceeded
+                combined_result["unchecked_reason"] = "All breach APIs quota exceeded or unavailable"
+    else:
+        # Other IntelX error - try LeakCheck
+        leakcheck_key = os.getenv("LEAKCHECK_API_KEY", "")
+        
+        if leakcheck_key:
+            time.sleep(1)
+            leakcheck_result = check_leakcheck(email)
+            
+            if leakcheck_result.get("breached") is not None:
+                combined_result["sources_checked"].append("leakcheck")
+                combined_result["breached"] = leakcheck_result.get("breached", False)
+                
+                if leakcheck_result.get("breached"):
                     combined_result["breach_count"] += leakcheck_result.get("breach_count", 0)
                     combined_result["breaches"].extend(leakcheck_result.get("breaches", []))
                     combined_result["data_types_leaked"].update(leakcheck_result.get("data_types_leaked", []))
@@ -1066,6 +1094,7 @@ def check_breaches_batch(emails):
     total_clean = 0
     password_leaks = 0
     checked = 0
+    unchecked_count = 0
     
     for email in emails:
         # Rate limiting - be nice to APIs
@@ -1076,7 +1105,7 @@ def check_breaches_batch(emails):
         result = check_email_breach_multi_source(email)
         results[email] = result
         
-        if result.get("breached"):
+        if result.get("breached") is True:
             total_breached += 1
             if result.get("password_leaked"):
                 password_leaks += 1
@@ -1085,7 +1114,9 @@ def check_breaches_batch(emails):
             total_clean += 1
             status = "Clean"
         else:
-            status = "Unchecked"
+            # breached is None = unchecked (quota exceeded or API error)
+            unchecked_count += 1
+            status = f"Unchecked ({result.get('unchecked_reason', 'unknown reason')})"
         
         sources = ",".join(result.get("sources_checked", []))
         logger.info("  [%s] %s (via: %s)", status, email, sources if sources else "none")
@@ -1093,6 +1124,7 @@ def check_breaches_batch(emails):
 
     logger.info("[BREACH] Breach check complete:")
     logger.info("  Checked: %d", checked)
+    logger.info("  Unchecked (quota/API issues): %d", unchecked_count)
     logger.info("  Breached: %d", total_breached)
     logger.info("  Clean: %d", total_clean)
     logger.info("  Password leaks: %d", password_leaks)
@@ -1102,6 +1134,7 @@ def check_breaches_batch(emails):
         "results": results,
         "summary": {
             "total_checked": checked,
+            "total_unchecked": unchecked_count,
             "total_breached": total_breached,
             "total_clean": total_clean,
             "password_leaks": password_leaks

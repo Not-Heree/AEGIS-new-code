@@ -328,14 +328,24 @@ class SmartBriefEngine:
         if research_refs:
             # Pick the first non-Google ref as the primary community reference
             for ref in research_refs:
-                if "google.com" not in ref.get("url", ""):
-                    return {
-                        "title": f"Technical Analysis: {vuln.get('name', 'Vulnerability')}",
-                        "url": ref["url"],
-                        "source": ref.get("source", "Authoritative Source"),
-                        "type": "Technical Deep-Dive",
-                        "trustworthiness": "high"
-                    }
+                if isinstance(ref, dict):
+                    if "google.com" not in ref.get("url", ""):
+                        return {
+                            "title": f"Technical Analysis: {vuln.get('name', 'Vulnerability')}",
+                            "url": ref["url"],
+                            "source": ref.get("source", "Authoritative Source"),
+                            "type": "Technical Deep-Dive",
+                            "trustworthiness": "high"
+                        }
+                elif isinstance(ref, str):
+                    if "google.com" not in ref:
+                        return {
+                            "title": f"Technical Analysis: {vuln.get('name', 'Vulnerability')}",
+                            "url": ref,
+                            "source": "Research Hub",
+                            "type": "Technical Deep-Dive",
+                            "trustworthiness": "high"
+                        }
 
         # 3. CVE-based fallback
         cve_id = vuln.get("cve_id")
@@ -375,15 +385,26 @@ class SmartBriefEngine:
         if research_refs:
             # Look specifically for docs/remediation keywords in research links
             for ref in research_refs:
-                url = ref.get("url", "").lower()
-                if any(x in url for x in ["docs.", "support.", "remediation", "hardening", "guide"]):
-                    return {
-                        "title": f"Official Fix Guide: {vuln_name}",
-                        "url": ref["url"],
-                        "source": ref.get("source", "Vendor Documentation"),
-                        "type": "Remediation Guide",
-                        "trustworthiness": "high"
-                    }
+                if isinstance(ref, dict):
+                    url = ref.get("url", "").lower()
+                    if any(x in url for x in ["docs.", "support.", "remediation", "hardening", "guide"]):
+                        return {
+                            "title": f"Official Fix Guide: {vuln_name}",
+                            "url": ref.get("url"),
+                            "source": ref.get("source", "Vendor Documentation"),
+                            "type": "Remediation Guide",
+                            "trustworthiness": "high"
+                        }
+                elif isinstance(ref, str):
+                    url = ref.lower()
+                    if any(x in url for x in ["docs.", "support.", "remediation", "hardening", "guide"]):
+                        return {
+                            "title": f"Official Fix Guide: {vuln_name}",
+                            "url": ref,
+                            "source": "Vendor Documentation",
+                            "type": "Remediation Guide",
+                            "trustworthiness": "high"
+                        }
 
         # 2. Optimized Google Dorking Fallback
         # Google Dork for official docs and hardening guides
@@ -1745,12 +1766,19 @@ def fetch_nvd_data(cve_id: str) -> Optional[Dict[str, Any]]:
         # Extract references (vendor advisories, patches)
         references = []
         for ref in cve_data.get("references", []):
-            ref_entry = {
-                "url": ref.get("url", ""),
-                "source": ref.get("source", ""),
-                "tags": ref.get("tags", [])
-            }
-            references.append(ref_entry)
+            if isinstance(ref, dict):
+                ref_entry = {
+                    "url": ref.get("url", ""),
+                    "source": ref.get("source", "NVD"),
+                    "tags": ref.get("tags", [])
+                }
+                references.append(ref_entry)
+            elif isinstance(ref, str):
+                references.append({
+                    "url": ref,
+                    "source": "NVD",
+                    "tags": []
+                })
 
         # Extract CVSS data
         cvss_data = _extract_nvd_cvss(cve_data)
@@ -1768,7 +1796,7 @@ def fetch_nvd_data(cve_id: str) -> Optional[Dict[str, Any]]:
             "affected_products": affected,
             "patch_urls": [
                 r["url"] for r in references
-                if any(t in r.get("tags", [])
+                if isinstance(r, dict) and r.get("url") and any(t in r.get("tags", [])
                        for t in ["Patch", "Vendor Advisory", "Mitigation"])
             ]
         }
@@ -2701,8 +2729,16 @@ def generate_detailed_remediation(vuln: Dict[str, Any], enrichment: Dict[str, An
             # Use CWE impact as business impact
             remediation["business_impact"] = cwe_data.get("business_impact", "")
             
-            # Add CWE references
-            remediation["references"].extend(cwe_data.get("references", []))
+            # Add CWE references (normalized to dicts)
+            for raw_ref in cwe_data.get("references", []):
+                if isinstance(raw_ref, str):
+                    remediation["references"].append({
+                        "url": raw_ref,
+                        "source": "CWE Knowledge Base",
+                        "tags": ["remediation", "official"]
+                    })
+                elif isinstance(raw_ref, dict):
+                    remediation["references"].append(raw_ref)
     
     # ── CVE-Specific Patches ─────────────────────────────
     if enrichment and enrichment.get("cve_enrichment"):

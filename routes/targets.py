@@ -288,32 +288,10 @@ def add_target():
         # Register for cancellation monitoring
         register_target(domain)
 
-        thread = threading.Thread(
-            target=_harvest_emails_background,
-            args=(target_id, domain),
-            name=f"email-harvest-{domain}"
-        )
-        thread.daemon = True
-        thread.start()
-
-        logger.info(
-            "Email harvesting thread started for %s", domain
-        )
-
         return jsonify({
             "success": True,
-            "message": (
-                f"Target '{domain}' added successfully. "
-                f"Email harvesting running in background."
-            ),
-            "target": target,
-            "email_harvest": {
-                "status": "running_in_background",
-                "message": (
-                    "Check the Emails page in a few minutes "
-                    "for discovered emails and breach data."
-                )
-            }
+            "message": f"Target '{domain}' added successfully.",
+            "target": target
         }), 201
 
     except Exception as e:

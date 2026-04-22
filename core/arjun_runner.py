@@ -133,10 +133,13 @@ def run_arjun(
         # 1. Build surgically precise wordlist
         wordlist_path = builder.build_wordlist_file(url, tech, method)
         
-        # 2. Adaptive Wait
+        # 2. Reset Rate Limiter for this specific host to enforce per-host strike policy
+        limiter = AdaptiveRateLimiter(profile)
+        
+        # 3. Adaptive Wait
         limiter.wait()
 
-        # 3. Setup Arjun command
+        # 4. Setup Arjun command
         output_path = os.path.join(temp_dir, f"arjun_out_{i}.json")
         arjun_path = _resolve_tool_path(Config.ARJUN_PATH)
         stats = limiter.get_stats()
@@ -158,7 +161,7 @@ def run_arjun(
             # Run Arjun for this specific URL
             process = subprocess.run(cmd, capture_output=True, text=True, timeout=Config.ARJUN_TIMEOUT)
             
-            # 4. Analyze output for WAF detection
+            # 5. Analyze output for WAF detection
             stderr = process.stderr.lower()
             stdout = process.stdout.lower()
             
@@ -170,7 +173,7 @@ def run_arjun(
             else:
                 limiter.handle_response(200)
 
-            # 5. Collect results
+            # 6. Collect results
             if os.path.exists(output_path):
                 url_endpoints = _parse_arjun_json_output(output_path)
                 all_endpoints.extend(url_endpoints)
@@ -181,8 +184,8 @@ def run_arjun(
                 os.remove(wordlist_path)
 
             if status == "ABORT":
-                logger.critical("[ARJUN] Circuit breaker triggered at %s. Stopping discovery phase.", url)
-                break
+                logger.error("[ARJUN] WAF Strike 2! Skipping %s but continuing with other URLs.", url)
+                continue
 
         except subprocess.TimeoutExpired:
             logger.warning("[ARJUN] Timeout for %s, skipping to next URL", url)

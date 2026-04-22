@@ -516,14 +516,26 @@ def _run_nuclei_single(
                 if not url:
                     url = data.get("host", "")
 
+                # Extract base CWE ID from Nuclei
+                nuclei_cwe = info.get(
+                    "classification", {}
+                ).get("cwe-id", [])
+                
+                # Map to CWE using vuln name/template/tags if needed
+                template_id = data.get("template-id", "")
+                vuln_name = info.get(
+                    "name", data.get("name", "")
+                )
+                tags = info.get("tags", [])
+                
+                mapped_cwe = _map_vuln_to_cwe(
+                    vuln_name, template_id, tags,
+                    existing_cwe=nuclei_cwe
+                )
+                
                 vuln = {
-                    "template_id": data.get(
-                        "template-id", ""
-                    ),
-                    "name": info.get(
-                        "name",
-                        data.get("name", "")
-                    ),
+                    "template_id": template_id,
+                    "name": vuln_name,
                     "severity": severity,
                     "description": info.get(
                         "description", ""
@@ -536,15 +548,13 @@ def _run_nuclei_single(
                     "matcher_name": data.get(
                         "matcher-name", ""
                     ),
-                    "tags": info.get("tags", []),
+                    "tags": tags,
                     "reference": info.get(
                         "reference", []
                     ),
                     "cve_id": _extract_cve(info),
                     "cvss_score": _extract_cvss(info),
-                    "cwe_id": info.get(
-                        "classification", {}
-                    ).get("cwe-id", []),
+                    "cwe_id": mapped_cwe,  # Now includes mapped CWEs
                     "remediation": _get_remediation(
                         data
                     ),
@@ -558,11 +568,11 @@ def _run_nuclei_single(
                         datetime.utcnow().isoformat()
                     ),
                     
-                    # ── NEW: Store template info for better remediation ──
+                    # ── Store template info for better remediation ──
                     "template_info": {
                         "author": info.get("author", []),
                         "severity": info.get("severity", ""),
-                        "tags": info.get("tags", []),
+                        "tags": tags,
                         "description": info.get("description", ""),
                         "remediation": info.get("remediation", ""),
                         "classification": info.get("classification", {})
@@ -789,6 +799,103 @@ def _extract_cve(
             return tag.upper()
 
     return None
+
+
+def _map_vuln_to_cwe(
+    vuln_name: str,
+    template_id: str,
+    tags: List[str],
+    existing_cwe: List[str] = None
+) -> List[str]:
+    """
+    Map vulnerability name, template ID, and tags to CWE IDs.
+    
+    If CWE IDs are already provided by Nuclei, return them.
+    Otherwise, map based on vulnerability characteristics.
+    
+    Args:
+        vuln_name: Vulnerability name
+        template_id: Nuclei template ID
+        tags: Vulnerability tags
+        existing_cwe: CWE IDs from Nuclei (if any)
+    
+    Returns:
+        List of CWE IDs
+    """
+    # If CWE IDs already provided by Nuclei, return them
+    if existing_cwe and len(existing_cwe) > 0:
+        return existing_cwe
+    
+    vuln_name_lower = vuln_name.lower()
+    template_lower = template_id.lower()
+    tags_lower = [t.lower() for t in (tags or [])]
+    
+    # ── SSL/TLS / Weak Cryptography ──
+    if any(x in vuln_name_lower for x in ["weak cipher", "cipher suite", "ssl", "tls"]):
+        return ["CWE-327-WEAK", "CWE-757"]
+    if any(x in template_lower for x in ["ssl-weak", "tls-weak", "cipher"]):
+        return ["CWE-327-WEAK", "CWE-757"]
+    
+    # ── Broken/Risky Cryptography ──
+    if any(x in vuln_name_lower for x in ["broken crypto", "risky algorithm", "md5", "sha1", "des"]):
+        return ["CWE-327"]
+    
+    # ── Inadequate Encryption ──
+    if any(x in vuln_name_lower for x in ["inadequate encrypt", "weak encrypt", "no encryption"]):
+        return ["CWE-326"]
+    
+    # ── Authentication Issues ──
+    if any(x in vuln_name_lower for x in ["weak password", "default cred", "hardcoded cred"]):
+        return ["CWE-521"]
+    if any(x in vuln_name_lower for x in ["missing auth", "no auth required"]):
+        return ["CWE-287"]
+    
+    # ── SQL Injection ──
+    if any(x in vuln_name_lower for x in ["sql inject", "sqli"]):
+        return ["CWE-89"]
+    if any(x in template_lower for x in ["sql-inject", "sqli"]):
+        return ["CWE-89"]
+    
+    # ── Cross-Site Scripting ──
+    if any(x in vuln_name_lower for x in ["xss", "cross-site script"]):
+        return ["CWE-79"]
+    if any(x in template_lower for x in ["xss", "cross-site"]):
+        return ["CWE-79"]
+    
+    # ── Path Traversal ──
+    if any(x in vuln_name_lower for x in ["path traversal", "directory traversal", "lfi"]):
+        return ["CWE-22"]
+    
+    # ── Information Disclosure ──
+    if any(x in vuln_name_lower for x in ["exposed .git", "git exposed", "directory listing", "source disclosure"]):
+        return ["CWE-548"]
+    if any(x in vuln_name_lower for x in ["sensitive data", "exposed env", ".env exposed"]):
+        return ["CWE-434"]
+    
+    # ── CORS/Access Control ──
+    if any(x in vuln_name_lower for x in ["cors", "cross-origin"]):
+        return ["CWE-346"]
+    if any(x in vuln_name_lower for x in ["access control", "authorization", "broken access"]):
+        return ["CWE-284"]
+    
+    # ── Default Credentials ──
+    if any(x in vuln_name_lower for x in ["default", "factory default", "unchanged password"]):
+        return ["CWE-798"]
+    
+    # ── Open Redirect ──
+    if any(x in vuln_name_lower for x in ["open redirect", "unvalidated redirect"]):
+        return ["CWE-601"]
+    
+    # ── Deserialization ──
+    if any(x in vuln_name_lower for x in ["deserialization", "unsafe deserialize"]):
+        return ["CWE-502"]
+    
+    # ── XML External Entity ──
+    if any(x in vuln_name_lower for x in ["xxe", "xml external"]):
+        return ["CWE-611"]
+    
+    # No mapping found
+    return []
 
 
 def _extract_cvss(

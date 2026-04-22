@@ -1,0 +1,58 @@
+{
+  "path_patterns": {
+    "api_endpoints": {
+      "patterns": ["/api/", "/v1/", "/v2/", "/v3/", "/graphql", "/rest/"],
+      "params": ["version", "v", "api_key", "apikey", "key", "token", "access_token", "auth", "authorization", "bearer", "client_id", "client_secret", "format", "callback", "jsonp", "pretty", "indent", "app_id", "app_key", "signature", "timestamp", "nonce", "limit", "offset", "fields", "expand"]
+    },
+    "authentication": {
+      "patterns": ["/login", "/auth", "/oauth", "/signin", "/signup", "/register", "/password"],
+      "params": ["username", "user", "email", "password", "pass", "pwd", "remember", "remember_me", "next", "redirect", "return", "returnUrl", "continue", "goto", "challenge", "mfa", "otp", "token", "provider", "client_id", "scope", "state", "code", "nonce", "grant_type"]
+    },
+    "administration": {
+      "patterns": ["/admin", "/dashboard", "/portal", "/manage", "/settings", "/config"],
+      "params": ["admin", "root", "action", "edit", "delete", "update", "create", "id", "uid", "role", "permission", "view", "tab", "panel", "widget", "bulk_action", "selected", "config", "debug", "test", "env"]
+    },
+    "search_and_filter": {
+      "patterns": ["/search", "/find", "/lookup", "/filter", "/query"],
+      "params": ["q", "query", "search", "s", "keyword", "term", "find", "lookup", "type", "category", "facet", "sort", "order", "orderby", "limit", "offset", "p", "page"]
+    },
+    "file_operations": {
+      "patterns": ["/upload", "/download", "/file", "/export", "/import", "/media", "/static"],
+      "params": ["file", "filename", "path", "download", "upload", "dir", "directory", "src", "source", "dest", "destination", "url", "doc", "document", "id", "name", "type", "format", "template", "encoding", "delimiter", "overwrite", "chunk"]
+    },
+    "e_commerce": {
+      "patterns": ["/cart", "/checkout", "/shop", "/store", "/product", "/order"],
+      "params": ["product_id", "item_id", "id", "quantity", "qty", "variant", "sku", "coupon", "discount", "promo", "shipping", "billing", "payment", "currency", "price", "min_price", "max_price", "sort_by", "view_mode"]
+    },
+    "webhooks_and_proxies": {
+      "patterns": ["/webhook", "/proxy", "/redirect", "/forward", "/callback"],
+      "params": ["url", "target", "destination", "forward", "to", "callback", "event", "payload", "secret", "signature", "verify", "retry", "mode"]
+    }
+  },
+  "tech_stack": {
+    "wordpress": ["p", "page_id", "cat", "tag", "author", "s", "m", "year", "monthnum", "post_type", "pagename", "rest_route", "wp-json", "api", "nonce", "_wpnonce", "action", "doing_ajax", "ver", "replytocom"],
+    "drupal": ["q", "page", "sort", "order", "destination", "token", "ajax_page_state", "ajax_form", "view_name", "view_display_id", "view_args", "nid", "uid", "form_id"],
+    "django": ["page", "q", "search", "sort", "format", "csrfmiddlewaretoken", "next", "id", "pk", "slug", "username", "password", "email", "redirect_to", "token"],
+    "laravel": ["_token", "_method", "page", "search", "q", "sort", "filter", "id", "slug", "email", "password", "remember", "signature", "locale", "per_page"],
+    "rails": ["authenticity_token", "utf8", "commit", "page", "q", "sort", "id", "format", "locale", "controller", "action", "_method"],
+    "asp_net": ["__VIEWSTATE", "__VIEWSTATEGENERATOR", "__EVENTVALIDATION", "__EVENTTARGET", "__EVENTARGUMENT", "ReturnUrl", "username", "password"],
+    "spring": ["page", "size", "sort", "projection", "search", "query", "filter", "_csrf", "error"],
+    "express": ["page", "q", "search", "sort", "limit", "offset", "filter", "callback", "jsonp"],
+    "react": ["page", "q", "search", "filter", "sort", "view", "tab", "modal", "id", "slug", "_k", "_rsc"],
+    "angular": ["page", "q", "search", "filter", "sort", "view", "state", "id", "locale", "debug"],
+    "vue": ["page", "q", "search", "filter", "sort", "view", "tab", "id", "slug", "hash"],
+    "nextjs": ["page", "search", "q", "slug", "id", "preview", "locale", "redirect", "callbackUrl", "_next"],
+    "graphql": ["query", "mutation", "subscription", "operationName", "variables", "extensions", "id", "first", "last", "after", "before"],
+    "shopify": ["q", "search_query", "page", "sort_by", "view", "collection", "product", "variant", "quantity", "cart", "checkout"],
+    "aws": ["Action", "Version", "AccessKeyId", "SignatureMethod", "SignatureVersion", "Timestamp", "Signature", "SecurityToken"]
+  },
+  "security_patterns": {
+    "sqli_prone": ["id", "uid", "item", "product", "category", "search", "q", "query", "filter", "sort", "order", "limit", "offset", "page"],
+    "xss_prone": ["q", "query", "search", "s", "name", "title", "text", "description", "message", "email", "callback", "jsonp", "pretty", "url", "redirect", "return", "next"],
+    "ssrf_prone": ["url", "target", "destination", "dest", "to", "redirect", "forward", "src", "source", "link", "id", "file", "path", "callback", "webhook"],
+    "lfi_rfi_prone": ["file", "filename", "path", "dir", "directory", "doc", "document", "template", "view", "include", "src", "source", "dest"]
+  },
+  "top_common_params": [
+    "id", "name", "type", "page", "p", "q", "query", "search", "s", "filter", "sort", "order", "limit", "offset", "per_page", "token", "key", "api_key", "auth", "session", "user", "username", "email", "password", "action", "method", "mode", "view", "template", "format", "callback", "debug", "test", "v", "version", "url", "file", "path", "redirect", "next", "return", "status", "success", "error", "message", "data", "result"
+  ]
+}

@@ -207,7 +207,8 @@ def _build_remediation_item(vuln: Dict[str, Any]) -> Dict[str, Any]:
 
     cve_enrichment = enrichment.get("cve_enrichment")
     remediation = _canonicalize_remediation(
-        enrichment.get("detailed_remediation") or {}
+        enrichment.get("detailed_remediation") or {},
+        enrichment
     )
 
     # ── KEV details ───────────────────────────────────────────
@@ -265,7 +266,7 @@ def _build_remediation_item(vuln: Dict[str, Any]) -> Dict[str, Any]:
         # New: Propagate Smart Brief & Research Data
         "smart_brief": smart_brief,
         "mitre_attack": research_data.get("mitre_attack"),
-        "cwe_guidance": research_data.get("cwe_guidance"),
+        "cwe_guidance": remediation.get("cwe_guidance") or research_data.get("cwe_guidance"),
 
         # Priority
         "priority_score": enrichment["priority_score"],
@@ -314,17 +315,25 @@ def _consolidate_links(patches, hubs, refs) -> List[Dict[str, str]]:
         
     # Add Curated KB References
     for ref in (refs or []):
-        combined.append({
-            "title": f"Technical Deep-Dive ({ref.get('source', 'Expert')})",
-            "url": ref.get("url"),
-            "type": "research",
-            "source": ref.get("source", "AEGIS KB")
-        })
+        if isinstance(ref, dict):
+            combined.append({
+                "title": f"Technical Deep-Dive ({ref.get('source', 'Expert')})",
+                "url": ref.get("url"),
+                "type": "research",
+                "source": ref.get("source", "AEGIS KB")
+            })
+        elif isinstance(ref, str):
+            combined.append({
+                "title": "Technical Deep-Dive (Reference)",
+                "url": ref,
+                "type": "research",
+                "source": "AEGIS KB"
+            })
         
     return combined
 
 
-def _canonicalize_remediation(remediation: Dict[str, Any]) -> Dict[str, Any]:
+def _canonicalize_remediation(remediation: Dict[str, Any], enrichment: Dict[str, Any] = None) -> Dict[str, Any]:
     """Normalize enricher remediation into the legacy remediation-engine shape."""
     canonical = dict(remediation or {})
     steps = canonical.get("steps", []) or []
@@ -348,7 +357,7 @@ def _canonicalize_remediation(remediation: Dict[str, Any]) -> Dict[str, Any]:
         elif isinstance(ref, str) and ref:
             normalized_refs.append(ref)
 
-    cwe_guidance = canonical.get("cwe_guidance") or {}
+    cwe_guidance = canonical.get("cwe_guidance") or enrichment.get("cwe_remediation") or {}
     canonical.setdefault("source", "cve_enricher")
     canonical["detailed_steps"] = detailed_steps
     canonical["references"] = normalized_refs

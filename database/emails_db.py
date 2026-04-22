@@ -189,10 +189,18 @@ def add_email(target_id, target_domain, email, sources=None,
         }
 
         if breach_data:
-            update_set["breach_status"] = (
-                "breached" if breach_data.get("breached")
-                else "clean"
-            )
+            # Handle three states: True (breached), False (clean), None (unchecked)
+            breached_value = breach_data.get("breached")
+            if breached_value is True:
+                update_set["breach_status"] = "breached"
+            elif breached_value is False:
+                update_set["breach_status"] = "clean"
+            else:
+                # breached is None = unchecked (quota exceeded or API error)
+                update_set["breach_status"] = "unchecked"
+                if breach_data.get("unchecked_reason"):
+                    update_set["unchecked_reason"] = breach_data.get("unchecked_reason")
+            
             update_set["breach_count"] = breach_data.get(
                 "breach_count", 0
             )

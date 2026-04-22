@@ -123,7 +123,7 @@ class Config(metaclass=ConfigMeta):
     #   1-5:   Slow, stealthy, WAF-safe (recommended)
     #   10-20: Moderate speed, may trigger rate limits
     #   50+:   Fast but VERY noisy, high WAF trigger risk
-    ARJUN_RATE_LIMIT = int(os.getenv("ARJUN_RATE_LIMIT", "5"))
+    ARJUN_RATE_LIMIT = int(os.getenv("ARJUN_RATE_LIMIT", "15"))
 
     # Timeout (seconds)
     #   300:  5 min — small target lists
@@ -194,7 +194,8 @@ class Config(metaclass=ConfigMeta):
     ARJUN_DEFAULT_PROFILE = os.getenv("ARJUN_RATE_PROFILE", "conservative")
     
     # Circuit breaker: Auto-abort scan for a URL after X consecutive 403/429 errors
-    ARJUN_CIRCUIT_BREAKER_LIMIT = int(os.getenv("ARJUN_CIRCUIT_BREAKER_LIMIT", "3"))
+    # Strictly set to 2 strikes as per surgical discovery policy.
+    ARJUN_CIRCUIT_BREAKER_LIMIT = int(os.getenv("ARJUN_CIRCUIT_BREAKER_LIMIT", "2"))
 
     # ═══════════════════════════════════════════════════════════════
     # NAABU PORT SCANNER SETTINGS

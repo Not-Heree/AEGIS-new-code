@@ -50,7 +50,9 @@ from database.http_assets_db import (
 from database.vulns_db import (
     add_vulnerability, mark_all_vulns_old, get_vulns_by_target
 )
-from database.emails_db import mark_all_emails_old
+from database.emails_db import (
+    add_emails_bulk, mark_all_emails_old, get_emails_by_target
+)
 from database.scans_db import (
     create_scan_with_domain, complete_scan, fail_scan,
     update_scan_progress, mark_phase_completed,
@@ -64,6 +66,7 @@ from database.passive_recon_db import (
 from core.subfinder import scan_subdomains, save_certificates
 from core.naabu import run_naabu
 from core.httpx_runner import run_httpx
+from core.email_harvester import harvest_and_check
 from core.nuclei import run_nuclei
 from core.change_detector import detect_changes_with_snapshot
 from core.risk_scorer import calculate_risk_score
@@ -81,6 +84,7 @@ from utils.websocket import (
 # Internal mapping for frontend phase numbers
 PHASE_MAP = {
     "passive_recon": 0,
+    "email_harvesting": 0.5,
     "subdomain_discovery": 1,
     "port_scanning": 2,
     "http_fingerprinting": 3,
@@ -134,6 +138,9 @@ def _reload_from_db(target_id, domain, completed_phases):
     }
     http_result = {
         "success": False, "http_assets": [], "count": 0
+    }
+    email_result = {
+        "success": False, "emails": [], "count": 0
     }
 
     # ── Reload Phase 0: Passive Recon ────────────────────
@@ -279,10 +286,23 @@ def _reload_from_db(target_id, domain, completed_phases):
             len(stored_http)
         )
 
+    # ── Reload Phase 0.5: Email Harvesting ───────────────
+    if "email_harvesting" in completed_phases:
+        stored_emails = get_emails_by_target(target_id)
+        email_result = {
+            "success": True,
+            "emails": [e["email"] for e in stored_emails],
+            "count": len(stored_emails)
+        }
+        logger.info(
+            "[RESUME] Reloaded Phase 0.5: %d emails",
+            len(stored_emails)
+        )
+
     return (
         shodan_result, censys_result, whois_result,
-        subdomain_list, subs_result, ports_result,
-        http_result
+        email_result, subdomain_list, subs_result,
+        ports_result, http_result
     )
 
 
@@ -581,8 +601,8 @@ def run_full_scan(target_id, domain, scan_id=None):
     # ── Reload data from DB if resuming ──────────────────
     if is_resuming:
         (shodan_result, censys_result, whois_result,
-         subdomain_list, subs_result, ports_result,
-         http_result) = _reload_from_db(
+         email_result, subdomain_list, subs_result,
+         ports_result, http_result) = _reload_from_db(
             target_id, domain, completed_phases_db
         )
 
@@ -805,6 +825,74 @@ def run_full_scan(target_id, domain, scan_id=None):
         else:
             logger.info(
                 "[RESUME] Skipping Phase 0: passive_recon "
+                "(already completed)"
+            )
+
+        # ═════════════════════════════════════════════════
+        # PHASE 0.5: EMAIL HARVESTING
+        # ═════════════════════════════════════════════════
+        if "email_harvesting" not in completed_phases_db:
+            if is_cancelled(domain):
+                logger.warning(f"[ABORT] Scan cancelled for {domain} before Phase 0.5")
+                return {"success": False, "status": "cancelled"}
+
+            _progress(
+                scan_id, "email_harvesting", 8,
+                f"Harvesting emails for {domain}..."
+            )
+
+            try:
+                email_result = harvest_and_check(domain)
+
+                if email_result.get("success"):
+                    combined = email_result.get("combined", {})
+                    emails_data = combined.get("emails", [])
+
+                    if emails_data:
+                        add_emails_bulk(
+                            target_id, domain, emails_data
+                        )
+                    
+                    # Update target stats
+                    try:
+                        db = get_db()
+                        db[Config.TARGETS_COLLECTION].update_one(
+                            {"_id": ObjectId(target_id)},
+                            {"$set": {
+                                "total_emails": combined.get("total_emails", 0),
+                                "total_breached_emails": combined.get("total_breached", 0)
+                            }}
+                        )
+                    except Exception as e:
+                        logger.error(f"[EMAIL] Error updating target stats: {e}")
+
+                    logger.info(
+                        "Phase 0.5 complete: %d emails found, %d breached",
+                        combined.get("total_emails", 0),
+                        combined.get("total_breached", 0)
+                    )
+                else:
+                    logger.warning(
+                        "Phase 0.5 failed: %s",
+                        email_result.get("error", "Unknown error")
+                    )
+
+                phases_completed.append("email_harvesting")
+                mark_phase_completed(
+                    scan_id, "email_harvesting"
+                )
+
+            except Exception as e:
+                phases_failed.append({
+                    "phase": "email_harvesting",
+                    "error": str(e)
+                })
+                logger.error(
+                    "Phase 0.5 failed: %s", e, exc_info=True
+                )
+        else:
+            logger.info(
+                "[RESUME] Skipping Phase 0.5: email_harvesting "
                 "(already completed)"
             )
 

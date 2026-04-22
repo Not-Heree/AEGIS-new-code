@@ -85,20 +85,47 @@ def calculate_risk_score(target_id):
 
     Total is capped at 100.
     """
+    from bson import ObjectId
+    
     try:
+        # Ensure target_id is ObjectId format for database queries
+        if isinstance(target_id, str):
+            try:
+                target_id = ObjectId(target_id)
+            except Exception as e:
+                logger.error("Invalid target_id format: %s", e)
+                return 0
         base_score = 0
 
-        # ─── Vulnerability Scoring (Log + Asset Criticality + Confidence) ──
-        vuln_stats = get_vuln_stats(target_id)
-        all_vulns = get_vulns_by_target(target_id, status="open")
+        # Severity buckets for tiered saturation
+        # Each bucket has a (weight, cap, sensitivity)
+        TIER_CONFIG = {
+            "critical": {"cap": 50.0, "sens": 60.0},
+            "high":     {"cap": 30.0, "sens": 50.0},
+            "medium":   {"cap": 15.0, "sens": 30.0},
+            "low":      {"cap": 5.0,  "sens": 20.0},
+            "info":     {"cap": 2.0,  "sens": 10.0}
+        }
 
         vuln_score = 0.0
         severity_counts = {}
+        tier_raw_scores = {k: 0.0 for k in TIER_CONFIG.keys()}
+
+        # Fetch vulnerability data from database
+        all_vulns = get_vulns_by_target(target_id)
+        vuln_stats = get_vuln_stats(target_id)
+
+        logger.debug(
+            "[RISK] Fetched %d vulns, stats: %s for target %s",
+            len(all_vulns) if all_vulns else 0, vuln_stats, target_id
+        )
 
         if all_vulns:
-            # Score each vulnerability individually with multipliers
+            # 1. Accumulate raw weighted scores per severity tier
             for v in all_vulns:
                 sev = v.get("severity", "info").lower()
+                if sev not in TIER_CONFIG: sev = "info"
+                
                 host = v.get("host", "")
                 confidence = v.get("confidence", "standard")
 
@@ -106,25 +133,30 @@ def calculate_risk_score(target_id):
                 multiplier = get_multiplier(host)
                 conf_weight = CONFIDENCE_WEIGHTS.get(confidence, 0.65)
 
-                vuln_score += weight * multiplier * conf_weight
-
+                tier_raw_scores[sev] += weight * multiplier * conf_weight
                 severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
-            # Apply logarithmic compression to the total raw vuln score
-            # This prevents 300 vulns from being 300x worse than 1
-            if vuln_score > 0:
-                # Use a smooth exponential approach to asymptotic cap (60)
-                # Formula: Cap * (1 - e^(-raw / sensitivity))
-                vuln_score = VULN_SCORE_CAP * (1 - math.exp(-vuln_score / Config.RISK_SCORE_SENSITIVITY))
+            # 2. Apply independent saturation curves per tier
+            for sev, config in TIER_CONFIG.items():
+                raw = tier_raw_scores[sev]
+                if raw > 0:
+                    # Tier_Score = Cap * (1 - e^(-raw / sensitivity))
+                    tier_contribution = config["cap"] * (1 - math.exp(-raw / config["sens"]))
+                    vuln_score += tier_contribution
         else:
-            # Fallback to stats-only if individual vulns aren't available
+            # Fallback to stats-only with a simplified tiered model
             for entry in vuln_stats:
-                severity = entry["_id"].lower()
+                sev = entry["_id"].lower()
+                if sev not in TIER_CONFIG: continue
+                
                 count = entry["count"]
-                severity_counts[severity] = count
-                vuln_score += _log_vuln_score(severity, count)
+                severity_counts[sev] = count
+                
+                raw = count * SEVERITY_WEIGHTS.get(sev, 1)
+                tier_contribution = TIER_CONFIG[sev]["cap"] * (1 - math.exp(-raw / TIER_CONFIG[sev]["sens"]))
+                vuln_score += tier_contribution
 
-        # Ensure we stay within the allocated component cap
+        # Ensure the combined vulnerability component stays within the global cap
         if vuln_score > VULN_SCORE_CAP:
             vuln_score = float(VULN_SCORE_CAP)
 
@@ -230,7 +262,7 @@ def calculate_risk_score(target_id):
 
     except Exception as e:
         logger.error(
-            "Risk score calculation error: %s",
-            e, exc_info=True
+            "Risk score calculation error for target %s: %s",
+            target_id, e, exc_info=True
         )
         return 0

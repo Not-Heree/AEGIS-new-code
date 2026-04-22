@@ -41,45 +41,26 @@ class AdaptiveRateLimiter:
 
     def handle_response(self, status_code: int) -> str:
         """
-        Analyze response status to adjust rate or trigger circuit breaker.
-        
-        Returns:
-            "OK" if continuing, "ABORT" if circuit breaker tripped.
+        Analyze response status to trigger circuit breaker on 2nd consecutive error.
+        Adaptiveness removed as per surgical discovery policy.
         """
         if status_code in [403, 429]:
             self.consecutive_waf_errors += 1
             self.total_waf_errors += 1
             self.success_count = 0
             
-            # Exponential backoff on WAF detection
-            new_delay = self.current_delay + self.waf_delay_inc
-            logger.warning("[RATE LIMIT] WAF Detection (%d)! Increasing delay from %.2fs to %.2fs (Consecutive: %d)", 
-                          status_code, self.current_delay, new_delay, self.consecutive_waf_errors)
-            self.current_delay = new_delay
+            logger.warning("[RATE LIMIT] WAF Detection (%d)! (Consecutive: %d/2)", 
+                           status_code, self.consecutive_waf_errors)
             
             if self.consecutive_waf_errors >= Config.ARJUN_CIRCUIT_BREAKER_LIMIT:
-                logger.critical("[RATE LIMIT] Circuit Breaker Tripped! %d consecutive WAF errors. Aborting...", 
-                               self.consecutive_waf_errors)
+                logger.critical("[RATE LIMIT] Circuit Breaker Tripped! Aborting scan for this host.")
                 return "ABORT"
             
-            return "SLOW_DOWN"
+            return "OK" # Keep same rate for the 2nd attempt
         
         elif 200 <= status_code < 300:
+            self.consecutive_waf_errors = 0
             self.success_count += 1
-            
-            # If we had WAF errors, slowly try to recover the rate
-            if self.consecutive_waf_errors > 0:
-                self.consecutive_waf_errors = 0
-                
-            if self.current_delay > (1.0 / self.base_rate):
-                # Slowly decrease delay if we've had many successes
-                if self.success_count >= 10:
-                    old_delay = self.current_delay
-                    self.current_delay = max(1.0 / self.base_rate, self.current_delay * 0.8)
-                    logger.info("[RATE LIMIT] Connection stable (%d successes). Recovering rate: %.2fs -> %.2fs", 
-                                self.success_count, old_delay, self.current_delay)
-                    self.success_count = 0
-            
             return "OK"
             
         return "OK"
