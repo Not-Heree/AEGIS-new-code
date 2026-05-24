@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EASM Tool{% endblock %}</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <style>
+        :root {
+            --sidebar-bg: #2b2d31;
+            --sidebar-hover: #3a3c42;
+            --sidebar-active: #4a4c52;
+            --navbar-bg: #1e1f22;
+            --body-bg: #f0f1f3;
+            --card-bg: #ffffff;
+            --card-border: #e5e7eb;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --accent: #4f8cff;
+
+            --severity-critical: #dc2626;
+            --severity-high: #ea580c;
+            --severity-medium: #d97706;
+            --severity-low: #0891b2;
+            --severity-info: #6b7280;
+
+            --grade-a: #16a34a;
+            --grade-b: #65a30d;
+            --grade-c: #d97706;
+            --grade-d: #ea580c;
+            --grade-f: #dc2626;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinning {
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        body {
+            background-color: var(--body-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Navbar ────────────────────────────────── */
+        .navbar {
+            background: var(--navbar-bg);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.3rem;
+            color: #ffffff !important;
+        }
+
+        .navbar .nav-link {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .navbar .nav-link:hover {
+            color: #ffffff !important;
+        }
+
+        /* ── Sidebar ───────────────────────────────── */
+        .sidebar {
+            background: var(--sidebar-bg);
+            min-height: calc(100vh - 56px);
+            padding-top: 16px;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.65);
+            padding: 10px 18px;
+            margin: 2px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .sidebar .nav-link:hover {
+            background: var(--sidebar-hover);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .sidebar .nav-link.active {
+            background: var(--sidebar-active);
+            color: #ffffff;
+            border-left: 3px solid var(--accent);
+        }
+
+        .sidebar .nav-link i {
+            margin-right: 10px;
+            width: 18px;
+            text-align: center;
+        }
+
+        /* ── Main Content ──────────────────────────── */
+        .main-content {
+            padding: 28px;
+        }
+
+        /* ── Cards ─────────────────────────────────── */
+        .card {
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            background: var(--card-bg);
+            transition: box-shadow 0.2s;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        /* ── Stat Cards (Clickable) ────────────────── */
+        .stat-card {
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-card .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        .stat-card .stat-icon {
+            position: absolute;
+            top: 12px;
+            right: 14px;
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+
+        /* ── Filter Cards (Severity/Remediation) ───── */
+        .filter-card {
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            border-bottom: 3px solid transparent;
+        }
+
+        .filter-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .filter-card.active-filter {
+            border-bottom: 3px solid var(--accent);
+            box-shadow: 0 4px 12px rgba(79, 140, 255, 0.15);
+        }
+
+        /* ── Severity Badges ───────────────────────── */
+        .badge-critical {
+            background-color: var(--severity-critical);
+        }
+
+        .badge-high {
+            background-color: var(--severity-high);
+        }
+
+        .badge-medium {
+            background-color: var(--severity-medium);
+        }
+
+        .badge-low {
+            background-color: var(--severity-low);
+        }
+
+        .badge-info {
+            background-color: var(--severity-info);
+        }
+
+        /* ── Risk Grade ────────────────────────────── */
+        .risk-grade {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .risk-subscore {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .grade-a {
+            color: var(--grade-a);
+        }
+
+        .grade-b {
+            color: var(--grade-b);
+        }
+
+        .grade-c {
+            color: var(--grade-c);
+        }
+
+        .grade-d {
+            color: var(--grade-d);
+        }
+
+        .grade-f {
+            color: var(--grade-f);
+        }
+
+        /* ── Table ─────────────────────────────────── */
+        .table-hover tbody tr:hover {
+            background-color: rgba(79, 140, 255, 0.04);
+        }
+
+        .table thead th {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--card-border);
+        }
+
+        /* ── Buttons ───────────────────────────────── */
+        .btn-scan {
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 10px 25px;
+        }
+
+        .btn-scan:hover {
+            background: #3d7ae6;
+            color: white;
+        }
+
+        /* ── Scrollbar ─────────────────────────────── */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--body-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c4c7cc;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-shield-check"></i> EASM AEGIS
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/health" target="_blank">
+                            <i class="bi bi-heart-pulse"></i> Health
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/routes" target="_blank">
+                            <i class="bi bi-diagram-3"></i> API
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid flex-grow-1 overflow-hidden">
+        <div class="row h-100">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="/dashboard">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'targets' %}active{% endif %}" href="/targets">
+                            <i class="bi bi-bullseye"></i> Targets
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'scans' %}active{% endif %}" href="/scans">
+                            <i class="bi bi-search"></i> Scans
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'assets' %}active{% endif %}" href="/assets">
+                            <i class="bi bi-globe"></i> Assets
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'vulnerabilities' %}active{% endif %}"
+                            href="/vulnerabilities">
+                            <i class="bi bi-bug"></i> Vulnerabilities
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'emails' %}active{% endif %}" href="/emails">
+                            <i class="bi bi-envelope-exclamation"></i> Emails
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'changes' %}active{% endif %}" href="/changes">
+                            <i class="bi bi-bell"></i> Changes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'remediation' %}active{% endif %}" href="/remediation">
+                            <i class="bi bi-tools"></i> Remediation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'reports' %}active{% endif %}" href="/reports">
+                            <i class="bi bi-file-earmark-pdf"></i> Reports
+                        </a>
+                    </li>
+                    <li class="nav-item mt-4 mb-2">
+                        <hr style="border-color: rgba(255,255,255,0.1); margin: 0 15px;">
+                        <div class="px-3 py-2 text-uppercase text-muted" style="font-size: 0.6rem; letter-spacing: 1px;">
+                            System Settings
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'api_keys' %}active{% endif %}" href="{{ url_for('api_keys.index') }}">
+                            <i class="bi bi-key"></i> API Keys
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout" style="color: rgba(255,255,255,0.5);">
+                            <i class="bi bi-box-arrow-left"></i> Logout
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="col-md-10 ms-sm-auto main-content h-100 overflow-auto">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- API Helper -->
+    <script src="/static/js/api.js?v=2"></script>
+
+    <script>
+        function showLoading(btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+        }
+
+        function resetButton(btn, text) {
+            btn.disabled = false;
+            btn.innerHTML = text;
+        }
+
+        function showAlert(message, type) {
+            // Could be replaced with toast notifications
+            console.log('[' + type + '] ' + message);
+        }
+
+        // ── Risk Grade Helper (global) ──────────────
+        function scoreToGrade(score) {
+            if (score >= 95) return { grade: 'A+', cls: 'grade-a' };
+            if (score >= 85) return { grade: 'A', cls: 'grade-a' };
+            if (score >= 75) return { grade: 'B+', cls: 'grade-b' };
+            if (score >= 65) return { grade: 'B', cls: 'grade-b' };
+            if (score >= 55) return { grade: 'C+', cls: 'grade-c' };
+            if (score >= 45) return { grade: 'C', cls: 'grade-c' };
+            if (score >= 35) return { grade: 'D+', cls: 'grade-d' };
+            if (score >= 25) return { grade: 'D', cls: 'grade-d' };
+            if (score >= 15) return { grade: 'F+', cls: 'grade-f' };
+            return { grade: 'F', cls: 'grade-f' };
+        }
+
+        // ── IMPORTANT: Invert for grade ─────────────
+        // Risk score 0 = safest = A+
+        // Risk score 100 = most dangerous = F
+        // Grade needs the INVERSE
+        function riskScoreToGrade(riskScore) {
+            var safetyScore = 100 - (riskScore || 0);
+            return scoreToGrade(safetyScore);
+        }
+
+        function formatNumber(n) {
+            if (n === undefined || n === null) return '0';
+            return n.toLocaleString();
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            try { return new Date(d).toLocaleString(); } catch (e) { return d; }
+        }
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

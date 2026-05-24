@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Reports and generated data
+generated_reports/
+temp/
+logs/
+*.pdf
+*.log
+
+# External Tools
+tools/
+nuclei-templates/
+
+# OS files
+.DS_Store
+Thumbs.db

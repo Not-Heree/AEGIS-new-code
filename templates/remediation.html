@@ -1,0 +1,1014 @@
+{% extends "base.html" %}
+{% block title %}Remediation Plan - EASM Tool{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Priority Cards */
+    .priority-card {
+        border-left: 5px solid #dee2e6;
+        margin-bottom: 20px;
+        transition: all 0.3s;
+    }
+
+    .priority-card:hover {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .priority-card.priority-immediate {
+        border-left-color: #c0392b;
+    }
+
+    .priority-card.priority-week {
+        border-left-color: #e74c3c;
+    }
+
+    .priority-card.priority-month {
+        border-left-color: #f39c12;
+    }
+
+    .priority-card.priority-quarter {
+        border-left-color: #27ae60;
+    }
+
+    .priority-card.priority-info {
+        border-left-color: #3498db;
+    }
+
+    /* KEV Banner */
+    .kev-banner {
+        background: linear-gradient(135deg, #c0392b, #e74c3c);
+        color: white;
+        padding: 8px 15px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-block;
+        margin-bottom: 10px;
+        animation: pulse-kev 2s infinite;
+    }
+
+    @keyframes pulse-kev {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.85;
+        }
+    }
+
+    /* EPSS Bar */
+    .epss-bar-container {
+        background: #ecf0f1;
+        border-radius: 10px;
+        height: 24px;
+        overflow: hidden;
+        position: relative;
+        margin: 5px 0;
+    }
+
+    .epss-bar {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.8s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .epss-low {
+        background: linear-gradient(90deg, #27ae60, #2ecc71);
+    }
+
+    .epss-medium {
+        background: linear-gradient(90deg, #f39c12, #e67e22);
+    }
+
+    .epss-high {
+        background: linear-gradient(90deg, #e74c3c, #c0392b);
+    }
+
+    .epss-critical {
+        background: linear-gradient(90deg, #8e44ad, #c0392b);
+    }
+
+    /* Priority Score Circle */
+    .priority-circle {
+        width: 55px;
+        height: 55px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .priority-circle.score-critical {
+        background: linear-gradient(135deg, #c0392b, #e74c3c);
+    }
+
+    .priority-circle.score-high {
+        background: linear-gradient(135deg, #e74c3c, #e67e22);
+    }
+
+    .priority-circle.score-medium {
+        background: linear-gradient(135deg, #f39c12, #f1c40f);
+        color: #2c3e50;
+    }
+
+    .priority-circle.score-low {
+        background: linear-gradient(135deg, #27ae60, #2ecc71);
+    }
+
+    .priority-circle.score-info {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+    }
+
+    /* Fix Steps */
+    .fix-steps {
+        counter-reset: step-counter;
+        list-style: none;
+        padding-left: 0;
+    }
+
+    .fix-steps li {
+        counter-increment: step-counter;
+        padding: 10px 10px 10px 45px;
+        position: relative;
+        border-left: 2px solid #ecf0f1;
+        margin-left: 15px;
+        margin-bottom: 5px;
+    }
+
+    .fix-steps li:last-child {
+        border-left-color: transparent;
+    }
+
+    .fix-steps li::before {
+        content: counter(step-counter);
+        position: absolute;
+        left: -15px;
+        top: 8px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #3498db;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+
+    /* Code Block */
+    .code-block {
+        background: #2c3e50;
+        color: #ecf0f1;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        overflow-x: auto;
+        margin: 10px 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .code-block .code-label {
+        color: #3498db;
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: block;
+    }
+
+    /* Status Buttons */
+    .status-btn-group .btn {
+        padding: 5px 12px;
+        font-size: 0.8rem;
+        border-radius: 20px;
+    }
+
+    .status-btn-group .btn.active-status {
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.4);
+    }
+
+    /* Summary Cards */
+    .summary-stat {
+        text-align: center;
+        padding: 20px;
+    }
+
+    .summary-stat .stat-number {
+        font-size: 2.2rem;
+        font-weight: bold;
+    }
+
+    .summary-stat .stat-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #7f8c8d;
+        margin-top: 5px;
+    }
+
+    /* Threat Indicator Tags */
+    .threat-tag {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin: 2px;
+    }
+
+    .threat-tag.tag-kev {
+        background: #fde8e8;
+        color: #c0392b;
+        border: 1px solid #e74c3c;
+    }
+
+    .threat-tag.tag-epss {
+        background: #fef3e2;
+        color: #e67e22;
+        border: 1px solid #f39c12;
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+        background: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        margin-bottom: 20px;
+    }
+
+    /* Collapsible sections */
+    .section-toggle {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .section-toggle:hover {
+        color: #3498db;
+    }
+
+    .section-toggle .bi {
+        transition: transform 0.3s;
+    }
+
+    .section-toggle.collapsed .bi-chevron-down {
+        transform: rotate(-90deg);
+    }
+
+    /* Timeline badge */
+    .timeline-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .timeline-48h {
+        background: #fde8e8;
+        color: #c0392b;
+    }
+
+    .timeline-7d {
+        background: #fef3e2;
+        color: #e67e22;
+    }
+
+    .timeline-30d {
+        background: #fef9e7;
+        color: #f39c12;
+    }
+
+    .timeline-90d {
+        background: #e8f8f5;
+        color: #27ae60;
+    }
+
+    /* Loading skeleton */
+    .skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 6px;
+        height: 20px;
+        margin: 8px 0;
+    }
+
+    @keyframes shimmer {
+        0% {
+            background-position: -200% 0;
+        }
+
+        100% {
+            background-position: 200% 0;
+        }
+    }
+
+    .skeleton.skeleton-title {
+        height: 28px;
+        width: 60%;
+    }
+
+    .skeleton.skeleton-text {
+        height: 16px;
+        width: 80%;
+    }
+
+    .skeleton.skeleton-card {
+        height: 200px;
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2> Remediation Plan</h2>
+        {% if domain %}
+        <p class="text-muted mb-0">
+            Prioritized fix guidance for <strong>{{ domain }}</strong>
+        </p>
+        {% endif %}
+    </div>
+    <div>
+        {% if domain %}
+        <button class="btn btn-outline-primary me-2" onclick="exportPlan()">
+            <i class="bi bi-download"></i> Export
+        </button>
+        <button class="btn btn-primary" onclick="loadRemediationPlan()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+{% if not domain %}
+<!-- Domain Selector -->
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Select a Target</h5>
+        <p class="text-muted">Choose a target domain to view its remediation plan.</p>
+        <div class="row" id="target-selector">
+            {% for t in targets %}
+            <div class="col-md-4 mb-3">
+                <a href="/remediation/{{ t.get('root_domain', t.get('domain', '')) }}"
+                    class="card text-decoration-none h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-globe"></i>
+                            {{ t.get('root_domain', t.get('domain', '')) }}
+                        </h6>
+
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+            {% if not targets %}
+            <p class="text-muted text-center">
+                No targets found. Add a target and run a scan first.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- Summary Section -->
+<div id="summary-section">
+    <div class="row mb-4" id="summary-cards">
+        <!-- Populated by JavaScript -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Message -->
+<div id="summary-message" class="alert alert-info mb-4" style="display:none;"></div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <div class="row align-items-center">
+        <div class="col-md-3">
+            <label class="form-label mb-0 small fw-bold">Severity</label>
+            <select class="form-select form-select-sm" id="filter-severity" onchange="applyFilters()">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+                <option value="info">Info</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label mb-0 small fw-bold">Status</label>
+            <select class="form-select form-select-sm" id="filter-status" onchange="applyFilters()">
+                <option value="">All Statuses</option>
+                <option value="open"> Open</option>
+                <option value="in_progress"> In Progress</option>
+                <option value="resolved"> Resolved</option>
+                <option value="false_positive"> False Positive</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label mb-0 small fw-bold">Priority</label>
+            <select class="form-select form-select-sm" id="filter-priority" onchange="applyFilters()">
+                <option value="">All Priorities</option>
+                <option value="80">Fix Immediately (80+)</option>
+                <option value="60">Fix This Week (60+)</option>
+                <option value="40">Fix This Month (40+)</option>
+            </select>
+        </div>
+        <div class="col-md-3 text-end">
+            <label class="form-label mb-0 small fw-bold">&nbsp;</label>
+            <div>
+                <span class="text-muted small" id="item-count">Loading...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Remediation Items -->
+<div id="remediation-list">
+    <!-- Loading skeletons -->
+    <div class="card priority-card mb-3">
+        <div class="card-body">
+            <div class="skeleton skeleton-title"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+        </div>
+    </div>
+    <div class="card priority-card mb-3">
+        <div class="card-body">
+            <div class="skeleton skeleton-title"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if domain %}
+<script>
+    // Global state
+    let allItems = [];
+    const targetDomain = "{{ domain }}";
+    const targetId = "{{ target_id | default('') }}";
+
+    // ═══════════════════════════════════════════════════════════
+    // LOAD REMEDIATION PLAN
+    // ═══════════════════════════════════════════════════════════
+
+    async function loadRemediationPlan() {
+        try {
+            document.getElementById('remediation-list').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3 text-muted">
+                        Generating remediation plan...<br>
+                        <small>Enriching with threat intelligence (this may take a moment)</small>
+                    </p>
+                </div>`;
+
+            const data = await api.get(`/api/remediation/${targetDomain}`);
+
+            if (!data.success) {
+                showError(data.error || 'Failed to load remediation plan');
+                return;
+            }
+
+            allItems = data.remediation_items || [];
+
+            renderSummary(data.summary, data.priority_breakdown);
+            renderItems(allItems);
+
+            // Show summary message
+            if (data.summary && data.summary.message) {
+                const msgDiv = document.getElementById('summary-message');
+                msgDiv.style.display = 'block';
+                msgDiv.className = `alert ${data.summary.kev_count > 0 ? 'alert-danger' : 'alert-info'} mb-4`;
+                msgDiv.innerHTML = data.summary.message;
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed to load remediation plan: ' + error.message);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // RENDER SUMMARY CARDS
+    // ═══════════════════════════════════════════════════════════
+
+    function renderSummary(summary, priorities) {
+        const cards = document.getElementById('summary-cards');
+        if (!summary) return;
+
+        cards.innerHTML = `
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body summary-stat">
+                        <div class="stat-number text-primary">${summary.total_vulns || 0}</div>
+                        <div class="stat-label">Open Vulnerabilities</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card ${summary.kev_count > 0 ? 'border-danger' : ''}">
+                    <div class="card-body summary-stat">
+                        <div class="stat-number ${summary.kev_count > 0 ? 'text-danger' : 'text-success'}">
+                            ${summary.kev_count || 0}
+                        </div>
+                        <div class="stat-label">Actively Exploited (KEV)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card ${(priorities.fix_immediately || 0) > 0 ? 'border-warning' : ''}">
+                    <div class="card-body summary-stat">
+                        <div class="stat-number text-danger">${priorities.fix_immediately || 0}</div>
+                        <div class="stat-label">Fix Immediately</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body summary-stat">
+                        <div class="stat-number text-warning">${priorities.fix_this_week || 0}</div>
+                        <div class="stat-label">Fix This Week</div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // RENDER REMEDIATION ITEMS
+    // ═══════════════════════════════════════════════════════════
+
+    function renderItems(items) {
+        const container = document.getElementById('remediation-list');
+        const countEl = document.getElementById('item-count');
+
+        if (!items || items.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-shield-check" style="font-size: 3rem; color: #27ae60;"></i>
+                    <h5 class="mt-3">No Vulnerabilities Found</h5>
+                    <p class="text-muted">Your attack surface looks clean! If scan is in progress wait for some time.</p>
+                </div>`;
+            countEl.textContent = '0 items';
+            return;
+        }
+
+        countEl.textContent = `${items.length} item${items.length !== 1 ? 's' : ''}`;
+
+        container.innerHTML = items.map((item, index) => renderCard(item, index)).join('');
+    }
+
+    function renderCard(item, index) {
+        const priorityClass = getPriorityClass(item.priority_score);
+        const scoreClass = getScoreClass(item.priority_score);
+        const sevBadge = getSeverityBadge(item.severity);
+        const timelineBadge = getTimelineBadge(item.recommended_timeline);
+
+        // KEV banner
+        let kevHtml = '';
+        if (item.is_kev) {
+            const kevInfo = item.kev_info || {};
+            kevHtml = `
+                <div class="kev-banner">
+                     ACTIVELY EXPLOITED — CISA Known Exploited Vulnerability
+                    ${kevInfo.known_ransomware_use === 'Known' ? ' | 🔒 Used in Ransomware' : ''}
+                </div>`;
+        }
+
+        // EPSS bar
+        let epssHtml = '';
+        if (item.epss) {
+            const pct = item.epss.percentage || 0;
+            const epssClass = pct >= 70 ? 'epss-critical' : pct >= 40 ? 'epss-high' : pct >= 10 ? 'epss-medium' : 'epss-low';
+            epssHtml = `
+                <div class="mt-2">
+                    <small class="text-muted">Exploitation Probability (EPSS)</small>
+                    <div class="epss-bar-container">
+                        <div class="epss-bar ${epssClass}" style="width: ${Math.max(pct, 5)}%">
+                            ${pct}%
+                        </div>
+                    </div>
+                    <small class="text-muted">${item.epss.explanation || ''}</small>
+                </div>`;
+        }
+
+        // Threat indicators
+        let threatHtml = '';
+        if (item.threat_indicators && Array.isArray(item.threat_indicators)) {
+            threatHtml = `
+                <div class="mt-2">
+                    ${item.threat_indicators.map(t => {
+                const tagClass = t.includes('KEV') ? 'tag-kev' : 'tag-epss';
+                return `<span class="threat-tag ${tagClass}">${t}</span>`;
+            }).join('')}
+                </div>`;
+        }
+
+        // Remediation steps
+        let stepsHtml = '';
+        const steps = item.remediation?.detailed_steps || [];
+        if (steps.length > 0) {
+            stepsHtml = `
+                <ul class="fix-steps">
+                    ${steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+                </ul>`;
+        }
+        // Code Examples
+        let codeHtml = '';
+        const examples = item.remediation?.code_examples;
+        if (examples && Array.isArray(examples) && examples.length > 0) {
+            codeHtml = `
+                <div class="mt-3">
+                    <h6 class="text-muted small fw-bold">Technical Code Examples</h6>
+                    ${examples.map(ex => `
+                        <div class="code-block">
+                            <span class="code-label">${escapeHtml(ex.language || 'Code')}</span>
+                            <code>${escapeHtml(ex.code || '')}</code>
+                        </div>
+                    `).join('')}
+                </div>`;
+        }
+
+        // Compliance Information
+        let complianceHtml = '';
+        const compliance = item.remediation?.compliance;
+        if (compliance && Array.isArray(compliance) && compliance.length > 0) {
+            complianceHtml = `
+                <div class="mt-3">
+                    <h6 class="text-muted small fw-bold">Compliance Frameworks</h6>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${compliance.map(c => `<span class="badge bg-secondary" style="font-size: 0.7rem;">${escapeHtml(c)}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        // Affected Products
+        let productsHtml = '';
+        if (item.affected_products && item.affected_products.length > 0) {
+            productsHtml = `
+                <div class="mt-3">
+                    <h6 class="text-muted small fw-bold">Affected Products (NVD)</h6>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${item.affected_products.map(p => `<span class="badge border text-dark bg-light" style="font-size: 0.7rem;">${escapeHtml(p)}</span>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        // Intelligence Links (REPLACES old refsHtml)
+        let refsHtml = '';
+        const intelLinks = item.intelligence_links;
+        if (intelLinks && Array.isArray(intelLinks) && intelLinks.length > 0) {
+            refsHtml = `
+                <div class="mt-4 p-3" style="background: #f0fdf4; border-left: 4px solid #27ae60; border-radius: 6px;">
+                    <h6 class="section-toggle" data-bs-toggle="collapse"
+                        data-bs-target="#refs-${index}" style="color: #27ae60; margin-bottom: 10px;">
+                        <i class="bi bi-link-45deg"></i> Intelligence & Patch Links (${intelLinks.length})
+                    </h6>
+                    <div class="collapse show" id="refs-${index}">
+                        <ul class="list-unstyled ms-2 mb-0">
+                            ${intelLinks.map(link => {
+                const badgeCls = link.type === 'patch' ? 'bg-success' : link.type === 'research' ? 'bg-primary' : 'bg-info';
+                return `
+                                    <li class="mb-2">
+                                        <span class="badge ${badgeCls} me-2" style="width: 75px;">${(link.type || 'LINK').toUpperCase()}</span>
+                                        <a href="${escapeHtml(link.url)}" target="_blank"
+                                           class="text-break small text-decoration-none">
+                                            ${escapeHtml(link.title || link.url.substring(0, 80))}
+                                        </a>
+                                    </li>`;
+            }).join('')}
+                        </ul>
+                    </div>
+                </div>`;
+        }
+
+        // Status buttons
+        const status = item.status || 'open';
+        const vulnId = item.vuln_id || '';
+
+        return `
+        <div class="card priority-card ${priorityClass}" id="card-${vulnId}">
+            <div class="card-body">
+                <!-- Header Row -->
+                <div class="d-flex align-items-start gap-3">
+                    <div class="priority-circle ${scoreClass}">
+                        ${item.priority_score || 0}
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="mb-1">
+                                    #${item.rank || index + 1} — ${escapeHtml(item.name || 'Unknown')}
+                                </h5>
+                                <div class="mb-2">
+                                    ${sevBadge}
+                                    ${item.cve_id ? `<span class="badge bg-dark">${escapeHtml(item.cve_id)}</span>` : ''}
+                                    ${item.cvss_score ? `<span class="badge bg-secondary">CVSS ${item.cvss_score}</span>` : ''}
+                                    ${timelineBadge}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge ${item.priority_score >= 80 ? 'bg-danger' : item.priority_score >= 60 ? 'bg-warning text-dark' : item.priority_score >= 40 ? 'bg-info' : 'bg-secondary'}">
+                                    ${escapeHtml(item.priority_label || 'Unknown')}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="text-muted small">
+                            <i class="bi bi-globe"></i> ${escapeHtml(item.host || '')}
+                            ${item.url ? ` — <span class="text-break">${escapeHtml(item.url)}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KEV Banner -->
+                ${kevHtml}
+
+                <!-- Threat Indicators -->
+                ${threatHtml}
+
+                <!-- EPSS Bar -->
+                ${epssHtml}
+
+                <!-- NVD Description -->
+                ${item.nvd_description ? `
+                    <div class="mt-3">
+                        <h6><i class="bi bi-info-circle"></i> Description</h6>
+                        <p class="small text-muted mb-0">${escapeHtml(item.nvd_description)}</p>
+                    </div>
+                ` : ''}
+
+                <!-- Remediation -->
+                <div class="mt-4 p-3" style="background: #fffaE8; border-left: 4px solid #f39c12; border-radius: 6px;">
+                    <h6 style="color: #e67e22; margin-bottom: 10px;">
+                        How To Fix
+                        <small class="text-muted fw-normal ms-2" style="font-size: 0.85rem;">
+                            Source: ${escapeHtml(item.remediation?.source || 'auto-generated')}
+                        </small>
+                    </h6>
+                    <p class="mb-3" style="font-weight: 500; font-size: 0.95rem;">
+                        <strong>${escapeHtml(item.remediation?.summary || 'Follow the steps below to remediate this vulnerability.')}</strong>
+                    </p>
+                    ${stepsHtml ? `<div style="padding-left: 10px;">${stepsHtml}</div>` : `<p class="text-muted small">No detailed steps available. Refer to documentation below.</p>`}
+
+                    <div class="mt-3 d-flex gap-2">
+                        ${item.remediation_reference ? `
+                            <a href="${escapeHtml(item.remediation_reference)}" target="_blank" class="btn btn-sm btn-success">
+                                <i class="bi bi-journal-check"></i> Official Fix Guide
+                            </a>
+                        ` : ''}
+                        ${item.google_search_url ? `
+                            <a href="${item.google_search_url}" target="_blank" class="btn btn-sm btn-outline-dark">
+                                <i class="bi bi-google"></i> Google Research
+                            </a>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${productsHtml}
+                ${complianceHtml}
+                ${codeHtml}
+
+                <!-- References -->
+                ${refsHtml}
+
+                <!-- Fix By Date -->
+                <div class="mt-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-muted">
+                             Fix by: <strong>${escapeHtml(item.fix_by_date || 'N/A')}</strong>
+                            (${escapeHtml(item.recommended_timeline || '')})
+                        </small>
+                    </div>
+                    <div>
+                        <small class="text-muted">
+                            First seen: ${item.first_found ? new Date(item.first_found).toLocaleDateString() : 'N/A'}
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Status Management Tags -->
+                <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+                    <div class="status-btn-group">
+                        <span class="small fw-bold text-muted me-2">SET STATUS:</span>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-danger ${status === 'open' ? 'active active-status' : ''}"
+                                    onclick="updateStatus('${vulnId}', 'open')">Open</button>
+                            <button class="btn btn-outline-warning ${status === 'in_progress' ? 'active active-status' : ''}"
+                                    onclick="updateStatus('${vulnId}', 'in_progress')">In Progress</button>
+                            <button class="btn btn-outline-success ${status === 'resolved' ? 'active active-status' : ''}"
+                                    onclick="updateStatus('${vulnId}', 'resolved')">Resolved</button>
+                            <button class="btn btn-outline-secondary ${status === 'false_positive' ? 'active active-status' : ''}"
+                                    onclick="updateStatus('${vulnId}', 'false_positive')">False Positive</button>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-dark border p-2">
+                            Current Status: <strong class="text-uppercase">${status.replace('_', ' ')}</strong>
+                        </span>
+                    </div>
+                </div>
+
+            </div>
+        </div>`;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // STATUS UPDATE
+    // ═══════════════════════════════════════════════════════════
+
+    async function updateStatus(vulnId, newStatus) {
+        try {
+            const data = await api.patch(`/api/remediation/status/${vulnId}`, {
+                status: newStatus
+            });
+
+            if (data.success) {
+                // Update local state
+                const item = allItems.find(i => i.vuln_id === vulnId);
+                if (item) {
+                    item.status = newStatus;
+                }
+                // Re-render with filters
+                applyFilters();
+                showToast(data.message || 'Status updated', 'success');
+            } else {
+                showToast(data.message || 'Failed to update status', 'danger');
+            }
+        } catch (error) {
+            console.error('Status update error:', error);
+            showToast('Failed to update status', 'danger');
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // FILTERS
+    // ═══════════════════════════════════════════════════════════
+
+    function applyFilters() {
+        const severity = document.getElementById('filter-severity').value;
+        const status = document.getElementById('filter-status').value;
+        const minPriority = parseInt(document.getElementById('filter-priority').value) || 0;
+
+        let filtered = allItems;
+
+        if (severity) {
+            filtered = filtered.filter(i => i.severity === severity);
+        }
+        if (status) {
+            filtered = filtered.filter(i => i.status === status);
+        }
+        if (minPriority > 0) {
+            filtered = filtered.filter(i => (i.priority_score || 0) >= minPriority);
+        }
+
+        renderItems(filtered);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EXPORT
+    // ═══════════════════════════════════════════════════════════
+
+    async function exportPlan() {
+        try {
+            const data = await api.get(`/api/remediation/${targetDomain}/export`);
+
+            if (data.success) {
+                const blob = new Blob(
+                    [JSON.stringify(data.export, null, 2)],
+                    { type: 'application/json' }
+                );
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `remediation-plan-${targetDomain}-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('Plan exported successfully', 'success');
+            } else {
+                showToast('Export failed', 'danger');
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            showToast('Export failed', 'danger');
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════
+
+    function getPriorityClass(score) {
+        if (score >= 80) return 'priority-immediate';
+        if (score >= 60) return 'priority-week';
+        if (score >= 40) return 'priority-month';
+        if (score >= 20) return 'priority-quarter';
+        return 'priority-info';
+    }
+
+    function getScoreClass(score) {
+        if (score >= 80) return 'score-critical';
+        if (score >= 60) return 'score-high';
+        if (score >= 40) return 'score-medium';
+        if (score >= 20) return 'score-low';
+        return 'score-info';
+    }
+
+    function getSeverityBadge(severity) {
+        const classes = {
+            'critical': 'badge-critical',
+            'high': 'badge-high',
+            'medium': 'badge-medium',
+            'low': 'badge-low',
+            'info': 'badge-info'
+        };
+        const cls = classes[severity] || 'bg-secondary';
+        return `<span class="badge ${cls}">${(severity || 'unknown').toUpperCase()}</span>`;
+    }
+
+    function getTimelineBadge(timeline) {
+        if (!timeline) return '';
+
+        let cls = 'timeline-90d';
+        if (timeline.includes('48') || timeline.includes('immediate')) cls = 'timeline-48h';
+        else if (timeline.includes('7 day') || timeline.includes('week')) cls = 'timeline-7d';
+        else if (timeline.includes('30 day') || timeline.includes('month')) cls = 'timeline-30d';
+
+        return `<span class="timeline-badge ${cls}"> ${escapeHtml(timeline)}</span>`;
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    function showError(message) {
+        document.getElementById('remediation-list').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Error:</strong> ${escapeHtml(message)}
+            </div>`;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // INITIALIZE
+    // ═══════════════════════════════════════════════════════════
+
+    loadRemediationPlan();
+</script>
+{% endif %}
+{% endblock %}

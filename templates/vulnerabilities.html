@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block title %}Vulnerabilities - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2> Vulnerabilities</h2>
+    <button class="btn btn-scan" onclick="loadVulns()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Severity Filter Cards -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card filter-card text-center py-3" id="filter-critical" onclick="toggleFilter('critical')">
+            <span class="badge badge-critical fs-4" id="count-critical">0</span>
+            <br><small class="text-muted">Critical</small>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card filter-card text-center py-3" id="filter-high" onclick="toggleFilter('high')">
+            <span class="badge badge-high fs-4" id="count-high">0</span>
+            <br><small class="text-muted">High</small>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card filter-card text-center py-3" id="filter-medium" onclick="toggleFilter('medium')">
+            <span class="badge badge-medium fs-4" id="count-medium">0</span>
+            <br><small class="text-muted">Medium</small>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card filter-card text-center py-3" id="filter-low" onclick="toggleFilter('low')">
+            <span class="badge badge-low fs-4" id="count-low">0</span>
+            <br><small class="text-muted">Low</small>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card filter-card text-center py-3" id="filter-info" onclick="toggleFilter('info')">
+            <span class="badge badge-info fs-4" id="count-info">0</span>
+            <br><small class="text-muted">Info</small>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card filter-card text-center py-3 active-filter" id="filter-all" onclick="toggleFilter('all')">
+            <span class="fs-4 fw-bold" id="count-all" style="color: var(--text-primary);">0</span>
+            <br><small class="text-muted">All</small>
+        </div>
+    </div>
+</div>
+
+<!-- Active Filter Indicator -->
+<div class="mb-3" id="filter-indicator" style="display: none;">
+    <span class="badge bg-dark">
+        Filtered: <span id="filter-label"></span>
+        <button class="btn-close btn-close-white ms-2" style="font-size: 0.6rem;"
+            onclick="toggleFilter('all')"></button>
+    </span>
+</div>
+
+<!-- Vulns Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between">
+        <h6 class="mb-0">Findings</h6>
+        <small class="text-muted" id="showing-count"></small>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Name</th>
+                        <th>Host</th>
+                        <th>Domain</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="vulns-table">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    var allVulns = [];
+    var activeFilter = 'all';
+
+    // Check URL params for pre-set filter (from dashboard cards)
+    var urlParams = new URLSearchParams(window.location.search);
+    var presetSeverity = urlParams.get('severity');
+
+    async function loadVulns() {
+        try {
+            var data = await api.get('/api/vulns/');
+            allVulns = data.vulnerabilities || [];
+
+            // Count by severity
+            var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+            allVulns.forEach(function (v) {
+                var sev = (v.severity || 'info').toLowerCase();
+                if (counts[sev] !== undefined) counts[sev]++;
+            });
+
+            document.getElementById('count-critical').textContent = counts.critical;
+            document.getElementById('count-high').textContent = counts.high;
+            document.getElementById('count-medium').textContent = counts.medium;
+            document.getElementById('count-low').textContent = counts.low;
+            document.getElementById('count-info').textContent = counts.info;
+            document.getElementById('count-all').textContent = allVulns.length;
+
+            // Apply preset filter from URL or default
+            if (presetSeverity && counts[presetSeverity] !== undefined) {
+                toggleFilter(presetSeverity);
+                presetSeverity = null; // Only apply once
+            } else {
+                renderFiltered();
+            }
+
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('vulns-table').innerHTML =
+                '<tr><td colspan="5" class="text-center text-danger">Error loading</td></tr>';
+        }
+    }
+
+    function toggleFilter(severity) {
+        // Remove active from all cards
+        ['critical', 'high', 'medium', 'low', 'info', 'all'].forEach(function (s) {
+            document.getElementById('filter-' + s).classList.remove('active-filter');
+        });
+
+        // Set active
+        activeFilter = severity;
+        document.getElementById('filter-' + severity).classList.add('active-filter');
+
+        // Show/hide filter indicator
+        var indicator = document.getElementById('filter-indicator');
+        if (severity === 'all') {
+            indicator.style.display = 'none';
+        } else {
+            indicator.style.display = '';
+            document.getElementById('filter-label').textContent = severity.toUpperCase();
+        }
+
+        renderFiltered();
+    }
+
+    function renderFiltered() {
+        var filtered = allVulns;
+
+        if (activeFilter !== 'all') {
+            filtered = allVulns.filter(function (v) {
+                return (v.severity || 'info').toLowerCase() === activeFilter;
+            });
+        }
+
+        // Sort by severity
+        var sevOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+        filtered.sort(function (a, b) {
+            return (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5);
+        });
+
+        document.getElementById('showing-count').textContent =
+            filtered.length + ' of ' + allVulns.length + ' findings';
+
+        var tbody = document.getElementById('vulns-table');
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' +
+                (activeFilter === 'all' ? 'No vulnerabilities found.' :
+                    'No ' + activeFilter + ' vulnerabilities.') + '</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(function (v) {
+            var sev = (v.severity || 'info').toLowerCase();
+            var name = v.name || v.template_id || 'Unknown';
+            var host = v.host || '-';
+            var domain = v.target_domain || '-';
+            var vulnId = v._id || '';
+            var status = v.status || 'open';
+            var desc = v.description || '';
+            var cveId = v.cve_id || '';
+            var remediation = v.remediation || {};
+            var remDesc = remediation.description || remediation.priority || '';
+
+            var statusBadge = status === 'open'
+                ? '<span class="badge bg-danger">Open</span>'
+                : status === 'resolved'
+                    ? '<span class="badge bg-success">Resolved</span>'
+                    : '<span class="badge bg-secondary">False Positive</span>';
+
+            return '<tr>' +
+                '<td><span class="badge badge-' + sev + '">' + sev.toUpperCase() + '</span></td>' +
+                '<td>' +
+                '<strong>' + escapeHtml(name) + '</strong>' +
+                (cveId ? '<br><small><code>' + escapeHtml(cveId) + '</code></small>' : '') +
+                (desc ? '<br><small class="text-muted">' + escapeHtml(desc).substring(0, 100) + '</small>' : '') +
+                (remDesc ? '<br><small class="text-success"><i class="bi bi-wrench"></i> ' +
+                    escapeHtml(remDesc).substring(0, 80) + '</small>' : '') +
+                '</td>' +
+                '<td><small>' + escapeHtml(host) + '</small></td>' +
+                '<td>' + escapeHtml(domain) + '<br>' + statusBadge + '</td>' +
+                '<td>' +
+                '<div class="btn-group btn-group-sm">' +
+                '<a href="/vulns/' + encodeURIComponent(vulnId) + '/show" class="btn btn-outline-primary" title="View Details">' +
+                '<i class="bi bi-eye"></i></a>' +
+                '<a href="/remediation?vuln=' + encodeURIComponent(vulnId) + '" class="btn btn-outline-info" title="View Remediation">' +
+                '<i class="bi bi-tools"></i></a>' +
+                (status === 'open'
+                    ? '<button class="btn btn-outline-success" onclick="markVuln(\'' + vulnId + '\',\'resolved\')" title="Resolve">' +
+                    '<i class="bi bi-check-circle"></i></button>' +
+                    '<button class="btn btn-outline-secondary" onclick="markVuln(\'' + vulnId + '\',\'false_positive\')" title="False Positive">' +
+                    '<i class="bi bi-x-circle"></i></button>'
+                    : '<button class="btn btn-outline-warning" onclick="markVuln(\'' + vulnId + '\',\'open\')" title="Reopen">' +
+                    '<i class="bi bi-arrow-counterclockwise"></i></button>') +
+                '<button class="btn btn-outline-danger" onclick="deleteVuln(\'' + vulnId + '\')" title="Delete">' +
+                '<i class="bi bi-trash"></i></button>' +
+                '</div>' +
+                '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+
+    async function markVuln(vulnId, status) {
+        if (!vulnId) return;
+        try {
+            await api.patch('/api/vulns/' + vulnId + '/status', { status: status });
+            loadVulns();
+        } catch (e) { alert('Error updating vulnerability'); }
+    }
+
+    async function deleteVuln(vulnId) {
+        if (!vulnId || !confirm('Delete this vulnerability?')) return;
+        try {
+            await api.delete('/api/vulns/' + vulnId);
+            loadVulns();
+        } catch (e) { alert('Delete failed'); }
+    }
+
+    loadVulns();
+</script>
+{% endblock %}

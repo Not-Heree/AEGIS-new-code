@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Asset Breakdown - EASM Tool{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/dashboard"></a></li>
+        {% if domain %}
+        <li class="breadcrumb-item"><a href="/targets/{{ domain }}">{{ domain }}</a></li>
+        {% endif %}
+        <li class="breadcrumb-item active">Assets</li>
+    </ol>
+</nav>
+
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2> Asset Breakdown</h2>
+
+</div>
+
+<!-- Domain Selector (shown only when no domain is pre-set) -->
+{% if not domain %}
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row align-items-end">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">Select Target Domain</label>
+                <select id="domain-selector" class="form-select" onchange="onDomainSelected()">
+                    <option value=""> Choose a domain </option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <small class="text-muted">
+                    Select a target to view per-asset vulnerability breakdown,
+                    tier classification, and technology stack.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tier Summary Cards (Clickable — act as filters) -->
+<div class="row mb-4" id="tier-cards" style="display: none;">
+    <div class="col-md-3">
+        <div class="card filter-card border-danger" id="tier-card-critical" onclick="filterByTier('critical')">
+            <div class="card-body text-center py-2">
+                <h4 class="mb-0 text-danger" id="tier-critical">0</h4>
+                <small class="text-muted">Critical Infra</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card filter-card border-warning" id="tier-card-high" onclick="filterByTier('high')">
+            <div class="card-body text-center py-2">
+                <h4 class="mb-0 text-warning" id="tier-high">0</h4>
+                <small class="text-muted">High Value</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card filter-card border-secondary" id="tier-card-standard" onclick="filterByTier('standard')">
+            <div class="card-body text-center py-2">
+                <h4 class="mb-0 text-secondary" id="tier-standard">0</h4>
+                <small class="text-muted">Standard</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card filter-card border-success" id="tier-card-low" onclick="filterByTier('low')">
+            <div class="card-body text-center py-2">
+                <h4 class="mb-0 text-success" id="tier-low">0</h4>
+                <small class="text-muted">Dev / Test</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters (hidden until domain is selected) -->
+<div class="card mb-4" id="filters-card" style="display: none;">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-funnel"></i> Filters</h6>
+    </div>
+    <div class="card-body py-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Asset Tier</label>
+                <select id="filter-tier" class="form-select form-select-sm">
+                    <option value="all">All Tiers</option>
+                    <option value="critical">Critical Infrastructure</option>
+                    <option value="high">High Value</option>
+                    <option value="standard">Standard</option>
+                    <option value="low">Dev / Test</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Vulnerability Severity</label>
+                <select id="filter-severity" class="form-select form-select-sm">
+                    <option value="all">All Assets</option>
+                    <option value="has_critical">Has Critical Vulns</option>
+                    <option value="has_high">Has High Vulns</option>
+                    <option value="has_medium">Has Medium Vulns</option>
+                    <option value="has_vulns">Has Any Vulns</option>
+                    <option value="clean">No Vulnerabilities</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Search Hostname</label>
+                <input type="text" id="filter-search" class="form-control form-control-sm"
+                    placeholder="e.g. vpn, api, mail...">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-circle"></i> Clear
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tower Graph -->
+<div class="card mb-4" id="chart-card" style="display: none;">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Vulnerability Tower Graph</h5>
+    </div>
+    <div class="card-body">
+        <div id="chart-container" style="position: relative; height: 400px;">
+            <canvas id="tower-chart"></canvas>
+        </div>
+        <div class="text-center mt-2">
+            <small class="text-muted" id="chart-note"></small>
+        </div>
+    </div>
+</div>
+
+<!-- Asset Table -->
+<div class="card" id="table-card" style="display: none;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-table"></i> Asset Details</h5>
+        <div class="ms-auto d-flex align-items-center">
+            <small class="text-muted me-3" id="showing-count"></small>
+            <small class="text-muted" id="table-count"></small>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Tier</th>
+                        <th>Host</th>
+                        <th class="text-center">Critical</th>
+                        <th class="text-center">High</th>
+                        <th class="text-center">Medium</th>
+                        <th class="text-center">Low</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">Ports</th>
+                        <th>Technology</th>
+                    </tr>
+                </thead>
+                <tbody id="asset-table-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Empty State (shown when no domain selected from sidebar) -->
+<div id="empty-state" class="text-center py-5" {% if domain %}style="display: none;" {% endif %}>
+    <i class="bi bi-diagram-3" style="font-size: 4rem; color: #ccc;"></i>
+    <h4 class="text-muted mt-3">Select a Domain</h4>
+    <p class="text-muted">Choose a target domain above to view the per-asset vulnerability breakdown.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+<script>
+    // ── Domain can come from template OR from selector ──
+    var DOMAIN = "{{ domain or '' }}";
+</script>
+<script src="/static/js/asset_breakdown.js?v=2"></script>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}Targets - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2> Targets</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTargetModal">
+        <i class="bi bi-plus-circle"></i> Add Target
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Organization</th>
+                        <th>Status</th>
+                        <th>Subdomains</th>
+                        <th>Vulns</th>
+                        <th>Risk</th>
+                        <th>Last Scan</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="targets-table">
+                    <tr>
+                        <td colspan="8" class="text-center">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Premium Modal Styling - Centered in Content Area */
+    .modal-backdrop.show {
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        background-color: rgba(0, 0, 0, 0.3);
+    }
+
+    /* Offset modal to center within the 10-column main content area */
+    @media (min-width: 768px) {
+        #addTargetModal .modal-dialog {
+            margin-left: calc(50% + 8.333%);
+            /* Half of the 10-column width + 2-column sidebar */
+            transform: translateX(-50%) !important;
+        }
+    }
+
+    .modal-content {
+        border: none;
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        background: #f8f9fa;
+        border-bottom: 1px solid #eee;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        background: #f8f9fa;
+        border-top: 1px solid #eee;
+    }
+</style>
+
+<!-- Add Target Modal -->
+<div class="modal fade" id="addTargetModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Target</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addTargetForm">
+                    <div class="mb-3">
+                        <label class="form-label">Domain *</label>
+                        <input type="text" class="form-control" id="domain" placeholder="example.com" required>
+                        <small class="text-muted">Enter root domain </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Organization</label>
+                        <input type="text" class="form-control" id="org_name" placeholder="Company Name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="description" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addTarget()" id="addBtn">Add Target</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadTargets() {
+        try {
+            const data = await api.get('/api/targets/');
+            const tbody = document.getElementById('targets-table');
+
+            if (!data.success || !data.targets || data.targets.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">No targets found. Add one!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.targets.map(t => {
+                const domain = t.root_domain || t.domain || 'N/A';
+                return `
+            <tr>
+                <td><a href="/targets/${domain}" class="text-decoration-none"><strong>${domain}</strong></a></td>
+                <td>${t.org_name || '-'}</td>
+                <td><span class="badge bg-success">${t.status || 'active'}</span></td>
+                <td>${t.total_subdomains || 0}</td>
+                <td>${t.total_vulns || 0}</td>
+                <td>${t.risk_score || 0}/100</td>
+                <td>${t.last_scan_at ? new Date(t.last_scan_at).toLocaleDateString() : 'Never'}</td>
+                <td>
+                    <button class="btn btn-sm btn-success" onclick="runScan('${domain}')"><i class="bi bi-play"></i></button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteTarget('${domain}')"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>`;
+            }).join('');
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('targets-table').innerHTML =
+                '<tr><td colspan="8" class="text-center text-danger">Error loading targets</td></tr>';
+        }
+    }
+
+    async function addTarget() {
+        const domain = document.getElementById('domain').value.trim();
+        const org_name = document.getElementById('org_name').value.trim();
+        const description = document.getElementById('description').value.trim();
+        if (!domain) { alert('Domain required!'); return; }
+
+        try {
+            const result = await api.post('/api/targets/', { domain, org_name, description });
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('addTargetModal')).hide();
+                document.getElementById('addTargetForm').reset();
+                loadTargets();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown'));
+            }
+        } catch (e) {
+            alert('Error adding target');
+        }
+    }
+
+    async function runScan(domain) {
+        if (!confirm('Run full scan on ' + domain + '? This will start in the background.')) return;
+
+        try {
+            const result = await api.post('/api/scans/full/' + domain);
+            if (result.success) {
+                alert('Scan started for ' + domain + '! Check the Scans page for progress.');
+                loadTargets();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown'));
+            }
+        } catch (e) {
+            alert('Scan failed to start');
+        }
+    }
+
+    async function deleteTarget(domain) {
+        if (!confirm('Delete ' + domain + ' and ALL data?')) return;
+        try {
+            const result = await api.delete('/api/targets/' + domain);
+            alert(result.success ? 'Deleted!' : 'Error: ' + result.error);
+            loadTargets();
+        } catch (e) { alert('Delete failed'); }
+    }
+
+    loadTargets();
+</script>
+{% endblock %}

@@ -1,0 +1,708 @@
+{% extends "base.html" %}
+{% block title %}Passive Recon - EASM Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Passive Reconnaissance</h2>
+</div>
+
+<!-- Stats row — hidden by default, shown only when data exists -->
+<div class="row mb-4" id="recon-stats-row">
+    <div class="col-6 col-lg">
+        <div class="card stat-card">
+            <div class="stat-value text-primary" id="recon-total-targets">-</div>
+            <div class="stat-label">Targets Scanned</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card">
+            <div class="stat-value text-info" id="recon-total-hosts">-</div>
+            <div class="stat-label">Hosts Discovered</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card">
+            <div class="stat-value text-warning" id="recon-total-services">-</div>
+            <div class="stat-label">Services Found</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card">
+            <div class="stat-value text-danger" id="recon-total-cves">-</div>
+            <div class="stat-label">CVEs Reported</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg">
+        <div class="card stat-card">
+            <div class="stat-value text-success" id="recon-total-certs">-</div>
+            <div class="stat-label">Certificates</div>
+        </div>
+    </div>
+</div>
+
+<!-- Source Filter Buttons — hidden by default -->
+<div class="btn-group mb-4 flex-wrap" role="group" id="source-filter-group">
+    <button class="btn btn-outline-secondary source-filter-btn active" data-source="all"
+        onclick="applySourceFilter('all')">All Sources</button>
+    <button class="btn btn-outline-info source-filter-btn" data-source="shodan"
+        onclick="applySourceFilter('shodan')">Shodan</button>
+    <button class="btn btn-outline-warning source-filter-btn" data-source="censys"
+        onclick="applySourceFilter('censys')">Censys</button>
+    <button class="btn btn-outline-primary source-filter-btn" data-source="whois"
+        onclick="applySourceFilter('whois')">WHOIS</button>
+    <button class="btn btn-outline-success source-filter-btn" data-source="certificates"
+        onclick="applySourceFilter('certificates')">Certificates</button>
+</div>
+
+
+<!-- Per-Domain Recon Cards -->
+<div id="recon-domains-container"></div>
+
+<!-- Dynamic detail section — all cards injected here -->
+<div id="recon-details-container"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ══════════════════════════════════════════════════
+    //  Global fetch cache
+    // ══════════════════════════════════════════════════
+    const _fetchCache = {};
+    async function cachedGet(url) {
+        if (_fetchCache[url]) return _fetchCache[url];
+        const data = await api.get(url);
+        _fetchCache[url] = data;
+        return data;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadPassiveReconPage();
+    });
+
+    // ══════════════════════════════════════════════════
+    //  Main loader
+    // ══════════════════════════════════════════════════
+    async function loadPassiveReconPage() {
+        const overview = await cachedGet('/api/passive/');
+        const domains = (overview.success && overview.domains) ? overview.domains : [];
+
+        document.getElementById('recon-total-targets').textContent = overview.total_targets || 0;
+        document.getElementById('recon-total-hosts').textContent = overview.total_hosts || 0;
+        document.getElementById('recon-total-services').textContent = overview.total_services || 0;
+        document.getElementById('recon-total-cves').textContent = overview.total_cves || 0;
+
+        if (!overview.success || domains.length === 0) {
+            return;
+        }
+
+
+        // Build domain summary cards
+        const container = document.getElementById('recon-domains-container');
+        container.innerHTML = domains.map(d => buildDomainCard(d)).join('');
+
+        // Load cert count separately
+        loadCertCount();
+
+        // Load all detail tables
+        loadAllDetails(domains);
+
+        // Apply URL filter if present
+        const sourceParam = new URLSearchParams(window.location.search).get('source');
+        if (sourceParam && ['shodan', 'censys', 'whois', 'certificates'].includes(sourceParam)) {
+            applySourceFilter(sourceParam);
+        }
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Detail panel loader
+    // ══════════════════════════════════════════════════
+    async function loadAllDetails(domains) {
+        const detailsContainer = document.getElementById('recon-details-container');
+
+        // Collect all hosts, CVEs, services across domains
+        let allHosts = [];
+        let allCves = [];
+        let allServices = [];
+
+        for (const d of domains) {
+            // Hosts (Shodan + Censys)
+            const hostsData = await cachedGet('/api/passive/hosts/' + d.domain);
+            if (hostsData.success && hostsData.hosts) {
+                hostsData.hosts.forEach(h => { h._domain = d.domain; allHosts.push(h); });
+            }
+
+            // CVEs (Shodan)
+            const cvesData = await cachedGet('/api/passive/vulns/' + d.domain);
+            if (cvesData.success && cvesData.vulnerabilities) {
+                cvesData.vulnerabilities.forEach(v => { v._domain = d.domain; allCves.push(v); });
+            }
+
+            // Services
+            const svcData = await cachedGet('/api/passive/services/' + d.domain);
+            if (svcData.success && svcData.services) {
+                svcData.services.forEach(s => { s._domain = d.domain; allServices.push(s); });
+            }
+        }
+
+        let html = '';
+
+        // ── Infrastructure Table (Shodan + Censys hosts) ──
+        if (allHosts.length > 0) {
+            // Sort by vuln count
+            allHosts.sort((a, b) => (b.vulns || []).length - (a.vulns || []).length);
+            html += `
+            <div class="card mb-4" id="infra-hosts-card" data-detail-type="infrastructure">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Host Infrastructure
+                        <span class="badge bg-secondary ms-2">${allHosts.length} hosts</span>
+                    </h5>
+                    <small class="text-muted">Discovered via Shodan &amp; Censys</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>IP Address</th>
+                                    <th>Hostnames</th>
+                                    <th>Organization</th>
+                                    <th>Location</th>
+                                    <th>OS</th>
+                                    <th>Open Ports</th>
+                                    <th>Vulns</th>
+                                    <th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${allHosts.slice(0, 150).map(h => {
+                const hostnames = (h.hostnames || []).slice(0, 2).map(hn => esc(hn)).join('<br>');
+                const ports = (h.ports || []).slice(0, 8).join(', ');
+                const extraPorts = (h.ports || []).length > 8 ? ` <small class="text-muted">+${h.ports.length - 8}</small>` : '';
+                const location = [h.city, h.country].filter(Boolean).join(', ') || '-';
+                const org = h.org || h.isp || '-';
+                const os = h.os ? `<span class="badge bg-light text-dark border">${esc(h.os)}</span>` : '<span class="text-muted">-</span>';
+                const vulnCount = (h.vulns || []).length;
+                const vulnBadge = vulnCount > 0
+                    ? `<span class="badge bg-danger">${vulnCount}</span>`
+                    : '<span class="badge bg-success">0</span>';
+                const srcBadges = (h.sources || []).map(s =>
+                    `<span class="badge bg-${s === 'shodan' ? 'primary' : 'info text-dark'} me-1">${esc(s)}</span>`
+                ).join('');
+                return `<tr data-sources="${(h.sources || []).join(',')}">
+                                        <td><strong>${esc(h._domain)}</strong></td>
+                                        <td><code>${esc(h.ip)}</code></td>
+                                        <td><small>${hostnames || '-'}</small></td>
+                                        <td><small>${esc(org)}</small></td>
+                                        <td><small>${esc(location)}</small></td>
+                                        <td>${os}</td>
+                                        <td><small>${ports}${extraPorts}</small></td>
+                                        <td>${vulnBadge}</td>
+                                        <td>${srcBadges}</td>
+                                    </tr>`;
+            }).join('')}
+                                ${allHosts.length > 150 ? `<tr><td colspan="9" class="text-center text-muted">… and ${allHosts.length - 150} more hosts</td></tr>` : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // ── CVE Table ──
+        if (allCves.length > 0) {
+            allCves.sort((a, b) => (b.cvss || 0) - (a.cvss || 0));
+            html += `
+            <div class="card mb-4" id="all-cves-card" data-detail-type="cves">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Shodan-Reported CVEs
+                        <span class="badge bg-warning text-dark ms-2">Unverified</span>
+                    </h5>
+                    <small class="text-muted">${allCves.length} total — based on service fingerprints</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Domain</th><th>CVE ID</th><th>Host</th>
+                                    <th>Port</th><th>CVSS</th><th>Severity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${allCves.slice(0, 100).map(v => {
+                const sev = v.derived_severity || getSeverityFromCvss(v.cvss);
+                const badge = getSeverityBadge(sev);
+                const cvss = (v.cvss !== null && v.cvss !== undefined) ? v.cvss : 'N/A';
+                return `<tr>
+                                        <td><strong>${esc(v._domain)}</strong></td>
+                                        <td><a href="https://nvd.nist.gov/vuln/detail/${esc(v.cve_id)}" target="_blank" class="text-decoration-none"><strong>${esc(v.cve_id)}</strong></a></td>
+                                        <td><code>${esc(v.host || v.ip || '-')}</code></td>
+                                        <td>${v.port || '-'}</td>
+                                        <td><strong>${cvss}</strong></td>
+                                        <td><span class="badge ${badge}">${sev.toUpperCase()}</span></td>
+                                    </tr>`;
+            }).join('')}
+                                ${allCves.length > 100 ? `<tr><td colspan="6" class="text-center text-muted">… and ${allCves.length - 100} more CVEs</td></tr>` : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // ── Services Table ──
+        if (allServices.length > 0) {
+            html += `
+            <div class="card mb-4" id="all-services-card" data-detail-type="services">
+                <div class="card-header">
+                    <h5 class="mb-0">Service Fingerprints
+                        <small class="text-muted ms-2">Software detected across all targets</small>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Domain</th><th>Host</th><th>Port</th>
+                                    <th>Product</th><th>Version</th><th>Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${allServices.slice(0, 100).map(s => {
+                const srcBadges = (s.sources || []).map(src =>
+                    `<span class="badge bg-secondary me-1">${esc(src)}</span>`
+                ).join('');
+                const verHtml = s.version
+                    ? `<span class="badge bg-info text-dark">${esc(s.version)}</span>`
+                    : '<span class="text-muted">-</span>';
+                return `<tr data-sources="${(s.sources || []).join(',')}">
+                                        <td><strong>${esc(s._domain)}</strong></td>
+                                        <td><code>${esc(s.host || '-')}</code></td>
+                                        <td>${s.port || '-'}</td>
+                                        <td>${s.product ? `<strong>${esc(s.product)}</strong>` : '-'}</td>
+                                        <td>${verHtml}</td>
+                                        <td>${srcBadges}</td>
+                                    </tr>`;
+            }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // ── WHOIS section (only if data exists) ──
+        const whoisData = await cachedGet('/api/passive/source/whois');
+        if (whoisData.success && whoisData.results && whoisData.results.length > 0) {
+            const results = whoisData.results;
+            const totalRisks = results.reduce((n, r) => n + (r.risk_flags || []).length, 0);
+
+            let whoisHtml = `
+            <div class="row mb-4 g-3 text-center">
+                <div class="col-md-4"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 text-primary">${results.length}</h4>
+                    <small class="text-muted">Domains Analyzed</small>
+                </div></div>
+                <div class="col-md-4"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 ${totalRisks > 0 ? 'text-danger' : 'text-success'}">${totalRisks}</h4>
+                    <small class="text-muted">Risk Flags</small>
+                </div></div>
+                <div class="col-md-4"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 text-info">${whoisData.total_domains}</h4>
+                    <small class="text-muted">WHOIS Records</small>
+                </div></div>
+            </div>
+            <h6 class="mb-2">Domain Registration</h6>
+            <div class="table-responsive mb-4">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light"><tr>
+                        <th>Domain</th><th>Registrar</th><th>Created</th>
+                        <th>Expires</th><th>Days Left</th><th>Risks</th>
+                    </tr></thead><tbody>
+                    ${results.map(r => {
+                const dl = r.days_until_expiry;
+                let daysHtml = '-';
+                if (dl !== null && dl !== undefined) {
+                    if (dl <= 0) daysHtml = `<span class="badge bg-danger">EXPIRED</span>`;
+                    else if (dl <= 30) daysHtml = `<span class="badge bg-danger">${dl}d</span>`;
+                    else if (dl <= 90) daysHtml = `<span class="badge bg-warning text-dark">${dl}d</span>`;
+                    else daysHtml = `<span class="text-success">${dl}d</span>`;
+                }
+                const rc = (r.risk_flags || []).length;
+                return `<tr>
+                            <td><strong>${esc(r.domain)}</strong></td>
+                            <td>${esc(r.registrar || '-')}</td>
+                            <td>${fmtDate(r.creation_date)}</td>
+                            <td>${fmtDate(r.expiration_date)}</td>
+                            <td>${daysHtml}</td>
+                            <td>${rc > 0 ? `<span class="badge bg-danger">${rc}</span>` : '<span class="badge bg-success">0</span>'}</td>
+                        </tr>`;
+            }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+
+            // Risk flags
+            const risky = results.filter(r => (r.risk_flags || []).length > 0);
+            if (risky.length > 0) {
+                whoisHtml += '<h6 class="mb-2">Risk Flags</h6>';
+                risky.forEach(r => {
+                    whoisHtml += `<div class="card mb-2 border-0 bg-light"><div class="card-body py-2 px-3">
+                        <strong class="text-primary">${esc(r.domain)}</strong><div class="mt-1">`;
+                    r.risk_flags.forEach(f => {
+                        let severity = 'info', detail = '', sevClass = 'bg-secondary';
+                        if (typeof f === 'object' && f !== null) {
+                            severity = f.severity || 'info';
+                            detail = f.detail || f.flag || 'Unknown risk';
+                        } else {
+                            detail = String(f);
+                        }
+                        if (severity === 'critical') sevClass = 'bg-danger';
+                        else if (severity === 'high') sevClass = 'bg-warning text-dark';
+                        else if (severity === 'medium') sevClass = 'bg-info text-dark';
+                        whoisHtml += `<div class="d-flex align-items-start mb-1">
+                            <span class="badge ${sevClass} me-2 mt-1" style="min-width:70px;">${esc(severity.toUpperCase())}</span>
+                            <span>${esc(detail)}</span></div>`;
+                    });
+                    whoisHtml += '</div></div></div>';
+                });
+            }
+
+            // Name servers
+            const withNS = results.filter(r => (r.name_servers || []).length > 0);
+            if (withNS.length > 0) {
+                whoisHtml += '<h6 class="mb-2 mt-3">Name Servers</h6>';
+                withNS.forEach(r => {
+                    whoisHtml += `<div class="mb-1"><strong>${esc(r.domain)}:</strong> <code>${r.name_servers.map(esc).join(', ')}</code></div>`;
+                });
+            }
+
+            html += `
+            <div class="card mb-4" id="whois-details-card" data-detail-type="whois">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">WHOIS Intelligence</h5>
+                    <small class="text-muted">Domain registration &amp; risk analysis</small>
+                </div>
+                <div class="card-body">${whoisHtml}</div>
+            </div>`;
+        }
+
+        // ── Certificate section (only if data exists) ──
+        const certData = await cachedGet('/api/passive/certificates');
+        if (certData.success && certData.certificates && certData.certificates.length > 0) {
+            document.getElementById('recon-total-certs').textContent = certData.total_certificates || 0;
+            const summary = certData.summary || {};
+            const riskFlags = certData.risk_flags || [];
+            const certs = certData.certificates;
+            const issuers = summary.by_issuer || {};
+
+            let certHtml = `
+            <div class="row mb-3 g-3 text-center">
+                <div class="col-6 col-md"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 text-success">${certData.total_certificates}</h4>
+                    <small class="text-muted">Total Certs</small></div></div>
+                <div class="col-6 col-md"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 text-primary">${summary.active || 0}</h4>
+                    <small class="text-muted">Active</small></div></div>
+                <div class="col-6 col-md"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 ${(summary.expired || 0) > 0 ? 'text-danger' : 'text-success'}">${summary.expired || 0}</h4>
+                    <small class="text-muted">Expired</small></div></div>
+                <div class="col-6 col-md"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 ${(summary.expiring_soon || 0) > 0 ? 'text-warning' : 'text-success'}">${summary.expiring_soon || 0}</h4>
+                    <small class="text-muted">Expiring &lt;30d</small></div></div>
+                <div class="col-6 col-md"><div class="card bg-light p-3 border-0">
+                    <h4 class="mb-0 text-info">${summary.wildcard || 0}</h4>
+                    <small class="text-muted">Wildcard</small></div></div>
+            </div>`;
+
+            if (riskFlags.length > 0) {
+                certHtml += '<h6 class="mb-2">Risk Flags</h6>';
+                riskFlags.forEach(f => {
+                    const sev = (f.severity || 'info').toLowerCase();
+                    const cls = sev === 'critical' ? 'bg-danger' :
+                        sev === 'high' ? 'bg-warning text-dark' :
+                            sev === 'medium' ? 'bg-info text-dark' : 'bg-secondary';
+                    certHtml += `<div class="d-flex align-items-start mb-2">
+                        <span class="badge ${cls} me-2 mt-1" style="min-width:70px;">${esc(sev.toUpperCase())}</span>
+                        <span>${esc(f.detail || f.flag || '')}</span></div>`;
+                });
+            }
+
+            const topIssuers = Object.entries(issuers).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            if (topIssuers.length > 0) {
+                certHtml += '<h6 class="mb-2 mt-3">Top Issuers</h6><div class="d-flex flex-wrap gap-2 mb-3">';
+                topIssuers.forEach(([name, count]) => {
+                    certHtml += `<span class="badge bg-light text-dark border">${esc(name)} <strong>(${count})</strong></span>`;
+                });
+                certHtml += '</div>';
+            }
+
+            certHtml += `
+            <h6 class="mb-2">Certificate Log</h6>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light"><tr>
+                        <th>Domain</th><th>Common Name</th><th>Issuer</th>
+                        <th>Valid From</th><th>Expires</th><th>Status</th><th>Type</th>
+                    </tr></thead>
+                    <tbody>
+                        ${certs.slice(0, 100).map(c => {
+                const now = new Date();
+                const exp = c.not_after ? new Date(c.not_after) : null;
+                const days = exp ? Math.floor((exp - now) / 86400000) : null;
+                let statusBadge = '<span class="badge bg-secondary">Unknown</span>';
+                if (exp) {
+                    if (days < 0) statusBadge = '<span class="badge bg-danger">Expired</span>';
+                    else if (days <= 30) statusBadge = `<span class="badge bg-warning text-dark">${days}d left</span>`;
+                    else statusBadge = '<span class="badge bg-success">Active</span>';
+                }
+                const typeBadge = c.is_wildcard
+                    ? '<span class="badge bg-info text-dark">Wildcard</span>'
+                    : '<span class="badge bg-light text-dark border">Standard</span>';
+                return `<tr>
+                                <td><strong>${esc(c.domain)}</strong></td>
+                                <td><code>${esc(c.common_name || '-')}</code>${c.san_count > 1 ? ` <small class="text-muted">+${c.san_count - 1} SANs</small>` : ''}</td>
+                                <td>${esc(c.issuer_org || '-')}</td>
+                                <td>${fmtDate(c.not_before)}</td>
+                                <td>${fmtDate(c.not_after)}</td>
+                                <td>${statusBadge}</td>
+                                <td>${typeBadge}</td>
+                            </tr>`;
+            }).join('')}
+                        ${certs.length > 100 ? `<tr><td colspan="7" class="text-center text-muted">Showing 100 of ${certs.length} certificates</td></tr>` : ''}
+                    </tbody>
+                </table>
+            </div>`;
+
+            html += `
+            <div class="card mb-4" id="cert-details-card" data-detail-type="certificates">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Certificate Intelligence</h5>
+                    <small class="text-muted">Certificate Transparency logs</small>
+                </div>
+                <div class="card-body">${certHtml}</div>
+            </div>`;
+        }
+
+        detailsContainer.innerHTML = html;
+
+        // Apply any active source filter to newly rendered detail cards
+        const activeBtn = document.querySelector('.source-filter-btn.active');
+        if (activeBtn && activeBtn.dataset.source !== 'all') {
+            applySourceFilter(activeBtn.dataset.source);
+        }
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Certificate count (for stat card)
+    // ══════════════════════════════════════════════════
+    async function loadCertCount() {
+        try {
+            const data = await cachedGet('/api/passive/certificates');
+            if (data.success) {
+                document.getElementById('recon-total-certs').textContent = data.total_certificates || 0;
+            }
+        } catch (e) { /* silently skip */ }
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Source Filter
+    // ══════════════════════════════════════════════════
+    function applySourceFilter(source) {
+        // Toggle button states
+        document.querySelectorAll('.source-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.source === source);
+        });
+
+        // Update URL
+        const url = new URL(window.location);
+        if (source === 'all') url.searchParams.delete('source');
+        else url.searchParams.set('source', source);
+        window.history.replaceState({}, '', url);
+
+        // ── Domain summary cards ──
+        document.querySelectorAll('.recon-domain-card').forEach(card => {
+            if (source === 'all') { card.style.display = ''; return; }
+            if (source === 'certificates') { card.style.display = 'none'; return; }
+            const sources = (card.dataset.sources || '').split(',');
+            card.style.display = sources.includes(source) ? '' : 'none';
+        });
+
+        // ── Detail cards: show/hide by type ──
+        const detailMap = {
+            'all': ['infrastructure', 'cves', 'services', 'whois', 'certificates'],
+            'shodan': ['infrastructure', 'cves', 'services'],
+            'censys': ['infrastructure', 'services'],
+            'whois': ['whois'],
+            'certificates': ['certificates'],
+        };
+        const visible = detailMap[source] || [];
+
+        document.querySelectorAll('#recon-details-container [data-detail-type]').forEach(card => {
+            const type = card.dataset.detailType;
+            card.style.display = visible.includes(type) ? '' : 'none';
+
+            // For infrastructure & services tables, filter rows by source
+            if (type === 'infrastructure' || type === 'services') {
+                if (source !== 'all' && source !== 'whois' && source !== 'certificates') {
+                    card.querySelectorAll('tbody tr[data-sources]').forEach(row => {
+                        const rowSrcs = (row.dataset.sources || '').split(',');
+                        row.style.display = (source === 'shodan' || source === 'censys')
+                            ? (rowSrcs.includes(source) ? '' : 'none')
+                            : '';
+                    });
+                } else {
+                    card.querySelectorAll('tbody tr[data-sources]').forEach(row => { row.style.display = ''; });
+                }
+            }
+        });
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Build Domain Summary Card
+    // ══════════════════════════════════════════════════
+    function buildDomainCard(d) {
+        const shodan = d.shodan || {};
+        const censys = d.censys || {};
+        const whois = d.whois || {};
+        const certs = d.certificates || {};
+        const products = (d.products || []).slice(0, 8);
+        const cves = d.cve_count_by_severity || {};
+
+        const sources = [];
+        if (shodan.available) sources.push('shodan');
+        if (censys.available) sources.push('censys');
+        if (whois.available) sources.push('whois');
+        if (certs.available) sources.push('certificates');
+
+        // Source summary lines
+        const shodanHtml = shodan.available
+            ? `<span class="badge bg-primary me-1">Shodan</span> ${shodan.hosts} hosts, ${shodan.services} services, ${shodan.cves} CVEs`
+            : `<span class="text-muted">Shodan: Not collected</span>`;
+
+        const censysHtml = censys.available
+            ? `<span class="badge bg-info text-dark me-1">Censys</span> ${censys.hosts} hosts, ${censys.services} services`
+            : `<span class="text-muted">Censys: Not collected</span>`;
+
+        let whoisHtml = '';
+        if (whois.available) {
+            const flagCount = (whois.risk_flags || []).length;
+            whoisHtml = `<span class="badge bg-success me-1">WHOIS</span> ${esc(whois.registrar || 'Unknown registrar')}`;
+            if (flagCount > 0) whoisHtml += ` <span class="badge bg-warning text-dark">${flagCount} risk${flagCount > 1 ? 's' : ''}</span>`;
+            const dul = whois.days_until_expiry;
+            if (dul !== null && dul !== undefined && dul <= 30) {
+                whoisHtml += ` <span class="badge bg-danger ms-1">Expires in ${dul}d</span>`;
+            }
+        } else {
+            whoisHtml = `<span class="text-muted">WHOIS: Not collected</span>`;
+        }
+
+        let certsHtml = '';
+        if (certs.available) {
+            certsHtml = `<span class="badge bg-success me-1">Certs</span> ${certs.total} certificates`;
+            if ((certs.expired || 0) > 0) certsHtml += ` <span class="badge bg-danger ms-1">${certs.expired} expired</span>`;
+            if ((certs.expiring_soon || 0) > 0) certsHtml += ` <span class="badge bg-warning text-dark ms-1">${certs.expiring_soon} expiring</span>`;
+        } else {
+            certsHtml = `<span class="text-muted">Certificates: Not collected</span>`;
+        }
+
+        // CVE badges
+        let cveBadges = '';
+        if (d.total_cves > 0) {
+            if (cves.critical) cveBadges += `<span class="badge bg-danger me-1">${cves.critical} Critical</span>`;
+            if (cves.high) cveBadges += `<span class="badge bg-warning text-dark me-1">${cves.high} High</span>`;
+            if (cves.medium) cveBadges += `<span class="badge bg-info text-dark me-1">${cves.medium} Medium</span>`;
+            if (cves.low) cveBadges += `<span class="badge bg-secondary me-1">${cves.low} Low</span>`;
+        } else {
+            cveBadges = `<span class="text-success">No CVEs</span>`;
+        }
+
+        // Technologies
+        let productsHtml = products.map(p =>
+            `<span class="badge bg-light text-dark me-1 mb-1">${esc(p)}</span>`
+        ).join('');
+        if ((d.products || []).length > 8) {
+            productsHtml += `<small class="text-muted">+${d.products.length - 8} more</small>`;
+        }
+
+        // Header badges
+        let headerBadges = `
+            <span class="badge bg-dark me-1">${d.total_hosts} hosts</span>
+            <span class="badge bg-dark me-1">${d.total_services} services</span>
+            <span class="badge bg-danger me-1">${d.total_cves} CVEs</span>`;
+        if (d.total_certs > 0) {
+            headerBadges += `<span class="badge bg-success">${d.total_certs} certs</span>`;
+        }
+
+        return `
+        <div class="card mb-3 recon-domain-card" data-sources="${sources.join(',')}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <a href="/targets/${esc(d.domain)}" class="text-decoration-none">
+                        <strong>${esc(d.domain)}</strong>
+                    </a>
+                </h6>
+                <div>${headerBadges}</div>
+            </div>
+            <div class="card-body"><div class="row">
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-2">Sources</h6>
+                    <div class="mb-1">${shodanHtml}</div>
+                    <div class="mb-1">${censysHtml}</div>
+                    <div class="mb-1">${whoisHtml}</div>
+                    <div>${certsHtml}</div>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-2">CVEs</h6>
+                    <div>${cveBadges}</div>
+                </div>
+                <div class="col-md-4">
+                    <h6 class="text-muted mb-2">Technologies</h6>
+                    <div>${productsHtml || '<span class="text-muted">None detected</span>'}</div>
+                </div>
+            </div></div>
+        </div>`;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Helpers
+    // ══════════════════════════════════════════════════
+    function getSeverityFromCvss(cvss) {
+        if (cvss === null || cvss === undefined) return 'unknown';
+        const s = parseFloat(cvss);
+        if (s >= 9.0) return 'critical';
+        if (s >= 7.0) return 'high';
+        if (s >= 4.0) return 'medium';
+        return 'low';
+    }
+
+    function getSeverityBadge(severity) {
+        return {
+            'critical': 'bg-danger',
+            'high': 'bg-warning text-dark',
+            'medium': 'bg-info text-dark',
+            'low': 'bg-secondary',
+            'unknown': 'bg-light text-dark'
+        }[severity] || 'bg-light text-dark';
+    }
+
+    function fmtDate(val) {
+        if (!val) return '-';
+        try {
+            return new Date(val).toLocaleDateString('en-US', {
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+        } catch (e) { return String(val); }
+    }
+
+    function esc(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+</script>
+{% endblock %}
